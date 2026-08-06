@@ -76,8 +76,12 @@ aura sous les yeux au téléphone.
 ## Étape 3 — Résoudre la ville
 
 ```bash
-python3 ~/.claude/skills/creer-clinique-offre/scripts/ville.py "<ville>" --cp <CP si connu>
+python3 <dossier_skill>/scripts/ville.py "<ville>" --cp <CP si connu>
 ```
+
+`<dossier_skill>` est le dossier qui contient ce `SKILL.md`. **Ne pas coder le chemin en dur** :
+le plugin est installé sous un dossier versionné (`.../sarecrute-recruteur/<version>/skills/…`),
+qui change à chaque mise à jour.
 
 Le département (`county`) conditionne **tout** le matching : sans lui, aucun rapprochement n'est
 créé. Traiter la sortie du script :
