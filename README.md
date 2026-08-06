@@ -14,6 +14,16 @@ claude plugin install sarecrute-recruteur@sarecrute
 Puis redémarrer Claude Code. Les compétences se déclenchent d'elles-mêmes quand la demande
 correspond ; il n'y a pas de commande à retenir.
 
+**Si tu préfères que Claude s'en occupe** — y compris la vérification des connecteurs et des
+réglages système — donne-lui simplement ce lien et laisse-le dérouler :
+
+```
+https://raw.githubusercontent.com/Cleuteu/sarecrute-competences/main/ONBOARDING.md
+```
+
+C'est le guide [ONBOARDING.md](ONBOARDING.md) de ce dépôt. Aucun compte n'est nécessaire pour
+l'ouvrir.
+
 ## Mise à jour
 
 ```bash
