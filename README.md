@@ -61,9 +61,17 @@ claude plugin validate .                       # manifeste marketplace
 claude plugin validate plugins/sarecrute-recruteur
 ```
 
-Penser à monter `version` dans `plugins/sarecrute-recruteur/.claude-plugin/plugin.json` **et**
-dans `.claude-plugin/marketplace.json` — les deux doivent rester d'accord — puis prévenir les
-recruteurs qu'il y a une mise à jour à tirer.
+**Toute correction exige de monter `version`**, dans
+`plugins/sarecrute-recruteur/.claude-plugin/plugin.json` **et** dans
+`.claude-plugin/marketplace.json` — les deux doivent rester d'accord. Sans ce changement de
+numéro, `claude plugin update` répond « already at the latest version » et ne tire rien : le
+correctif reste sur GitHub et personne ne l'a. Prévenir ensuite les recruteurs qu'il y a une mise
+à jour à tirer.
+
+Ne pas coder de chemin en dur dans un `SKILL.md` : le plugin s'installe sous
+`~/.claude/plugins/cache/sarecrute/sarecrute-recruteur/<version>/skills/…`, dossier qui change à
+chaque publication. Les ressources bundlées se désignent relativement au dossier de la
+compétence (`scripts/…`, `references/…`).
 
 Ce dépôt est public : il décrit des workflows et la structure d'une base Airtable, il ne contient
 **aucun identifiant, jeton, coordonnée personnelle ni donnée de candidat ou de clinique**. Ne rien
