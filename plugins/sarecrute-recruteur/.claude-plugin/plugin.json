@@ -1,0 +1,19 @@
+{
+  "name": "sarecrute-recruteur",
+  "version": "0.1.0",
+  "description": "Compétences quotidiennes des recruteurs SaRecrute : créer une clinique et son offre d'emploi depuis une annonce, et préparer les brouillons de publication Facebook du jour.",
+  "author": {
+    "name": "SaRecrute"
+  },
+  "keywords": [
+    "sarecrute",
+    "recrutement",
+    "veterinaire",
+    "airtable",
+    "facebook"
+  ],
+  "skills": [
+    "./skills/creer-clinique-offre",
+    "./skills/creer-brouillons-facebook"
+  ]
+}
