@@ -68,10 +68,23 @@ poste, pour ne poser la question qu'une seule fois.
    indiquer en une ligne au début du compte rendu au nom de qui on travaille.
 
 2. S'il n'existe pas, construire la liste des recruteurs possibles depuis Airtable :
-   `list_records_for_table` sur `tblzKMXlCBH21hbJy`, champ `Responsable de l'offre`
-   (`fld0PBN7RvLtXb2Is`), filtré sur les 3 derniers mois
-   (`{"operator":"isWithin","operands":["fldgV9Lx0qoPiG5Ry",{"mode":"pastNumberOfDays","numberOfDays":90,"timeZone":"Europe/Paris"}]}`),
-   puis dédupliquer les couples nom + email obtenus.
+   `list_records_for_table` sur `tblzKMXlCBH21hbJy`, **`fieldIds` limité au seul**
+   `fld0PBN7RvLtXb2Is` (Responsable de l'offre), filtré sur les 30 derniers jours
+   (`{"operator":"isWithin","operands":["fldgV9Lx0qoPiG5Ry",{"mode":"pastNumberOfDays","numberOfDays":30,"timeZone":"Europe/Paris"}]}`),
+   **et `pageSize: 100`**. Puis dédupliquer les couples nom + email obtenus.
+
+   Ces trois bornes ne sont pas décoratives : sur 90 jours et sans `pageSize`, la table renvoie
+   ~455 enregistrements soit près de 200 Ko, **au-delà de la limite de contexte** — l'appel échoue
+   et la compétence s'arrête avant d'avoir rien fait. C'est le cas de tout **nouveau recruteur**,
+   puisque c'est justement quand `recruteur.json` est absent qu'on passe ici. Ne jamais élargir la
+   fenêtre ni demander de champ supplémentaire à cet appel-là.
+
+   Si malgré tout la réponse dépasse la limite et se retrouve sauvegardée dans un fichier, ne pas
+   la relire avec l'outil de lecture : extraire les responsables au shell, par exemple
+   ```bash
+   jq -r '[.records[].cellValuesByFieldId["fld0PBN7RvLtXb2Is"].valuesByLinkedRecordId // {}
+           | .[] | .[0] | select(.!=null) | (.name+" <"+.email+">")] | unique[]' "<chemin_json>"
+   ```
 
 3. Poser la question avec AskUserQuestion. **Pré-sélectionner** l'entrée dont l'email correspond
    à celui du compte Claude de l'utilisateur, s'il y a une correspondance. Laisser la possibilité
@@ -93,8 +106,14 @@ explicitement ; ce n'est jamais le comportement par défaut.
    - Date de publication = aujourd'hui : `{"operator":"=","operands":["fldgV9Lx0qoPiG5Ry",{"mode":"today","timeZone":"Europe/Paris"}]}`
    - ET Publié ? = false : `{"operator":"=","operands":["fldOrR0E0zGE3nq6F",false]}`
 
-   Champs à demander : Responsable de l'offre, Texte de publication, url image publication,
-   Canal de diffusion (lien), Canal de diffusion (select), Offre d'emploi.
+   Champs à demander : Responsable de l'offre, url image publication, Canal de diffusion (lien),
+   Canal de diffusion (select), Offre d'emploi — **sans `Texte de publication`**, et
+   `pageSize: 100`.
+
+   Le texte des annonces se récupère dans un **second appel**, une fois le filtrage du point 3
+   fait, en passant les `recordIds` des seules publications retenues. Demandé d'emblée pour toutes
+   les publications du jour, il gonfle la réponse de plusieurs dizaines de Ko de texte dont on
+   jettera la majeure partie.
 3. Filtrer côté client :
    - garder uniquement les publications du **responsable identifié à l'étape 1** (sauf demande
      explicite de traiter tout le monde) ; comparer sur l'email quand il est disponible, le nom
@@ -192,15 +211,17 @@ run. Le coût croît donc de façon quadratique avec le nombre de publications.
 
 Par conséquent :
 
-- **Se repérer et vérifier par le texte, pas par l'image.** `read_page` renvoie un arbre
-  d'accessibilité avec des poignées `ref_N`, et `computer` accepte `ref` au lieu de `coordinate`.
-  `find` cherche dans le dernier arbre lu. C'est la voie par défaut — mais **pas un dogme** :
-  voir le repli par capture à l'étape 4 quand un `ref` ne produit aucun effet.
+- **Vérifier par le texte, pas par l'image.** `read_page` renvoie un arbre d'accessibilité avec des
+  poignées `ref_N`, et `computer` accepte `ref` au lieu de `coordinate`. `find` cherche dans le
+  dernier arbre lu. Toutes les **vérifications** passent par là : présence du dialogue, contenu
+  saisi, pièce jointe.
 - **Toujours borner `read_page`** : `filter: "interactive"` et un `max_chars` de l'ordre de 8000.
   L'arbre complet d'une page Facebook est énorme — non borné, il coûte plus cher qu'une capture.
   Une fois le composeur trouvé, se limiter à son sous-arbre avec `ref_id` et `depth: 2`.
-- **Une capture uniquement en dernier recours**, et alors `zoom` sur la région du composeur —
-  jamais `screenshot` plein écran.
+- **Exactement une capture par publication**, et seulement pour ouvrir le composeur (étape 4,
+  point 2) : c'est le seul geste que les `ref` ne réussissent pas. Un `screenshot` plein écran est
+  ici le bon outil — il faut voir la mise en page pour situer le composeur. Pas de capture pour
+  quoi que ce soit d'autre.
 - **Traiter chaque publication dans un sous-agent** (un par publication, **séquentiellement**).
   Les arbres et captures restent dans le contexte du sous-agent ; il ne remonte qu'une ligne de
   résultat : canal, texte posé (oui/non), image jointe (oui/non), anomalie éventuelle. C'est ce
@@ -209,7 +230,14 @@ Par conséquent :
 
 ### Déroulé, pour chaque publication retenue
 
-Ouvrir un **nouvel onglet** (`tabs_create_mcp`), puis :
+**Avant le tout premier onglet du run**, appeler une fois
+`tabs_context_mcp` avec `createIfEmpty: true` : c'est cet appel qui crée le groupe d'onglets de la
+session et renvoie son premier `tabId`. Sans lui, `tabs_create_mcp` échoue d'emblée
+(« No tab group exists for this session yet ») — donc **à la première publication de chaque run**.
+Le premier brouillon utilise le `tabId` ainsi renvoyé ; les suivants seulement passent par
+`tabs_create_mcp`.
+
+Ouvrir ensuite un **nouvel onglet** par publication (`tabs_create_mcp`), puis :
 
 1. `navigate` vers l'URL du canal ; attendre ~3 s le chargement. **Pas de capture ici** :
    appeler `read_page` borné comme indiqué ci-dessus.
@@ -220,21 +248,25 @@ Ouvrir un **nouvel onglet** (`tabs_create_mcp`), puis :
      publier (bouton « Rejoindre le groupe », composeur absent, message d'autorisation) : ne pas
      insister, fermer l'onglet, et noter ce canal comme **« accès manquant »** pour le compte
      rendu. C'est le cas le plus fréquent quand un nouveau recruteur démarre.
-2. Ouvrir le composeur — **il faut deux clics**, ne pas s'arrêter au premier :
-   - `find` sur « Exprimez-vous », « Que voulez-vous dire », « Écrivez quelque chose à » selon le
-     type de page (groupe, Page, profil), puis `computer` avec le `ref` obtenu. Ne jamais chercher
-     de coordonnées.
-   - **Cliquer une seule fois, puis vérifier.** Si après un clic `find` ne renvoie encore que des
-     boutons, attendre ~2 s et revérifier avant d'envisager un second clic.
-   - **Un `ref` périmé échoue en silence.** `computer` répond « Clicked on element ref_N » alors
-     que rien ne se passe : les `ref` deviennent invalides dès que Facebook réhydrate la page.
-     **Ne jamais interpréter un clic « réussi » comme une preuve** — seule la présence du
-     `dialog "Créer une publication"` compte.
-   - **Après deux clics sans dialogue, changer de méthode** au lieu d'insister : prendre **une**
-     capture (`screenshot`, la seule autorisée), y lire les coordonnées de la zone
-     « Exprimez-vous… », et cliquer par `coordinate`. C'est le repli prévu ; s'entêter sur les
-     `ref` peut boucler indéfiniment. Une fois le dialogue ouvert, revenir aux `ref` — ceux
-     obtenus après l'ouverture sont fiables.
+2. Ouvrir le composeur — **par coordonnées, dès le premier essai** :
+   - Prendre **une** capture (`screenshot`), y lire les coordonnées de la zone « Exprimez-vous… » /
+     « Écrivez quelque chose à … », et cliquer par `coordinate`.
+   - **Ce n'est pas le repli, c'est la voie normale**, contrairement au reste de la compétence qui
+     travaille par `ref`. Mesuré sur un groupe et sur un profil : **le clic par `ref` n'ouvre
+     jamais le composeur**. `computer` répond « Clicked on element ref_N », `find` renvoie ensuite
+     le même bouton avec un `ref` renuméroté, et rien ne s'est passé — les `ref` sont invalidés par
+     la réhydratation de Facebook plus vite qu'on ne s'en sert. Deux clics `ref` par publication,
+     c'est deux à trois allers-retours perdus pour rien : commencer directement par la capture
+     coûte moins cher que d'y venir après avoir échoué.
+   - **Une seule capture par publication**, et uniquement pour ce clic-là. Tout le reste
+     (vérification du dialogue, du texte, de l'image) se fait par `read_page` borné.
+   - **Une fois le dialogue ouvert, revenir aux `ref`** : ceux obtenus dans le dialogue sont
+     fiables et servent pour la frappe et la pièce jointe.
+   - **Ne jamais interpréter un clic « réussi » comme une preuve** — seule la présence du
+     `dialog "Créer une publication"` compte, vérifiée par `find`.
+   - Ce que la capture montre en prime, et qui explique certains échecs : une fenêtre **Messenger**
+     ouverte peut recouvrir la colonne de droite, et une bannière d'approbation admin décaler le
+     composeur vers le bas. Lire les coordonnées sur l'image plutôt que les supposer.
    - Le dialogue est trouvé quand `find` renvoie un `dialog "Créer une publication"` **et** un
      `textbox`. C'est ce `textbox` qui reçoit la frappe.
    - **Piège : ne jamais taper dans une zone de commentaire.** `find` peut renvoyer un
