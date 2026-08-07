@@ -14,17 +14,19 @@ Scraper les posts du groupe Facebook vétérinaire (tri chronologique) sur une *
 ## Principes (à respecter — c'est ce qui rend le scrape fiable et rapide)
 
 1. **Accumulateur persistant en page.** Le DOM de FB est virtualisé (4-5 posts en mémoire). On ne lit jamais « ce qui est à l'écran à la fin » : on appelle `__merge()` **à chaque pas de scroll** pour fusionner dans `window.__store`. Tout en dépend.
-2. **Tout en JS dans la page.** 1 seul screenshot au départ (vérifier chargement + pas de captcha), puis **zéro**. Lecture/scroll/clic via `javascript_tool`. Les données obfusquées se **reconstruisent** (cf. timestamps), on ne survole/screenshote pas.
-3. **Batcher.** Mettre 5-7 cycles `scroll → wait → expand → merge` dans **un seul** appel `javascript_tool` avec des `await` internes. ~6× moins d'appels. Lots petits (5-7) pour survivre aux déconnexions de l'extension. ⚠️ `javascript_tool` coupe à **45 s** (« CDP timed out ») : au-delà de ~4 cycles (≈2,5 s chacun) le lot dépasse. Le timeout n'annule PAS le travail déjà fait dans la page — refais simplement un `__merge()` court pour relire l'état, et redescends à 3-4 cycles par appel.
-4. **Relations par containment, pas par ordre DOM.** Les commentaires sont rattachés à leur post via l'ancêtre commun (le helper le fait), jamais par proximité dans le flux.
-5. **Capturer / juger / écrire séparément.** Capture mécanique en page (auteur, date, corps, id) → jugement à la relecture (classification, pertinence) → écriture via **Bash+curl** (le `fetch` en page est bloqué par la CSP de Facebook).
+2. **Fenêtre Chrome visible, sinon rien ne charge.** Chrome masqué (derrière l'app Claude, minimisé) = `requestAnimationFrame` suspendu et timers bridés : le fil reste sur 2-3 posts + skeletons et `scrollHeight` se fige, **sans erreur**. Le scrape se contrôle donc avec `__alive()` et se **réveille tout seul** en ramenant l'onglet au premier plan (cf. §1 bis) — ne demande jamais à l'utilisateur de le faire à la main avant d'avoir essayé.
+3. **Tout en JS dans la page.** 1 seul screenshot au départ (vérifier chargement + pas de captcha), puis **zéro**. Lecture/scroll/clic via `javascript_tool`. Les données obfusquées se **reconstruisent** (cf. timestamps), on ne survole/screenshote pas.
+4. **Batcher.** Mettre 5-7 cycles `scroll → wait → expand → merge` dans **un seul** appel `javascript_tool` avec des `await` internes. ~6× moins d'appels. Lots petits (5-7) pour survivre aux déconnexions de l'extension. ⚠️ `javascript_tool` coupe à **45 s** (« CDP timed out ») : au-delà de ~4 cycles (≈2,5 s chacun) le lot dépasse. Le timeout n'annule PAS le travail déjà fait dans la page — refais simplement un `__merge()` court pour relire l'état, et redescends à 3-4 cycles par appel.
+5. **Relations par containment, pas par ordre DOM.** Les commentaires sont rattachés à leur post via l'ancêtre commun (le helper le fait), jamais par proximité dans le flux.
+6. **Capturer / juger / écrire séparément.** Capture mécanique en page (auteur, date, corps, id) → jugement à la relecture (classification, pertinence) → écriture via **Bash+curl** (le `fetch` en page est bloqué par la CSP de Facebook).
 7. **Sortir les données par download blob, jamais par lecture tronquée.** La sortie de `javascript_tool` est tronquée (~950 car/appel), donc ne lis JAMAIS les corps par tranches pour les stocker (tu perdrais le texte long). À la fin de la collecte, exporte tout `window.__store` (filtré fenêtre) en **Blob → download** vers `~/Downloads`, puis lis le fichier avec `Read`/Bash : **contenu intégral, zéro troncature, zéro transcription**. (Le slice-reading ne sert qu'à un aperçu rapide, jamais à alimenter `Contenu complet`.)
-6. **Idempotence.** Le push déduplique contre la base → le skill est **relançable** autant de fois qu'on veut.
+8. **Idempotence.** Le push déduplique contre la base → le skill est **relançable** autant de fois qu'on veut.
 
 ## Ressources bundlées
 
 - **`scripts/scrape_helpers.js`** — Read ce fichier, injecte tout son contenu via `javascript_tool`. Fournit `__decodeTS`, `__parseTS`, `__harvestAll`, `__store`/`__merge`, `__expandPostText`, `__profileUrl`. **Ré-injecte après toute navigation** (le window est vidé).
 - **`scripts/airtable_push.py`** — pousse un `records.json` en upsert-merge. Voir §5.
+- **`scripts/focus_chrome.sh`** (macOS) / **`scripts/focus_chrome.ps1`** (Windows) — ramènent l'onglet du scrape au premier plan pour réveiller le rendu. Voir §1 bis.
 - **`references/matching_vocab.json`** — valeurs select valides (Zones/Statuts/Temps) + mapping `macro_regions` → départements. Source de vérité pour remplir les champs de matching (cf. §3). Régénérable depuis la base si le vocab change.
 - **`references/auteurs_exclus.json`** — liste des auteurs/pages à **toujours exclure**, quel que soit le contenu du post. Voir §3 Exclure. Si tu identifies un nouvel auteur à bannir durablement, ajoute-le **dans le dépôt source** (`Cleuteu/sarecrute-competences`) et non dans le dossier installé : celui-ci est réécrit à chaque `claude plugin update`, l'ajout serait perdu. Signale-le à l'utilisateur au lieu de modifier la copie locale.
 
@@ -35,6 +37,29 @@ Scraper les posts du groupe Facebook vétérinaire (tri chronologique) sur une *
 Navigue vers `https://www.facebook.com/groups/318289868699508/?sorting_setting=CHRONOLOGICAL`.
 1 screenshot pour vérifier (tri chronologique, pas de captcha). Ensuite plus aucun screenshot.
 Attends ~2,5 s, puis Read `scripts/scrape_helpers.js` (relatif au dossier de la compétence) et injecte son contenu. Vérifie l'heure du navigateur (`new Date().toString()` peut être bloqué à l'affichage — concatène-le à une string courte si besoin) et calcule la borne de la fenêtre.
+
+### 1 bis. Vérifier que le rendu tourne — et réveiller la page tout seul
+
+Juste après l'injection, **avant** le premier cycle :
+
+```javascript
+await window.__alive();     // ~1 s : {frozen, fps, visibility, articles, height, ...}
+```
+
+- `frozen: false` (fps ≈ 20-60) → enchaîne sur les cycles.
+- `frozen: true` (fps ≈ 0, `visibility: "hidden"`) → **la fenêtre Chrome est masquée : remets-la au premier plan toi-même**, sans rien demander à l'utilisateur :
+
+```bash
+bash <dossier_skill>/scripts/focus_chrome.sh                      # macOS
+# Windows : powershell -ExecutionPolicy Bypass -File <dossier_skill>/scripts/focus_chrome.ps1
+```
+
+  Puis **re-teste `__alive()`**. Le rendu repart en général dès que l'onglet est visible, sans rechargement.
+  - Si `frozen: false` mais que le fil est resté bloqué (`articles` ≤ 3, `heightDelta` nul après un scroll d'essai) → recharge la page (`location.reload()`), attends ~2,5 s, **ré-injecte les helpers** (le window est vidé) et re-teste.
+  - Si `frozen: true` **après** le passage au premier plan → là seulement, dis à l'utilisateur ce qui bloque (fenêtre Chrome minimisée sur un autre bureau/espace, session verrouillée, écran de veille) et ce qu'il doit faire.
+  - Sous Windows, le script ne peut pas sélectionner l'onglet (limite de la plateforme) : s'il répond que l'onglet du scrape n'est pas l'onglet actif, demande à l'utilisateur de cliquer dessus.
+
+⚠️ Ne laisse pas Chrome repasser en arrière-plan pendant la collecte : chaque `focus_chrome.sh` interrompt ce que l'utilisateur est en train de faire. Préviens-le en une ligne au début que la fenêtre Chrome va rester devant, et regroupe les réveils plutôt que de les répéter.
 
 ### 2. Collecter par cycles (scroll + merge)
 
@@ -52,12 +77,17 @@ await (async function(){
   const ps=Object.values(window.__store);
   const isos={}; ps.forEach(p=>isos[p.iso]=(isos[p.iso]||0)+1);
   return JSON.stringify({stored:ps.length, byIso:isos,
+    hidden: document.visibilityState==='hidden',   // true ⇒ page gelée, cf. §1 bis
     tail: window.__harvestAll().slice(-6).map(p=>p.author+'/'+p.iso+'/'+p.decoded.replace(/\s/g,''))});
 })();
 ```
 
+**Un lot qui n'ajoute rien = suspicion de gel, pas une fin de fil.** Si `stored` n'a pas bougé et que la queue n'a pas avancé, appelle `await window.__alive()` **avant** de conclure quoi que ce soit :
+- `frozen: true` → réveille la page (§1 bis) puis **reprends les cycles** ; le travail déjà en `window.__store` est intact.
+- `frozen: false` → c'est un vrai plateau : applique le critère d'arrêt ci-dessous.
+
 **Critère d'arrêt** : continuer tant que la queue (`tail`) n'a pas franchi la borne.
-- ✅ S'arrêter quand **2-3 posts consécutifs** sont clairement hors fenêtre (`iso`/`ageH` au-delà de la borne) **ET** que `stored` ne croît plus entre deux lots.
+- ✅ S'arrêter quand **2-3 posts consécutifs** sont clairement hors fenêtre (`iso`/`ageH` au-delà de la borne) **ET** que `stored` ne croît plus entre deux lots **ET** que `__alive()` confirme que le rendu tourne (`frozen: false`).
 - ✅ Au moins ~15 cycles cumulés sur un groupe actif avant de conclure.
 - ⚠️ Ne jamais s'arrêter sur un seul timestamp ambigu.
 

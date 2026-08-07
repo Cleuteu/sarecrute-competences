@@ -62,6 +62,12 @@ Les compétences s'appuient sur les connecteurs du compte Claude de chaque recru
   La clé ne doit jamais atterrir dans ce dépôt ;
 - **`python3`** disponible sur le poste (pour `scripts/airtable_push.py`).
 
+À savoir : Facebook cesse de charger dès que sa fenêtre Chrome passe en arrière-plan (Chrome y
+suspend le rendu). La compétence le détecte et **ramène la fenêtre Chrome au premier plan
+elle-même** pour repartir — elle va donc s'installer devant ce que tu fais pendant la collecte.
+Sous Windows elle ne peut que réactiver la fenêtre, pas choisir l'onglet : si l'onglet du groupe
+n'est pas l'onglet actif, elle demande de cliquer dessus.
+
 En pratique, c'est la compétence d'un poste d'administration plutôt que d'un poste de recrutement
 au quotidien.
 

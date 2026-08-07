@@ -1,8 +1,11 @@
 {
- "note": "Auteurs/pages à TOUJOURS exclure du scrape (jamais poussés en base, quel que soit le contenu). Comparaison insensible à la casse, sur auteur ET signature/coordonnées en fin de post. Ajouter ici au fil de l'eau.",
+ "note": "Auteurs/pages/enseignes à TOUJOURS exclure du scrape (jamais poussés en base, quel que soit le contenu). Comparaison insensible à la casse, en SOUS-CHAÎNE, sur l'auteur ET la signature/coordonnées en fin de post. Une entrée peut donc être partielle : un nom de famille tronqué attrape ses variantes, et un nom d'enseigne (ex. « Univet ») attrape aussi les recruteurs qui l'affichent dans leur nom de profil. Ajouter ici au fil de l'eau — dans le dépôt source, pas dans la copie installée (réécrite à chaque plugin update).",
  "auteurs": [
   "Service Remplacement Vétérinaire",
   "Sarah Vanhersel",
-  "Pamela Martinez"
+  "Pamela Martinez",
+  "Justine Chou",
+  "Lola Escand",
+  "Univet"
  ]
 }

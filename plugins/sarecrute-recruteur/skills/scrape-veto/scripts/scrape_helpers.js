@@ -215,4 +215,39 @@ window.__truncated = function () {
 /* --- Nettoyage du corps pour l'export (retire les marqueurs FB finaux) ------ */
 window.__cleanBody = b => (b || '').replace(/\s+/g, ' ').replace(/\s*(?:…\s*)?(?:En )?[Vv]oir (?:plus|moins)\s*$/, '').trim();
 
+/* --- __alive : le rendu tourne-t-il vraiment ? -------------------------------
+ * Chrome suspend requestAnimationFrame et bride les timers dès que sa fenêtre
+ * est masquée (typiquement derrière l'app Claude). Le fil FB reste alors sur
+ * 2-3 posts + des skeletons, scrollHeight ne bouge plus, et RIEN ne le signale :
+ * ça ressemble à un blocage Facebook alors que c'est du throttling de rendu.
+ * frames ≈ 0 (frozen) ⇒ ramener Chrome au premier plan (scripts/focus_chrome.sh),
+ * puis re-tester. Spoofer visibilityState ne sert à rien : c'est le rendu qui
+ * est suspendu, pas seulement le flag.
+ * Usage : await window.__alive();   // ~1 s */
+window.__alive = function (ms) {
+  ms = ms || 800;
+  return new Promise(resolve => {
+    let frames = 0, stop = false;
+    const tick = () => { if (!stop) { frames++; requestAnimationFrame(tick); } };
+    requestAnimationFrame(tick);
+    const h0 = document.body.scrollHeight;
+    const t0 = Date.now();
+    setTimeout(() => {
+      stop = true;
+      const dt = Date.now() - t0;
+      resolve({
+        frozen: frames < 5,
+        frames: frames,
+        fps: Math.round(frames / (dt / 1000)),
+        visibility: document.visibilityState,
+        focused: document.hasFocus(),
+        articles: document.querySelectorAll('div[role="article"]').length,
+        height: document.body.scrollHeight,
+        heightDelta: document.body.scrollHeight - h0,
+        stored: Object.keys(window.__store || {}).length
+      });
+    }, ms);
+  });
+};
+
 'helpers scrape-veto injectés';
