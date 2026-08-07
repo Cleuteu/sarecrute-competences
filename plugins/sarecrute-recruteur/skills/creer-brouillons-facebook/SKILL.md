@@ -106,14 +106,17 @@ explicitement ; ce n'est jamais le comportement par défaut.
    - Date de publication = aujourd'hui : `{"operator":"=","operands":["fldgV9Lx0qoPiG5Ry",{"mode":"today","timeZone":"Europe/Paris"}]}`
    - ET Publié ? = false : `{"operator":"=","operands":["fldOrR0E0zGE3nq6F",false]}`
 
-   Champs à demander : Responsable de l'offre, url image publication, Canal de diffusion (lien),
-   Canal de diffusion (select), Offre d'emploi — **sans `Texte de publication`**, et
-   `pageSize: 100`.
+   Champs à demander : **uniquement** Responsable de l'offre (`fld0PBN7RvLtXb2Is`) et Canal de
+   diffusion (select) (`fldV6UXLBrPZbMOtp`), avec `pageSize: 100`. C'est le strict nécessaire au
+   filtrage du point 3, et ça tient dans le contexte même sur une journée chargée.
 
-   Le texte des annonces se récupère dans un **second appel**, une fois le filtrage du point 3
-   fait, en passant les `recordIds` des seules publications retenues. Demandé d'emblée pour toutes
-   les publications du jour, il gonfle la réponse de plusieurs dizaines de Ko de texte dont on
-   jettera la majeure partie.
+   Ne demander ici **ni** `Offre d'emploi`, **ni** `url image publication`, **ni** `Canal de
+   diffusion (lien)`, **ni** `Texte de publication` : ce sont des lookups au format verbeux
+   `valuesByLinkedRecordId`. Mesuré en production, les demander tous porte la réponse à ~900
+   caractères par publication — soit ~55 Ko pour 61 publications, **au-delà de la limite de
+   contexte**. L'appel échoue alors d'un bloc, avant qu'on ait rien fait. Un recruteur tourne
+   à une vingtaine de publications par jour en régime normal, mais un retour de congés ou un
+   report en cascade suffit à passer la quarantaine, et le plafond est là.
 3. Filtrer côté client :
    - garder uniquement les publications du **responsable identifié à l'étape 1** (sauf demande
      explicite de traiter tout le monde) ; comparer sur l'email quand il est disponible, le nom
@@ -123,7 +126,18 @@ explicitement ; ce n'est jamais le comportement par défaut.
    Si aucune publication ne reste après filtrage, le dire clairement (« rien à publier
    aujourd'hui pour <nom> ») et s'arrêter là — ne pas élargir le périmètre de sa propre
    initiative.
-4. Présenter à l'utilisateur la liste des brouillons à préparer (offre × canal), regroupée par
+4. Second appel, sur les **seules publications retenues** : `list_records_for_table` sur la même
+   table, `recordIds` = les IDs retenus au point 3, `fieldIds` = Offre d'emploi
+   (`fldhs2J4wBl1n158S`), url image publication (`fldZBl35fPmU2hwlq`), Texte de publication
+   (`fldSxzwwTK3r1vTvC`). Pas de filtre ni de `pageSize` ici : les `recordIds` suffisent.
+
+   C'est là, et seulement là, qu'arrivent le texte des annonces et les URL d'images — pour la
+   poignée de publications qu'on va réellement traiter, pas pour toutes celles du jour.
+
+   Si cette réponse dépasse malgré tout la limite (beaucoup de publications retenues, textes
+   longs), ne pas relire le `.txt` sauvegardé avec l'outil de lecture : l'extraire au shell comme
+   à l'étape 1.
+5. Présenter à l'utilisateur la liste des brouillons à préparer (offre × canal), regroupée par
    offre, avec l'image associée. Attendre son feu vert avant d'ouvrir des onglets.
 
 ## Étape 3 — Télécharger les images (une seule fois par image)
