@@ -62,10 +62,14 @@ poste, pour ne poser la question qu'une seule fois.
    (sous Windows : `%USERPROFILE%\.sarecrute\recruteur.json` — `$HOME` y renvoie déjà).
    Format :
    ```json
-   { "responsable": "Prénom Nom", "email": "prenom@exemple.fr" }
+   { "responsable": "Prénom Nom", "email": "prenom@exemple.fr",
+     "navigateurDeviceId": "ec5b0aec-e90b-4731-aa83-d5a0bd84d91b" }
    ```
    S'il existe et que `responsable` est renseigné : l'utiliser **sans poser de question**, et
    indiquer en une ligne au début du compte rendu au nom de qui on travaille.
+
+   `navigateurDeviceId` est facultatif et sert à l'étape 4 (choix du navigateur). Il est écrit
+   au premier run qui a dû poser la question ; son absence n'empêche rien.
 
 2. S'il n'existe pas, construire la liste des recruteurs possibles depuis Airtable :
    `list_records_for_table` sur `tblzKMXlCBH21hbJy`, **`fieldIds` limité au seul**
@@ -142,6 +146,22 @@ explicitement ; ce n'est jamais le comportement par défaut.
 
 ## Étape 3 — Télécharger les images (une seule fois par image)
 
+**Quand.** Démarrer les téléchargements **dès que la liste du point 4 de l'étape 2 est connue**,
+c'est-à-dire *avant* de présenter la liste et *sans attendre* le feu vert. Le téléchargement Drive
+et le décodage ne touchent pas au navigateur : ils ne rentrent en conflit avec rien, et le temps
+de lecture de l'utilisateur est autant de pris. Les enchaîner après le feu vert, en série et avant
+le premier onglet, ajoute une à deux minutes d'attente pure.
+
+**Dans quel ordre, et jusqu'où attendre.** Télécharger dans l'**ordre de consommation** des
+brouillons, et lancer le brouillon N dès que **son** image à lui est sur disque — ne pas attendre
+que toutes soient prêtes. Le contrôle tient en un test d'existence (`[ -s "$DST" ]`) avant de
+lancer le sous-agent du brouillon. Une publication dont l'image n'est pas encore là ne bloque pas
+celles qui précèdent.
+
+Le texte et l'image étant partagés par tous les canaux d'une même offre, une dizaine de
+publications ne représente en général que 5 à 7 images distinctes : dédupliquer par ID de fichier
+Drive avant de télécharger quoi que ce soit.
+
 Pour chaque URL Drive distincte trouvée dans `url image publication` :
 
 1. Extraire l'ID du fichier depuis l'URL (`.../file/d/<ID>/...`).
@@ -166,14 +186,28 @@ Pour chaque URL Drive distincte trouvée dans `url image publication` :
 
    # Dossier de sortie : IMPÉRATIVEMENT un dossier que file_upload accepte.
    # file_upload n'autorise que les fichiers des dossiers partagés avec la session
-   # (uploads/outputs de la session, ou un dossier ouvert par l'utilisateur).
+   # (uploads/outputs/working de la session, ou un dossier ouvert par l'utilisateur).
    # Un dossier temporaire système ($TMPDIR, /tmp) est REFUSÉ : ne jamais l'utiliser ici.
-   # En Cowork, ces dossiers sont en chemin ABSOLU sous /mnt/user-data — le cwd est /home/claude,
-   # donc les tester en relatif ne trouve rien. Les chemins absolus passent en premier.
-   for c in /mnt/user-data/uploads /mnt/user-data/outputs outputs uploads; do
-     [ -d "$c" ] && [ -w "$c" ] && { OUT="$c/pub_images"; break; }
-   done
-   OUT="${OUT:-pub_images}"   # à défaut : le répertoire de travail de la session
+   #
+   # En Cowork, l'arbre partagé est /mnt/user-data (cf. CLAUDE_ADDITIONAL_DIRECTORIES) et le cwd
+   # est /home/claude, que file_upload REFUSE. Ne pas se contenter de tester l'existence des
+   # sous-dossiers : selon les sessions, seul `working` existe, et une sonde qui ne teste que
+   # `uploads`/`outputs` retombe alors sur le cwd — l'upload échoue, il faut tout diagnostiquer
+   # et rejouer le brouillon. Mesuré : ce seul aller-retour a doublé la durée du 1er brouillon.
+   # Donc en Cowork on CRÉE le dossier, on ne se demande pas s'il existe.
+   if [ -d /mnt/user-data ]; then
+     for c in /mnt/user-data/outputs /mnt/user-data/uploads /mnt/user-data/working; do
+       [ -d "$c" ] && [ -w "$c" ] && { OUT="$c/pub_images"; break; }
+     done
+     OUT="${OUT:-/mnt/user-data/outputs/pub_images}"   # aucun n'existe : on crée outputs
+   else
+     # Hors Cowork (poste macOS/Windows, méthode B) : /mnt/user-data n'existe pas et n'est pas
+     # créable sans droits root. Le fichier n'a pas à être partagé, le script le lit localement.
+     for c in outputs uploads; do
+       [ -d "$c" ] && [ -w "$c" ] && { OUT="$c/pub_images"; break; }
+     done
+     OUT="${OUT:-pub_images}"
+   fi
    mkdir -p "$OUT"; DST="$OUT/$NOM.png"
 
    # décodage : jq si présent, sinon python3 (jq n'est pas fourni par défaut sous Windows)
@@ -205,8 +239,9 @@ Pour chaque URL Drive distincte trouvée dans `url image publication` :
    navigateur, il ne demande pas au poste d'ouvrir le fichier. **Ne pas le convertir en chemin
    hôte** (`/Users/...`, `C:\...`) : un chemin hôte serait refusé.
 
-   Vérifié en session Cowork : `/mnt/user-data/uploads/pub_images/<nom>.png` est accepté du
-   premier coup.
+   Vérifié en session Cowork : un chemin sous `/mnt/user-data/...` (`outputs`, `uploads` ou
+   `working`) `/pub_images/<nom>.png` est accepté du premier coup. En revanche `/home/claude/...`
+   est systématiquement refusé — c'est le symptôme d'une sonde de dossier tombée dans le repli.
 
    Si l'outil refuse malgré tout le fichier, le problème est le **dossier**, pas la forme du
    chemin : l'image a été écrite hors des dossiers partagés avec la session. Reprendre le
@@ -241,6 +276,28 @@ Par conséquent :
   résultat : canal, texte posé (oui/non), image jointe (oui/non), anomalie éventuelle. C'est ce
   qui empêche le contexte principal d'enfler. Ne pas lancer les sous-agents en parallèle : ils
   piloteraient le même navigateur et se marcheraient dessus.
+
+### Règle de temps — un coût fixe par sous-agent, à ne pas payer dix fois
+
+Mesuré sur un run réel : ~180 s et ~133 s pour un brouillon sain, en 12 à 16 appels — soit une
+dizaine de secondes par aller-retour. Le temps est **étalé sur les allers-retours**, pas concentré
+dans une action lente : le levier est donc d'en faire moins, pas d'en accélérer un.
+
+- **Un seul `ToolSearch` par sous-agent**, listant d'emblée tous les outils Chrome dont il aura
+  besoin (`select:` accepte une liste séparée par des virgules). Un appel par outil, c'est un
+  aller-retour perdu à chaque fois, multiplié par le nombre de publications.
+- **Lui passer ce qu'il sait déjà** : le `tabId` de son onglet, l'URL du canal, le texte à saisir,
+  le chemin de l'image. Il ne doit rien redécouvrir — ni relire Airtable, ni rechercher le canal.
+- **Grouper en `browser_batch` ce qui est sûr** : le clic dans le champ de texte suivi de la
+  frappe, ou la navigation suivie de l'attente. **Ne jamais y fusionner une vérification et
+  l'action qui la suit** — en particulier taper le texte puis joindre l'image dans un même batch.
+  La frappe échoue de deux façons connues et silencieuses (timeout de `type` alors qu'elle a
+  abouti ; mur de profil qui ne capte pas la saisie), et un batch attacherait alors l'image à un
+  composeur vide sans que rien ne le signale. La vérification reste un appel à part, toujours.
+
+Ce qui reste **incompressible** : les brouillons ne sont pas parallélisables (même navigateur,
+`ref` invalidés, presse-papiers unique en méthode B). La durée croît linéairement avec le nombre
+de publications — compter ~25 min pour une dizaine. Ne pas promettre mieux à l'utilisateur.
 
 ### Déroulé, pour chaque publication retenue
 
@@ -399,6 +456,20 @@ c'est voulu. Ne pas regrouper ni découper le run en lots.
   confirmation dans chaque Chrome » qui déclenche `switch_browser`. Ne jamais en choisir un soi-
   même. Le profil Chrome ne dit rien du compte Facebook actif : seul le nom affiché dans le
   composeur fait foi.
+
+  **Mémoriser le choix** dans `navigateurDeviceId` de `recruteur.json` (étape 1) dès qu'un
+  navigateur a été retenu, et s'en servir aux runs suivants : si l'id mémorisé figure toujours
+  dans `list_connected_browsers`, le proposer **en première option et pré-sélectionné**, plutôt
+  que de repartir d'une liste neuve. S'il a disparu (Chrome réinstallé, extension repairée),
+  redemander normalement et réécrire l'id.
+
+  Deux limites constatées, à ne pas contourner. D'abord, la question reste obligatoire dès qu'il
+  y a plus d'un navigateur connecté : la mémorisation fait gagner la recherche du bon, pas la
+  question elle-même — l'option « ouvrir une confirmation dans chaque Chrome » coûte en revanche
+  jusqu'à deux minutes d'attente humaine, et c'est elle qu'on évite. Ensuite, **c'est bien l'id
+  qu'il faut mémoriser, pas le nom** : le nom donné en cliquant « Connect » n'est pas repris par
+  `list_connected_browsers`, qui continue d'afficher « Browser 1 » / « Browser 2 ». Les
+  `deviceId`, eux, sont restés stables d'un appel à l'autre et à travers un `switch_browser`.
 - Si Chrome répond « not connected », suivre les consignes de l'outil (attendre/réessayer).
 - Deux étapes dépendent du système : le décodage des images (étape 3) et leur collage
   (étape 4). Sous Windows, `jq` n'est pas installé par défaut et `base64`/`file` n'existent que
