@@ -477,9 +477,20 @@ Ouvrir ensuite un **nouvel onglet** par publication (`tabs_create_mcp`), puis :
      attacherait l'image au post d'un autre membre. Se limiter au sous-arbre du dialogue
      supprime l'ambiguïté au lieu de demander de trancher entre dix candidats — c'est à la fois
      un aller-retour de moins et un risque de moins.
-   - Si l'outil répond « requires a non-empty `paths` array of files the user has shared with
-     this session », le fichier n'est pas dans un dossier partagé : ce n'est pas un problème de
-     Drive, ne pas retélécharger l'image. Après deux échecs, basculer sur la méthode B.
+   - **Tout refus portant sur le partage → basculer immédiatement en méthode B**, dès le premier,
+     sans réessayer et sans chercher d'autre chemin. C'est le cas de « requires a non-empty
+     `paths` array of files the user has shared with this session » et de toute variante parlant
+     de fichiers partagés avec la session ou la conversation. Ce n'est pas un problème de Drive :
+     ne pas retélécharger l'image.
+
+     **Ne jamais demander au recruteur de connecter ou de partager un dossier.** Constaté en
+     production : un agent l'a fait, le recruteur a connecté un dossier, `file_upload` a refusé
+     de plus belle, et le run est resté bloqué en texte seul — alors que le script de la méthode
+     B attendait dans `scripts/` et n'avait besoin d'aucun partage. Un dossier connecté n'est pas
+     un dossier de session : cette porte-là ne s'ouvre pas.
+
+     La bascule vaut **pour le reste du run**, pas seulement pour l'image en cours : si le
+     premier upload est refusé pour cause de partage, tous les suivants le seront.
    - Si l'échec porte sur le chemin (fichier introuvable), c'est l'étape 3 qu'il faut corriger.
 
    **Méthode B — presse-papiers (repli hors Cowork)**
