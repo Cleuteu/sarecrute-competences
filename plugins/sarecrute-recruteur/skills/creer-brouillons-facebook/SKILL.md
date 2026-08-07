@@ -13,9 +13,13 @@ description: >-
 # Créer les brouillons Facebook du jour
 
 Objectif : pour chaque publication vétérinaire **prévue aujourd'hui**, **non encore publiée**,
-et destinée à un **canal Facebook dont l'URL est renseignée**, préparer un brouillon dans un
+et destinée à un **groupe Facebook dont l'URL est renseignée**, préparer un brouillon dans un
 onglet Chrome (texte de l'annonce + image du Drive), **sans jamais publier**. L'utilisateur
 relira et cliquera lui-même sur « Publier ».
+
+**Groupes uniquement.** Les canaux qui sont des murs de profil (`/me`, `/veto.annonce`) sont
+écartés : leur composeur se comporte différemment et n'est pas encore fiabilisé. Ils sont
+signalés au recruteur pour reprise manuelle, jamais tentés (voir étape 2).
 
 La compétence est **multi-recruteur** : elle prépare les brouillons du recruteur qui la lance, sur
 son ordinateur et avec son propre compte Facebook.
@@ -125,7 +129,24 @@ explicitement ; ce n'est jamais le comportement par défaut.
    - garder uniquement les publications du **responsable identifié à l'étape 1** (sauf demande
      explicite de traiter tout le monde) ; comparer sur l'email quand il est disponible, le nom
      seul étant plus fragile (homonymes, orthographe) ;
-   - garder uniquement celles dont le **canal a une URL** (jointure via le nom du canal).
+   - garder uniquement celles dont le **canal a une URL** (jointure via le nom du canal) ;
+   - garder uniquement les canaux qui sont des **groupes**, c'est-à-dire dont l'URL contient
+     `/groups/`. Les autres (murs de profil) sont **hors périmètre** — voir ci-dessous.
+
+   **Périmètre : groupes uniquement.** Sur les 14 canaux ayant une URL, 12 sont des groupes et
+   2 sont des murs de profil : « Facebook perso » (`/me`, le mur du recruteur) et « Annonces
+   véto » (`/veto.annonce`, le journal d'un tiers — c'est un profil personnel avec ~4 900
+   ami(e)s, pas une Page, contrairement à ce que cette compétence a longtemps affirmé).
+
+   Le composeur d'un mur de profil ne se comporte pas comme celui d'un groupe : le dialogue
+   modal « Créer une publication » se replie de lui-même en composeur inline, l'image ne
+   s'attache pas, et parmi la dizaine de champs « Photo/Vidéo » de la page le bon est ambigu —
+   avec le risque de joindre l'image au post d'un autre membre. Constaté en run réel sur
+   `/veto.annonce`, alors que les quatre groupes du même run ont réussi du premier coup.
+
+   Tant que ce flux n'est pas maîtrisé, **ne pas tenter ces canaux**. Les lister explicitement
+   dans le compte rendu final comme « hors périmètre, à faire à la main » : ils ne doivent pas
+   disparaître silencieusement de la sélection, le recruteur a encore à les traiter lui-même.
 
    Si aucune publication ne reste après filtrage, le dire clairement (« rien à publier
    aujourd'hui pour <nom> ») et s'arrêter là — ne pas élargir le périmètre de sa propre
@@ -314,9 +335,9 @@ Ouvrir ensuite un **nouvel onglet** par publication (`tabs_create_mcp`), puis :
 
 1. `navigate` vers l'URL du canal ; attendre ~3 s le chargement. **Pas de capture ici** :
    appeler `read_page` borné comme indiqué ci-dessus.
-   - Le canal « Facebook perso » a pour URL `https://www.facebook.com/me` : Facebook redirige
-     vers le profil du compte connecté dans Chrome, donc **vers le profil du recruteur qui
-     lance la compétence**. C'est voulu — ne pas remplacer cette URL par un profil nommé.
+   - Toutes les URL traitées ici contiennent `/groups/` : les murs de profil ont été écartés au
+     filtrage de l'étape 2. Si une URL sans `/groups/` arrive jusqu'ici, c'est que le filtre a
+     été contourné — ne pas la traiter.
    - Si l'arbre montre que le compte n'est **pas membre** du groupe ou n'a pas le droit d'y
      publier (bouton « Rejoindre le groupe », composeur absent, message d'autorisation) : ne pas
      insister, fermer l'onglet, et noter ce canal comme **« accès manquant »** pour le compte
@@ -365,8 +386,7 @@ Ouvrir ensuite un **nouvel onglet** par publication (`tabs_create_mcp`), puis :
    comme un nœud, ce qui permet de contrôler le contenu ligne par ligne pour ~1,5 Ko.
    **Ne pas utiliser `get_page_text`** sur Facebook : il renvoie tout le fil du groupe, bien plus
    cher qu'une capture. Ne pas utiliser de capture non plus.
-   Sur les murs de profil, le champ ne capte parfois pas la frappe : si le texte est absent,
-   recliquer et retaper. Ne pas continuer sans cette vérification.
+   Si le texte est absent, recliquer et retaper. Ne pas continuer sans cette vérification.
 6. Joindre l'image. S'il n'y a pas d'image pour cette publication, ne rien joindre et passer à
    la suite.
 
@@ -405,7 +425,7 @@ Ouvrir ensuite un **nouvel onglet** par publication (`tabs_create_mcp`), puis :
      ```
      powershell -sta -ExecutionPolicy Bypass -File <dossier_skill>\scripts\attach_image.ps1 -TitleFragment "<titre_onglet>" -ImagePath "<chemin_image>"
      ```
-     `<titre_onglet>` = un fragment du nom du groupe ou de la Page. Sous Windows on ne peut pas
+     `<titre_onglet>` = un fragment du nom du groupe. Sous Windows on ne peut pas
      sélectionner un onglet depuis le shell : le script vise la fenêtre Chrome dont l'onglet
      **actif** porte ce titre. Joindre l'image **juste après avoir tapé le texte**, tant que
      l'onglet fraîchement créé est encore l'onglet actif ; ne pas repasser en fin de run pour
@@ -414,7 +434,7 @@ Ouvrir ensuite un **nouvel onglet** par publication (`tabs_create_mcp`), puis :
      ```
      <dossier_skill>/scripts/attach_image.sh "<fragment_url_onglet>" "<chemin_image>"
      ```
-     `<fragment_url_onglet>` = l'identifiant numérique du groupe ou le slug de la Page, tel qu'il
+     `<fragment_url_onglet>` = l'identifiant numérique du groupe, tel qu'il
      apparaît dans l'URL de l'onglet ; il sert à retrouver l'onglet et à le mettre au premier plan.
      Sortie 2 « Accessibilité refusée » : l'app Claude n'est pas cochée dans Réglages Système >
      Confidentialité et sécurité > Accessibilité. Le dire à l'utilisateur et poursuivre en texte
@@ -439,19 +459,28 @@ c'est voulu. Ne pas regrouper ni découper le run en lots.
 - le nombre de brouillons préparés et leurs destinations ;
 - l'image utilisée par offre ;
 - **la liste des publications sans image trouvée**, le cas échéant ;
-- **la liste des canaux en « accès manquant »** (groupe non rejoint, pas de droit sur la Page),
-  avec la consigne de demander l'accès avant le prochain lancement ;
+- **la liste des canaux en « accès manquant »** (groupe non rejoint), avec la consigne de
+  demander l'accès avant le prochain lancement ;
+- **la liste des publications écartées parce que leur canal est un mur de profil** (`/me`,
+  `/veto.annonce`), présentées comme « à faire à la main » et non comme un échec : elles restent
+  à la charge du recruteur, il doit savoir lesquelles ;
 - rappeler que rien n'a été publié et qu'il reste à cliquer sur « Publier » dans chaque onglet.
 
 ## Notes / pièges connus
 
 - Le texte et l'image d'une offre sont partagés par tous ses canaux → télécharger l'image une
   seule fois et réutiliser le fichier local pour tous les onglets de la même offre.
-- Toutes les destinations ne sont pas des groupes : « Annonces véto » (`/veto.annonce`) est une
-  Page, « Facebook perso » (`/me`) est le profil du recruteur connecté. Le flux composeur est le
-  même, seule la position de la zone de saisie change.
-- Sur les 14 canaux ayant une URL, 12 sont des groupes partagés : un recruteur ne peut y publier
-  que s'il en est membre. La Page « Annonces véto » demande en plus un rôle sur la Page.
+- Sur les 14 canaux ayant une URL, 12 sont des groupes partagés — les seuls traités par cette
+  compétence — et un recruteur ne peut y publier que s'il en est membre. Les 2 autres sont des
+  murs de profil, écartés au filtrage de l'étape 2 : « Facebook perso » (`/me`) et « Annonces
+  véto » (`/veto.annonce`). Ce dernier n'est **pas une Page** malgré son usage : c'est un profil
+  personnel (~4 900 ami(e)s), et y publier revient à écrire sur le journal d'un tiers.
+- **Ce qui reste à résoudre pour les murs de profil**, le jour où on voudra les réintégrer : le
+  dialogue modal se replie en composeur inline, l'image ne s'attache pas, et le champ
+  « Photo/Vidéo » à viser est ambigu. Rien n'a encore été trouvé qui fonctionne — ne pas écrire
+  de procédure ici avant de l'avoir vérifiée sur un run réel. Deux cas sont sans doute à
+  distinguer : son propre mur (`/me`), qui a déjà fonctionné par le passé, et le journal d'un
+  tiers (`/veto.annonce`), qui est celui qui a échoué.
 - **Plusieurs navigateurs connectés = risque de publier sous le mauvais compte.** Appeler
   `list_connected_browsers` **avant** d'ouvrir le premier onglet. S'il y en a plus d'un, demander
   lequel via AskUserQuestion : une option par navigateur, plus une option « ouvrir une
