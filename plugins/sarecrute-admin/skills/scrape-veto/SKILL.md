@@ -1,11 +1,13 @@
 ---
 name: scrape-veto
-description: Scrape les posts du groupe Facebook vétérinaire (fenêtre temporelle paramétrable, 6h par défaut) + commentaires pertinents, et pousse tout dans Airtable "Posts scrappés" en déduplicant. Args possibles ex. "aujourd'hui", "48h", "2 derniers jours".
+description: Scrape les posts des groupes Facebook vétérinaires cochés « Scraper les posts » dans Airtable (fenêtre temporelle paramétrable, 6h par défaut) + commentaires pertinents, et pousse tout dans "Posts scrappés" en déduplicant, chaque entrée rattachée à son canal. Args possibles ex. "aujourd'hui", "48h", "2 derniers jours", ou le nom d'un groupe pour n'en faire qu'un.
 ---
 
 # Scrape Veto
 
-Scraper les posts du groupe Facebook vétérinaire (tri chronologique) sur une **fenêtre temporelle**, en extraire les commentaires pertinents, et pousser chaque entrée dans Airtable **sans créer de doublon**.
+Scraper les posts des **groupes Facebook vétérinaires** (tri chronologique) sur une **fenêtre temporelle**, en extraire les commentaires pertinents, et pousser chaque entrée dans Airtable **sans créer de doublon**, **rattachée au groupe d'où elle vient**.
+
+**Sources** : elles ne sont **pas** dans ce fichier. Ce sont les enregistrements de la table **« Canaux de diffusion »** (`tbluH5M2sogAN85dl`, base `appP0W2ISytaNyAhG`) dont la case **`Scraper les posts`** est cochée **et** dont l'`Url` contient `/groups/<id>`. On peut donc ajouter une source sans republier le plugin. Un argument nommant un groupe (« scrape veto emploi véto 48h ») restreint à celui-là.
 
 **Fenêtre** : lue depuis les arguments (ex. `aujourd'hui`, `48h`, `2 derniers jours`, `6h`). Défaut = **6 dernières heures**. L'horloge de référence est celle du **navigateur** (`new Date()` dans la page), pas la date système — vérifie-la au début.
 
@@ -20,11 +22,12 @@ Scraper les posts du groupe Facebook vétérinaire (tri chronologique) sur une *
 5. **Relations par containment, pas par ordre DOM.** Les commentaires sont rattachés à leur post via l'ancêtre commun (le helper le fait), jamais par proximité dans le flux.
 6. **Capturer / juger / écrire séparément.** Capture mécanique en page (auteur, date, corps, id) → jugement à la relecture (classification, pertinence) → écriture via **Bash+curl** (le `fetch` en page est bloqué par la CSP de Facebook).
 7. **Sortir les données par download blob, jamais par lecture tronquée.** La sortie de `javascript_tool` est tronquée (~950 car/appel), donc ne lis JAMAIS les corps par tranches pour les stocker (tu perdrais le texte long). À la fin de la collecte, exporte tout `window.__store` (filtré fenêtre) en **Blob → download** vers `~/Downloads`, puis lis le fichier avec `Read`/Bash : **contenu intégral, zéro troncature, zéro transcription**. (Le slice-reading ne sert qu'à un aperçu rapide, jamais à alimenter `Contenu complet`.)
-8. **Idempotence.** Le push déduplique contre la base → le skill est **relançable** autant de fois qu'on veut.
+8. **Un groupe à la fois, l'origine notée à chaque fois.** `window.__store` est vidé à chaque navigation : on collecte, on vérifie, on **exporte groupe par groupe**, et chaque entrée part avec le `recId` de son canal. Ne jamais mélanger deux groupes dans un même export ni dans un même `records.json` sans que chaque ligne porte son canal.
+9. **Idempotence.** Le push déduplique contre la base → le skill est **relançable** autant de fois qu'on veut.
 
 ## Ressources bundlées
 
-- **`scripts/scrape_helpers.js`** — Read ce fichier, injecte tout son contenu via `javascript_tool`. Fournit `__decodeTS`, `__parseTS`, `__harvestAll`, `__store`/`__merge`, `__expandPostText`, `__profileUrl`. **Ré-injecte après toute navigation** (le window est vidé).
+- **`scripts/scrape_helpers.js`** — Read ce fichier, injecte tout son contenu via `javascript_tool`. Fournit `__decodeTS`, `__parseTS`, `__harvestAll`, `__store`/`__merge`, `__expandPostText`, `__profileUrl`, `__gid` (id du groupe courant, jamais codé en dur), `__alive`. **Ré-injecte après toute navigation** (le window est vidé).
 - **`scripts/airtable_push.py`** — pousse un `records.json` en upsert-merge. Voir §5.
 - **`scripts/focus_chrome.sh`** (macOS) / **`scripts/focus_chrome.ps1`** (Windows) — ramènent l'onglet du scrape au premier plan pour réveiller le rendu. Voir §1 bis.
 - **`references/matching_vocab.json`** — valeurs select valides (Zones/Statuts/Temps) + mapping `macro_regions` → départements. Source de vérité pour remplir les champs de matching (cf. §3). Régénérable depuis la base si le vocab change.
@@ -32,10 +35,32 @@ Scraper les posts du groupe Facebook vétérinaire (tri chronologique) sur une *
 
 ## Étapes
 
+### 0. Lire les canaux à scraper (Airtable)
+
+**Avant d'ouvrir Chrome.** Récupère la clé (cf. §5.1), puis liste les canaux :
+
+```bash
+curl -s -H "Authorization: Bearer $AIRTABLE_API_KEY" \
+  "https://api.airtable.com/v0/appP0W2ISytaNyAhG/tbluH5M2sogAN85dl?pageSize=100" \
+  | python3 -c 'import json,re,sys
+for r in json.load(sys.stdin)["records"]:
+    f=r["fields"]; g=re.search(r"/groups/(\d+)", f.get("Url","") or "")
+    if f.get("Scraper les posts") and g:
+        print(r["id"], g.group(1), f.get("Name"), sep="\t")'
+```
+
+Tu obtiens `recId`, id de groupe et nom pour chaque source. Règles :
+- **Ne scrape que ce qui sort de cette requête.** Un canal coché sans `/groups/<id>` (Instagram, LinkedIn, `facebook.com/me`, une page) n'est pas scrapable : **signale-le et passe**, ne tente pas de deviner une URL.
+- Si un argument nomme un groupe, filtre sur son `Name` (insensible à la casse, sous-chaîne) ; si rien ne matche, dis-le et arrête plutôt que de tout scraper.
+- Si la liste est vide, arrête et explique qu'aucun canal n'est coché.
+- Annonce à l'utilisateur les groupes retenus **avant** de commencer (Chrome va passer devant, cf. §1 bis).
+
+Puis déroule §1 → §4 **pour chaque groupe, l'un après l'autre**, et pousse à la fin (un `records.json` par groupe, ou un seul fichier si chaque ligne porte son `Canaux`).
+
 ### 1. Ouvrir le groupe + injecter les helpers
 
-Navigue vers `https://www.facebook.com/groups/318289868699508/?sorting_setting=CHRONOLOGICAL`.
-1 screenshot pour vérifier (tri chronologique, pas de captcha). Ensuite plus aucun screenshot.
+Navigue vers `https://www.facebook.com/groups/<id du groupe>/?sorting_setting=CHRONOLOGICAL` (l'id vient de §0 — **aucun groupe en dur**).
+1 screenshot pour vérifier (tri chronologique, pas de captcha) **au premier groupe seulement** ; pour les suivants, `__alive()` suffit à confirmer que la page a chargé.
 Attends ~2,5 s, puis Read `scripts/scrape_helpers.js` (relatif au dossier de la compétence) et injecte son contenu. Vérifie l'heure du navigateur (`new Date().toString()` peut être bloqué à l'affichage — concatène-le à une string courte si besoin) et calcule la borne de la fenêtre.
 
 ### 1 bis. Vérifier que le rendu tourne — et réveiller la page tout seul
@@ -116,17 +141,17 @@ JSON.stringify(window.__truncated());   // -> [] attendu
   const trunc = window.__truncated();
   if (trunc.length) return 'STOP — '+trunc.length+' post(s) encore tronqué(s), NE PAS exporter : '+JSON.stringify(trunc);
   const win = Object.values(window.__store).filter(p=>p.iso && p.iso>='<borne YYYY-MM-DD>');
-  const data = win.map(p=>({author:p.author, authorUrl:p.authorUrl, iso:p.iso, pid:p.pid, permalink:p.permalink,
+  const data = win.map(p=>({author:p.author, authorUrl:p.authorUrl, iso:p.iso, gid:p.gid||window.__gid(), pid:p.pid, permalink:p.permalink,
     body:window.__cleanBody(p.body),                                  // corps INTÉGRAL, marqueurs FB retirés
     comments:Object.values(p.comments).map(c=>({name:c.name,profileUrl:c.profileUrl,time:c.time,text:(c.text||'').replace(/\s+/g,' ').trim()}))}));
   const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
   const url=URL.createObjectURL(blob); const a=document.createElement('a');
-  a.href=url; a.download='veto_scrape.json'; document.body.appendChild(a); a.click();
+  a.href=url; a.download='veto_'+window.__gid()+'.json'; document.body.appendChild(a); a.click();   // un fichier par groupe
   setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},2000);
   return 'download '+data.length+' posts';
 })();
 ```
-Puis copie/lis le fichier localement : `cp ~/Downloads/veto_scrape.json <scratchpad>/` puis `Read`. Tu disposes alors du **texte intégral** de chaque post + commentaires, sans troncature ni transcription base64.
+Puis copie/lis le fichier localement : `cp ~/Downloads/veto_<gid>.json <scratchpad>/` puis `Read`. Tu disposes alors du **texte intégral** de chaque post + commentaires, sans troncature ni transcription base64.
 
 Filtre la fenêtre sur `iso` (ou `ageH`) et classe depuis ce fichier local.
 
@@ -147,8 +172,9 @@ Le `Type de post` conditionne tout. Décide sur le **sens du texte**, pas sur l'
 - **Prénom / Nom** : depuis l'auteur (clinique/page → Prénom vide, Nom = nom de la page). « Membre anonyme » → vides. ⚠️ Matche les posts par **corps**, pas par auteur (l'auteur peut être mal capté). Soigne cette capture : le push en dérive le `candidat_key` pour fusionner les re-posts d'une même personne (cf. §5). Ne « répare » pas un nom tronqué en inventant — laisse tel quel (le push le traitera comme non fusionnable).
 - **`candidat_key`** : **ne pas le renseigner** — le push le calcule depuis Prénom+Nom.
 - **Profil Facebook** : `p.authorUrl` tel quel (`https://www.facebook.com/{uid}`, reconstruit depuis l'ancre du header — validé en live : redirige vers le profil réel). **Vide pour « Membre anonyme »** (FB ne rend alors aucune ancre) — laisse vide, ne devine jamais. ⚠️ Si `authorUrl` est vide alors que l'auteur est nommé, c'est que la capture de l'auteur est retombée sur le fallback `strong` (souvent un post sponsorisé) : **vérifie le nom** avant de pousser, ou exclus le post s'il s'agit d'une pub.
+- **Canaux** : `["<recId du canal>"]`, le canal de §0 dont le `gid` correspond à celui du post (`p.gid`). **Obligatoire sur chaque ligne**, post comme commentaire — c'est ce qui donne l'origine du contenu. Le push refuse un `recId` inconnu et n'en crée jamais ; il écrit aussi le nom du canal dans l'en-tête de la section (`[date] lien · Canal`), donc l'origine reste lisible post par post même après fusion de plusieurs groupes sur une même personne.
 - **Date du post** : `iso` (YYYY-MM-DD).
-- **Lien du post** : utilise **`p.permalink`** tel quel (reconstruit à la capture depuis l'id du post : `…/groups/318289868699508/posts/{pid}/`) — c'est un vrai lien qui ouvre le post. **N'utilise une URL de recherche `…/search?q=<mots-clés url-encodés>` qu'en dernier recours**, si `p.permalink` ET `p.pid` sont vides. (Validé en live : le permalink se reconstruit depuis l'`innerHTML` du conteneur, y compris sur les posts à timestamp obfusqué où le href de l'ancre est vide.)
+- **Lien du post** : utilise **`p.permalink`** tel quel (reconstruit à la capture depuis l'id du groupe courant et celui du post : `…/groups/{gid}/posts/{pid}/`) — c'est un vrai lien qui ouvre le post. **N'utilise une URL de recherche `…/search?q=<mots-clés url-encodés>` qu'en dernier recours**, si `p.permalink` ET `p.pid` sont vides. (Validé en live : le permalink se reconstruit depuis l'`innerHTML` du conteneur, y compris sur les posts à timestamp obfusqué où le href de l'ancre est vide.)
 - **Zone de recherche**, **Contenu complet** = le **texte INTÉGRAL du post** (jamais tronqué ni résumé — c'est pour ça qu'on passe par le download blob), **Type de post** (`Vétérinaire cherche poste` | `Clinique cherche vétérinaire`).
 - **Pratiques** ⊆ {Canine, Bovins, Equine, NAC, Allaitant, Laitier, Ovin/Caprin, Porcin, Loups, Volailles}.
 - **Spécialités** ⊆ {Chirurgie, Urgences, Echographie, Orthopédie, Ophtalmologie, Laboratoire, Ostéopathie, Management, Cardiologie, Reproduction, Oncologie, Neurologie, Médecine interne}.
@@ -179,7 +205,7 @@ Renseigne **uniquement** avec des valeurs de **`references/matching_vocab.json`*
 - Sous « Clinique cherche vétérinaire » → **candidat** (profil, dispo, zone, compétences) — y compris « MP envoyé » → contenu = `Candidature en MP`.
 - Sous « Vétérinaire cherche poste » → **clinique/recruteur** (propose poste/zone/contrat) — y compris « je t'envoie un MP » → contenu = `Proposition en MP`.
 - **Ignorer** : encouragements (« Bravo », « Courage », « Ne pas hésiter »), tags d'un tiers sans info, questions/critiques sans recrutement, et **les commentaires de l'auteur sur son propre post**.
-- Champs : Prénom/Nom du commentateur ; **Profil Facebook** = `c.profileUrl` (celui du **commentateur**, jamais celui du post parent ; vide si absent) ; Date = date du commentaire (sinon du post) ; Lien = même que le parent ; Zone (du commentaire, sinon du parent) ; Contenu (texte, ou « Candidature/Proposition en MP ») ; **Type de post inversé** vs parent ; Pratiques/Spécialités déduites (sinon du parent) ; **Type d'entrée** = `Commentaire` ; **Post source** = `{Auteur du post} - {résumé court}` ; Expérience ; Nom de la clinique si recruteur.
+- Champs : **Canaux** = celui du post parent (un commentaire vient forcément du même groupe) ; Prénom/Nom du commentateur ; **Profil Facebook** = `c.profileUrl` (celui du **commentateur**, jamais celui du post parent ; vide si absent) ; Date = date du commentaire (sinon du post) ; Lien = même que le parent ; Zone (du commentaire, sinon du parent) ; Contenu (texte, ou « Candidature/Proposition en MP ») ; **Type de post inversé** vs parent ; Pratiques/Spécialités déduites (sinon du parent) ; **Type d'entrée** = `Commentaire` ; **Post source** = `{Auteur du post} - {résumé court}` ; Expérience ; Nom de la clinique si recruteur.
 - **Tout commentaire conservé — inclure l'INTÉGRALITÉ du post parent** : le `Contenu complet` du commentaire = le **texte du commentaire** (ou « Candidature/Proposition en MP ») **suivi de l'intégralité du post parent**. Le post parent est l'entrée de `__store`/export qui **porte** ce commentaire (son `body`) — jamais à re-scrapper séparément. Format :
   ```
   {texte du commentaire}
@@ -225,6 +251,7 @@ Idempotent : re-scraper un post déjà fusionné ne change rien (garde par secti
 ### 6. Résumé final
 
 - Fenêtre couverte (avec heures).
+- **Un décompte par groupe** (et les canaux cochés qui n'ont pas pu être scrapés, avec la raison).
 - Posts scrappés / retenus / exclus (avec raisons).
 - Commentaires pertinents (candidats / cliniques).
 - Doublons ignorés (par le dédup).

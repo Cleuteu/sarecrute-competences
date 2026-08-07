@@ -16,7 +16,13 @@ records.json = liste d'objets {"fields": {...}} au format Airtable.
   Type d'entrée (Post|Commentaire), Post source, Expérience, Nom de la clinique.
   Archivé (ex "Non pertinent") : champ réservé au recruteur (usage manuel), le scrape
   ne doit JAMAIS l'écrire — un post jugé non pertinent est simplement omis de records.json.
-  Champs matching (cf. matching_vocab.json) : Zones de recherche[], Statuts contractuels[],
+  Canaux (liste de recId de « Canaux de diffusion ») : le ou les groupes Facebook
+  d'où vient le contenu. À renseigner sur CHAQUE ligne. Fusionné par UNION, jamais
+  écrasé : un candidat vu sur deux groupes garde les deux. Le nom du canal est aussi
+  écrit dans l'en-tête de sa section de Contenu complet ("[date] lien · Canal"), ce
+  qui donne l'origine post par post. Un recId inconnu arrête le script — aucun canal
+  n'est créé ici, la table se gère dans Airtable.
+  Champs matching (cf. references/matching_vocab.json) : Zones de recherche[], Statuts contractuels[],
   Type de temps de travail[], Date de disponibilité (YYYY-MM-DD), Rayon accepté (km).
   Contrat court (bool) : à émettre EXPLICITEMENT (true ou false) sur toute entrée
   "Vétérinaire cherche poste", jamais omis — c'est un scalaire, donc le post le plus
@@ -45,7 +51,11 @@ TABLE = "Posts scrappés"
 API = "https://api.airtable.com/v0/%s/%s" % (BASE, urllib.parse.quote(TABLE))
 
 SEP = "\n\n──────────\n\n"
-HEADER_RE = re.compile(r"^\[(\d{4}-\d{2}-\d{2})\]\s*(\S*)\s*$")
+# En-tête de section : "[date] lien · Canal". Le canal est OPTIONNEL, et le lien
+# doit rester reconnaissable seul : les sections déjà en base ("[date] lien") ont
+# à continuer de matcher, sinon la garde d'idempotence tombe et tout est réempilé.
+HEADER_RE = re.compile(r"^\[(\d{4}-\d{2}-\d{2})\]\s*((?:https?://\S+)?)\s*(?:·\s*(.+?))?\s*$")
+CANAUX_TABLE = "tbluH5M2sogAN85dl"      # Canaux de diffusion (groupes FB, réseaux)
 VOWELS = set("aeiouy")
 ORG_MARKERS = ("clinique", "cabinet", "service", "recrute", "hopital", "groupe", "veterinaire ")
 
@@ -55,6 +65,11 @@ SCALAR_FIELDS = ["Prénom", "Nom", "Profil Facebook", "Date du post", "Lien du p
                  "Post source", "Expérience", "Nom de la clinique", "Archivé", "candidat_key",
                  "Zones de recherche", "Statuts contractuels", "Type de temps de travail",
                  "Date de disponibilité", "Rayon accepté (km)", "Contrat court"]
+
+# Champs fusionnés par UNION, jamais écrasés par le post le plus récent : un
+# candidat vu sur deux groupes doit garder les deux canaux. (Ne JAMAIS les mettre
+# dans SCALAR_FIELDS, la première origine serait perdue à la fusion suivante.)
+UNION_FIELDS = ["Canaux"]
 
 # Garde-fou : n'écrire QUE des valeurs select existantes (sinon Airtable crée une option).
 _VOCAB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "matching_vocab.json")
@@ -80,7 +95,7 @@ def sanitize_selects(f):
 
 # Champs demandés au fetch (on a besoin du contenu pour merger la cible).
 FETCH_FIELDS = ["Prénom", "Nom", "Date du post", "Lien du post", "Contenu complet",
-                "Type d'entrée", "candidat_key"]
+                "Type d'entrée", "candidat_key", "Canaux"]
 
 
 def strip_accents(s):
@@ -126,9 +141,12 @@ def sec_sig(s):
     return (s["date"], re.sub(r"\s+", " ", s["body"]).strip().lower()[:80])
 
 
-def parse_sections(content, fb_date, fb_link):
-    """Découpe un Contenu complet en sections {date, link, body}. Gère le legacy
-    (post unique sans en-tête → une section avec la date/lien du record)."""
+def parse_sections(content, fb_date, fb_link, fb_canal=""):
+    """Découpe un Contenu complet en sections {date, link, canal, body}. Gère le
+    legacy (post unique sans en-tête → une section avec la date/lien/canal du
+    record). `fb_canal` ne doit être fourni que si le record a UN seul canal :
+    sur un record multi-canaux, on ne peut pas deviner de quel groupe vient une
+    section sans en-tête, et il vaut mieux ne rien affirmer."""
     content = (content or "").strip()
     if not content:
         return []
@@ -140,9 +158,15 @@ def parse_sections(content, fb_date, fb_link):
         lines = chunk.split("\n")
         m = HEADER_RE.match(lines[0].strip())
         if m:
-            secs.append({"date": m.group(1), "link": m.group(2), "body": "\n".join(lines[1:]).strip()})
+            # En-tête sans canal (toutes les sections écrites avant l'ajout du champ) :
+            # on retombe sur le canal du record, seule attribution disponible — et
+            # `fb_canal` est vide dès que le record a plusieurs canaux, donc on ne
+            # devine jamais. C'est ce qui fait que l'historique se complète tout seul.
+            secs.append({"date": m.group(1), "link": m.group(2), "canal": m.group(3) or fb_canal or "",
+                         "body": "\n".join(lines[1:]).strip()})
         else:
-            secs.append({"date": fb_date or "", "link": fb_link or "", "body": chunk})
+            secs.append({"date": fb_date or "", "link": fb_link or "", "canal": fb_canal or "",
+                         "body": chunk})
     return secs
 
 
@@ -160,7 +184,12 @@ def dedup_sections(secs):
 def render_sections(secs):
     """Rend les sections en texte, plus récent en haut."""
     secs = sorted(secs, key=lambda s: s["date"], reverse=True)
-    blocks = [("[%s] %s" % (s["date"], s["link"])).rstrip() + "\n" + s["body"] for s in secs]
+    blocks = []
+    for s in secs:
+        head = ("[%s] %s" % (s["date"], s.get("link") or "")).rstrip()
+        if s.get("canal"):
+            head += " · " + s["canal"]
+        blocks.append(head + "\n" + s["body"])
     return SEP.join(blocks)
 
 
@@ -168,6 +197,31 @@ def scalars_from_newest(field_dicts):
     """Champs scalaires du post le plus récent (Date du post max)."""
     newest = max(field_dicts, key=lambda f: f.get("Date du post", ""))
     return {k: newest.get(k) for k in SCALAR_FIELDS if newest.get(k) is not None}
+
+
+def union_links(field_dicts):
+    """Union ordonnée des canaux de plusieurs jeux de champs (1re origine d'abord)."""
+    out = []
+    for f in field_dicts:
+        for rid in (f.get("Canaux") or []):
+            if rid not in out:
+                out.append(rid)
+    return out
+
+
+def fetch_canaux(token):
+    """recId → nom du canal, pour l'en-tête de section. Aucune création possible :
+    un recId inconnu est une erreur, jamais un canal à inventer."""
+    url = "https://api.airtable.com/v0/%s/%s?pageSize=100&fields%%5B%%5D=Name" % (BASE, CANAUX_TABLE)
+    req = urllib.request.Request(url, headers={"Authorization": "Bearer " + token})
+    data = json.loads(urllib.request.urlopen(req).read())
+    return {r["id"]: (r["fields"].get("Name") or "") for r in data.get("records", [])}
+
+
+def canal_of(f, canaux):
+    """Nom du canal d'un record, seulement s'il en a exactement un (sinon '')."""
+    ids = f.get("Canaux") or []
+    return canaux.get(ids[0], "") if len(ids) == 1 else ""
 
 
 def fetch_all(token):
@@ -195,6 +249,19 @@ def main():
     if not args:
         sys.exit("Usage: airtable_push.py records.json [--dry]")
     records = json.load(open(args[0]))
+
+    # 0) Canaux : on valide AVANT d'écrire. Un recId inconnu = arrêt, pas de canal
+    #    créé à la volée (la table des canaux se gère dans Airtable, pas ici).
+    canaux = fetch_canaux(token)
+    inconnus = sorted({rid for r in records for rid in (r["fields"].get("Canaux") or [])
+                       if rid not in canaux})
+    if inconnus:
+        sys.exit("Canaux inconnus dans records.json : %s\n"
+                 "Vérifie les recId contre la table « Canaux de diffusion » — "
+                 "ce script n'en crée jamais." % ", ".join(inconnus))
+    sans_canal = sum(1 for r in records if not (r["fields"].get("Canaux") or []))
+    if sans_canal:
+        print("  ⚠️  %d ligne(s) sans Canaux : l'origine du contenu sera perdue." % sans_canal)
 
     # 1) Répartir l'input : personnes fiables (groupées par clé) vs anonymes.
     groups, singles = {}, []
@@ -227,22 +294,33 @@ def main():
     # 3) Personnes fiables → upsert.
     for k, flist in groups.items():
         in_secs = dedup_sections([s for f in flist for s in parse_sections(
-            f.get("Contenu complet"), f.get("Date du post"), f.get("Lien du post"))])
+            f.get("Contenu complet"), f.get("Date du post"), f.get("Lien du post"),
+            canal_of(f, canaux))])
         target = by_key.get(k)
         if target:
             tf = target["fields"]
-            t_secs = parse_sections(tf.get("Contenu complet"), tf.get("Date du post"), tf.get("Lien du post"))
+            t_secs = parse_sections(tf.get("Contenu complet"), tf.get("Date du post"),
+                                    tf.get("Lien du post"), canal_of(tf, canaux))
             t_sigs = {sec_sig(s) for s in t_secs}
             if {sec_sig(s) for s in in_secs} <= t_sigs:      # rien de neuf → idempotent
                 skipped += len(flist)
                 continue
             fields = scalars_from_newest(flist + [tf])
             fields["candidat_key"] = k
+            # Union des canaux : la fusion ajoute une origine, elle n'en remplace pas.
+            # (in_secs d'abord dans le dédup → un en-tête legacy sans canal se voit
+            #  enrichi par la version datée du canal, à signature identique.)
+            union = union_links(flist + [tf])
+            if union:
+                fields["Canaux"] = union
             fields["Contenu complet"] = render_sections(dedup_sections(in_secs + t_secs))
             to_patch.append((target["id"], fields, tf))
         else:
             fields = scalars_from_newest(flist)
             fields["candidat_key"] = k
+            union = union_links(flist)
+            if union:
+                fields["Canaux"] = union
             fields["Contenu complet"] = render_sections(in_secs)
             to_create.append({"fields": fields})
 
@@ -260,13 +338,19 @@ def main():
           % (len(records), len(to_create), len(to_patch), skipped))
 
     if dry:
+        def cnames(f):
+            return "/".join(canaux.get(r, r) for r in (f.get("Canaux") or [])) or "—"
         for c in to_create:
             f = c["fields"]
             who = (f.get("Prénom", "") + " " + f.get("Nom", "")).strip() or f.get("Nom de la clinique", "") or "(anonyme)"
-            print("  + CRÉER ", f.get("Date du post"), "|", who, "::", (f.get("Contenu complet") or "")[:50].replace("\n", " "))
+            print("  + CRÉER ", f.get("Date du post"), "|", who, "|", cnames(f),
+                  "::", (f.get("Contenu complet") or "")[:50].replace("\n", " "))
         for rid, f, tf in to_patch:
             who = (f.get("Prénom", "") + " " + f.get("Nom", "")).strip()
-            print("  ~ MAJ   ", rid, "|", who, "| nouveau top:", f.get("Date du post"))
+            avant, apres = cnames(tf), cnames(f)
+            canal_txt = apres if avant == apres else "%s → %s" % (avant, apres)
+            print("  ~ MAJ   ", rid, "|", who, "| nouveau top:", f.get("Date du post"),
+                  "| canaux:", canal_txt)
         return
 
     created = 0

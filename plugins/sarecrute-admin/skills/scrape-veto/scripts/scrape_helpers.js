@@ -67,6 +67,11 @@ window.__parseTS = function (s) {
  * `https://www.facebook.com/{uid}` — validé en live : elle redirige vers le
  * profil réel (ex. → /mathilde.marcoin), donc directement exploitable par un
  * recruteur. Renvoie '' si l'ancre est absente (cas "Membre anonyme"). */
+/* --- Groupe courant : id lu dans l'URL, jamais codé en dur ------------------
+ * Le scrape couvre plusieurs groupes (un canal Airtable par groupe) : tout ce qui
+ * dépend du groupe (permalink, rattachement du post à son canal) se déduit d'ici. */
+window.__gid = () => (location.pathname.match(/\/groups\/(\d+)/) || [])[1] || '';
+
 window.__profileUrl = function (a) {
   const h = a ? (a.getAttribute('href') || '') : '';
   const uid = (h.match(/\/user\/(\d+)/) || h.match(/profile\.php\?id=(\d+)/) || [])[1] || '';
@@ -105,11 +110,11 @@ window.__harvestAll = function () {
     //  on lit donc l'innerHTML du conteneur, où le permalink est toujours présent).
     const pid = (root.innerHTML.match(/\/(?:posts|permalink)\/(pfbid\w+|\d+)/) || [])[1]
              || (root.innerHTML.match(/story_fbid=(pfbid\w+|\d+)/) || [])[1] || '';
-    const gid = (location.pathname.match(/\/groups\/(\d+)/) || [])[1] || '';
+    const gid = window.__gid();
     const permalink = (gid && pid) ? `https://www.facebook.com/groups/${gid}/posts/${pid}/` : '';
     const blocks = Array.from(root.querySelectorAll('div[dir="auto"]')).map(d => (d.innerText || '').trim()).filter(t => t.length > 2).sort((a, b) => b.length - a.length);
     const parsed = window.__parseTS(window.__decodeTS(tsA));
-    postByAnchor.set(tsA, { author, authorUrl, decoded: window.__decodeTS(tsA), iso: parsed.iso, ageH: parsed.ageH, pid, permalink, body: blocks[0] || '', comments: [] });
+    postByAnchor.set(tsA, { author, authorUrl, decoded: window.__decodeTS(tsA), iso: parsed.iso, ageH: parsed.ageH, gid, pid, permalink, body: blocks[0] || '', comments: [] });
   }
   // Commentaires = div[role=article][aria-label="Commentaire de {Nom} il y a {temps}"]
   const cArts = Array.from(document.querySelectorAll('div[role="article"][aria-label]')).filter(a => /^Commentaire de/i.test(a.getAttribute('aria-label') || ''));
@@ -158,8 +163,9 @@ window.__merge = function () {
   for (const p of window.__harvestAll()) {
     const k = window.__postKey(p);
     const s = window.__store[k];
-    if (!s) { window.__store[k] = { author: p.author, authorUrl: p.authorUrl, decoded: p.decoded, iso: p.iso, ageH: p.ageH, pid: p.pid, permalink: p.permalink, body: p.body, comments: {} }; }
+    if (!s) { window.__store[k] = { author: p.author, authorUrl: p.authorUrl, decoded: p.decoded, iso: p.iso, ageH: p.ageH, gid: p.gid, pid: p.pid, permalink: p.permalink, body: p.body, comments: {} }; }
     else {
+      if (!s.gid && p.gid) s.gid = p.gid;                 // groupe d'où vient le post
       if (!s.pid && p.pid) s.pid = p.pid;                 // complète le pid quand dispo
       if (!s.permalink && p.permalink) s.permalink = p.permalink; // idem permalink
       if (!s.authorUrl && p.authorUrl) s.authorUrl = p.authorUrl; // idem profil auteur
