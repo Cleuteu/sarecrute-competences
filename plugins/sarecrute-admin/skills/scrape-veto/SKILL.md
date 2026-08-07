@@ -27,7 +27,7 @@ Scraper les posts des **groupes Facebook vétérinaires** (tri chronologique) su
 
 ## Ressources bundlées
 
-- **`scripts/scrape_helpers.js`** — Read ce fichier, injecte tout son contenu via `javascript_tool`. Fournit `__decodeTS`, `__parseTS`, `__harvestAll`, `__store`/`__merge`, `__expandPostText`, `__profileUrl`, `__gid` (id du groupe courant, jamais codé en dur), `__alive`. **Ré-injecte après toute navigation** (le window est vidé).
+- **`scripts/scrape_helpers.js`** — Read ce fichier, injecte tout son contenu via `javascript_tool`. Fournit `__decodeTS`, `__parseTS`, `__harvestAll`, `__store`/`__merge`, `__expandPostText`, `__profileUrl`, `__gid` (id du groupe courant, jamais codé en dur), `__alive`, `__chrono` (contrôle du tri). **Ré-injecte après toute navigation** (le window est vidé).
 - **`scripts/airtable_push.py`** — pousse un `records.json` en upsert-merge. Voir §5.
 - **`scripts/focus_chrome.sh`** (macOS) / **`scripts/focus_chrome.ps1`** (Windows) — ramènent l'onglet du scrape au premier plan pour réveiller le rendu. Voir §1 bis.
 - **`references/matching_vocab.json`** — valeurs select valides (Zones/Statuts/Temps) + mapping `macro_regions` → départements. Source de vérité pour remplir les champs de matching (cf. §3). Régénérable depuis la base si le vocab change.
@@ -49,7 +49,7 @@ for r in json.load(sys.stdin)["records"]:
         print(r["id"], g.group(1), f.get("Name"), sep="\t")'
 ```
 
-Tu obtiens `recId`, id de groupe et nom pour chaque source. Règles :
+Tu obtiens `recId`, id de groupe et nom pour chaque source. L'`Url` du canal n'est **jamais** l'URL de scrape : elle décrit où l'on publie, on n'en extrait que l'id (cf. §1). Règles :
 - **Ne scrape que ce qui sort de cette requête.** Un canal coché sans `/groups/<id>` (Instagram, LinkedIn, `facebook.com/me`, une page) n'est pas scrapable : **signale-le et passe**, ne tente pas de deviner une URL.
 - Si un argument nomme un groupe, filtre sur son `Name` (insensible à la casse, sous-chaîne) ; si rien ne matche, dis-le et arrête plutôt que de tout scraper.
 - Si la liste est vide, arrête et explique qu'aucun canal n'est coché.
@@ -60,6 +60,8 @@ Puis déroule §1 → §4 **pour chaque groupe, l'un après l'autre**, et pousse
 ### 1. Ouvrir le groupe + injecter les helpers
 
 Navigue vers `https://www.facebook.com/groups/<id du groupe>/?sorting_setting=CHRONOLOGICAL` (l'id vient de §0 — **aucun groupe en dur**).
+
+⚠️ **N'ouvre JAMAIS l'`Url` du canal telle quelle.** Ce champ sert à la publication : il pointe l'accueil du groupe, donc un fil trié **par pertinence**, où les posts récents ne sont pas en haut. On n'en garde que l'id, et on reconstruit l'URL avec le tri chronologique. Même règle si l'`Url` contient déjà des paramètres : on les jette.
 1 screenshot pour vérifier (tri chronologique, pas de captcha) **au premier groupe seulement** ; pour les suivants, `__alive()` suffit à confirmer que la page a chargé.
 Attends ~2,5 s, puis Read `scripts/scrape_helpers.js` (relatif au dossier de la compétence) et injecte son contenu. Vérifie l'heure du navigateur (`new Date().toString()` peut être bloqué à l'affichage — concatène-le à une string courte si besoin) et calcule la borne de la fenêtre.
 
@@ -85,6 +87,18 @@ bash <dossier_skill>/scripts/focus_chrome.sh                      # macOS
   - Sous Windows, le script ne peut pas sélectionner l'onglet (limite de la plateforme) : s'il répond que l'onglet du scrape n'est pas l'onglet actif, demande à l'utilisateur de cliquer dessus.
 
 ⚠️ Ne laisse pas Chrome repasser en arrière-plan pendant la collecte : chaque `focus_chrome.sh` interrompt ce que l'utilisateur est en train de faire. Préviens-le en une ligne au début que la fenêtre Chrome va rester devant, et regroupe les réveils plutôt que de les répéter.
+
+### 1 ter. Vérifier que le tri est chronologique (OBLIGATOIRE avant de collecter)
+
+Le paramètre d'URL ne suffit pas : Facebook peut retomber sur le tri par pertinence. Après un premier `__merge()` :
+
+```javascript
+window.__merge(); JSON.stringify(window.__chrono());   // {ok, inversions, isos, url, tri}
+```
+
+- `ok: true` → lance les cycles.
+- `ok: false` (plus d'une inversion dans les dates, ou `tri: "PARAM ABSENT"`) → **ne collecte pas** : la fenêtre temporelle n'aurait plus de sens et le critère d'arrêt conclurait « fin du fil » sur un vieux post remonté par l'algorithme. Re-navigue avec le paramètre, attends le chargement, ré-injecte les helpers, `__merge()` et re-teste. Si c'est encore faux au 2ᵉ essai, **passe ce groupe** en le signalant dans le résumé final plutôt que de ramener des données dont la fenêtre est fausse.
+- Une seule inversion est tolérée : un post épinglé apparaît en tête sans que le reste du fil soit désordonné.
 
 ### 2. Collecter par cycles (scroll + merge)
 

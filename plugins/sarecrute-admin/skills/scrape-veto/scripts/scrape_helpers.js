@@ -256,4 +256,30 @@ window.__alive = function (ms) {
   });
 };
 
+/* --- __chrono : le fil est-il vraiment trié du plus récent au plus ancien ? --
+ * `?sorting_setting=CHRONOLOGICAL` n'est pas garanti : Facebook peut retomber sur
+ * le tri par pertinence (et l'Url enregistrée d'un canal, elle, ne trie rien du
+ * tout). Un fil non chronologique casse SILENCIEUSEMENT la fenêtre temporelle :
+ * le critère d'arrêt « la queue a franchi la borne » n'a plus de sens, et on
+ * conclut « fin du fil » sur un vieux post remonté par l'algorithme.
+ * À appeler après le 1er merge, AVANT de lancer les cycles.
+ * inversions > 1 ⇒ ne pas collecter : corriger le tri d'abord. */
+window.__chrono = function (n) {
+  const ps = window.__harvestAll().filter(p => p.iso).slice(0, n || 8);
+  const isos = ps.map(p => p.iso);
+  let inversions = 0;
+  for (let i = 1; i < isos.length; i++) if (isos[i] > isos[i - 1]) inversions++;
+  // Le paramètre compte AUTANT que les dates observées : des dates décroissantes
+  // par chance (peu de posts, tri par pertinence qui remonte du récent) ne prouvent
+  // rien. Sans le paramètre, on re-navigue — c'est déterministe et ça ne coûte rien.
+  const param = /sorting_setting=CHRONOLOGICAL/i.test(location.search);
+  return {
+    ok: param && isos.length >= 2 && inversions <= 1,
+    inversions: inversions,
+    isos: isos,
+    url: location.pathname + location.search,
+    tri: param ? 'param présent' : 'PARAM ABSENT'
+  };
+};
+
 'helpers scrape-veto injectés';
