@@ -300,11 +300,10 @@ Par conséquent :
   point 2) : c'est le seul geste que les `ref` ne réussissent pas. Un `screenshot` plein écran est
   ici le bon outil — il faut voir la mise en page pour situer le composeur. Pas de capture pour
   quoi que ce soit d'autre.
-- **Traiter chaque publication dans un sous-agent** (un par publication, **séquentiellement**).
-  Les arbres et captures restent dans le contexte du sous-agent ; il ne remonte qu'une ligne de
-  résultat : canal, texte posé (oui/non), image jointe (oui/non), anomalie éventuelle. C'est ce
-  qui empêche le contexte principal d'enfler. Ne pas lancer les sous-agents en parallèle : ils
-  piloteraient le même navigateur et se marcheraient dessus.
+- **Traiter chaque publication dans un sous-agent**, un par publication. Les arbres et captures
+  restent dans le contexte du sous-agent ; il ne remonte qu'une ligne de résultat : canal, texte
+  posé (oui/non), image jointe (oui/non), anomalie éventuelle. C'est ce qui empêche le contexte
+  principal d'enfler. Voir l'étape 4 pour le nombre d'agents lancés de front.
 
 ### Règle de temps — un coût fixe par sous-agent, à ne pas payer dix fois
 
@@ -329,13 +328,9 @@ dans une action lente : le levier est donc d'en faire moins, pas d'en accélére
   abouti ; mur de profil qui ne capte pas la saisie), et un batch attacherait alors l'image à un
   composeur vide sans que rien ne le signale. La vérification reste un appel à part, toujours.
 
-Ce qui reste **incompressible** : les brouillons ne sont pas parallélisables (même navigateur,
-`ref` invalidés, presse-papiers unique en méthode B, et surtout une seule connexion CDP). La
-durée croît linéairement avec le nombre de publications.
-
-**Compter ~3 min par brouillon**, soit ~30 min pour une dizaine. Mesuré sur 5 brouillons :
-3,3 min de moyenne avant les corrections ci-dessus, ~2,5 min attendues après. Ne pas promettre
-mieux à l'utilisateur — les versions précédentes annonçaient 2,5 min et se trompaient.
+**Compter ~2,5 min par brouillon en séquentiel.** Mesuré sur 5 brouillons : 3,3 min de moyenne
+avant les corrections ci-dessus. Ne pas promettre mieux tant que la parallélisation n'a pas été
+mesurée — les versions précédentes annonçaient 2,5 min et se trompaient.
 
 **Une piste non tranchée** : sur ce même run, le coût par appel a doublé du 1ᵉʳ au 5ᵉ brouillon
 (9,5 s → 20,4 s) à nombre d'appels constant, ce qui suggère une taxe liée aux onglets Facebook
@@ -345,19 +340,62 @@ Ne **pas** « publier et fermer au fur et à mesure » pour y remédier : la com
 jamais. Si la taxe se confirme, la réponse est de découper le run en lots avec relecture humaine
 entre deux.
 
+### Parallélisation — K brouillons de front en méthode A
+
+**En méthode A, lancer K sous-agents concurrents, K = 3 par défaut.** En méthode B, rester
+**strictement séquentiel** (voir plus bas).
+
+Trois objections à la parallélisation figuraient dans les versions précédentes de cette
+compétence. Elles ont été testées sur pages neutres, et **les trois sont fausses en méthode A** :
+
+- « Le clic par coordonnées exige que l'onglet soit au premier plan. » **Faux.** Capture et clic
+  par coordonnées fonctionnent sur un onglet en arrière-plan : la page a bien navigué, et
+  l'onglet actif de Chrome — sur un tout autre site — n'a jamais changé.
+- « Les `ref` d'un onglet sont invalidés quand on lit un autre onglet. » **Faux.** Les `ref` sont
+  résolus **par onglet**. Vérifié : `form_input` sur l'onglet A avec `ref_11` a réussi alors que
+  la dernière lecture portait sur l'onglet B, dont l'arbre ne contenait qu'un `ref_1` ; la valeur
+  était bien dans le DOM de A.
+- « Le presse-papiers est unique. » **Vrai, mais seulement en méthode B**, qui ne l'utilise pas
+  en A.
+
+Ce qui reste vrai et limite le gain : **une seule connexion CDP** pour tous les onglets. Si elle
+est le goulot, K agents entrelaceront le même travail sans rien gagner. C'est une question de
+**débit, pas de correction** — rien ne peut être écrit dans le mauvais onglet, chaque action
+portant son `tabId` et chaque `ref` étant local à son onglet.
+
+**Conduite à tenir** : démarrer à K = 3 et comparer la durée par brouillon à la référence
+séquentielle (~2,5 min). Si elle ne baisse pas, la connexion CDP plafonne : revenir à K = 1 et le
+dire dans le compte rendu. Ne pas monter K au-delà de 4 sans mesure.
+
+**Ce que la parallélisation ne change pas** : toutes les règles de sûreté sont locales à un
+onglet — le textbox doit être dans le dialogue « Créer une publication », le nom du compte doit
+correspondre au recruteur, le champ image vient du sous-arbre du dialogue. Elles s'appliquent
+identiquement, agent par agent. **Ne jamais les assouplir au motif d'aller plus vite.**
+
+En cas d'échec d'un agent, les autres continuent : un brouillon raté n'interrompt pas le run, il
+est signalé dans le compte rendu avec son canal.
+
 ### Déroulé, pour chaque publication retenue
 
-**Avant le tout premier onglet du run**, appeler une fois
-`tabs_context_mcp` avec `createIfEmpty: true` : c'est cet appel qui crée le groupe d'onglets de la
-session et renvoie son premier `tabId`. Sans lui, `tabs_create_mcp` échoue d'emblée
-(« No tab group exists for this session yet ») — donc **à la première publication de chaque run**.
-Le premier brouillon utilise le `tabId` ainsi renvoyé ; les suivants seulement passent par
-`tabs_create_mcp`.
+**Phase 1 — ouvrir et charger tous les onglets d'un coup (agent principal).**
 
-Ouvrir ensuite un **nouvel onglet** par publication (`tabs_create_mcp`), puis :
+1. Appeler une fois `tabs_context_mcp` avec `createIfEmpty: true` : c'est cet appel qui crée le
+   groupe d'onglets de la session et renvoie son premier `tabId`. Sans lui, `tabs_create_mcp`
+   échoue d'emblée (« No tab group exists for this session yet »). Le premier brouillon utilise
+   ce `tabId` ; les autres passent par `tabs_create_mcp`.
+2. Créer les N−1 onglets restants, puis **lancer les N navigations dans un seul `browser_batch`**,
+   avec **une seule** attente de ~4 s à la fin — et non une attente par onglet. Les pages chargent
+   en parallèle côté navigateur : on paie un temps de chargement au lieu de N. Vérifié sur deux
+   onglets, deux navigations parties dans le même appel.
+3. Prendre les captures d'écran, une par onglet. Elles fonctionnent sur les onglets en
+   arrière-plan, il n'y a donc rien à mettre au premier plan.
 
-1. **En un seul `browser_batch`** : `navigate` vers l'URL du canal, une attente de ~3 s, puis la
-   capture d'écran du point 2. Un aller-retour au lieu de trois.
+**Phase 2 — traiter les brouillons, K de front** (voir la section parallélisation). Chaque
+sous-agent reçoit son `tabId`, l'URL de son canal, son texte et le chemin de son image, puis :
+
+1. Sa page est déjà chargée et sa capture déjà prise en phase 1 — il n'a ni à naviguer ni à
+   attendre. S'il travaille seul (K = 1), faire ces deux gestes en un seul `browser_batch` :
+   `navigate`, attente de ~3 s, capture.
 
    **Pas de `read_page` ici.** Il servait à vérifier l'appartenance au groupe, or la capture
    qu'on prend de toute façon juste après montre déjà le bouton « Rejoindre le groupe » quand il
@@ -384,11 +422,14 @@ Ouvrir ensuite un **nouvel onglet** par publication (`tabs_create_mcp`), puis :
      suivantes par `ref_id`. **Ne pas refaire de `find` pour le champ image.**
    - **Ce n'est pas le repli, c'est la voie normale**, contrairement au reste de la compétence qui
      travaille par `ref`. Mesuré sur un groupe et sur un profil : **le clic par `ref` n'ouvre
-     jamais le composeur**. `computer` répond « Clicked on element ref_N », `find` renvoie ensuite
-     le même bouton avec un `ref` renuméroté, et rien ne s'est passé — les `ref` sont invalidés par
-     la réhydratation de Facebook plus vite qu'on ne s'en sert. Deux clics `ref` par publication,
-     c'est deux à trois allers-retours perdus pour rien : commencer directement par la capture
-     coûte moins cher que d'y venir après avoir échoué.
+     jamais le composeur** — `computer` répond « Clicked on element ref_N » et rien ne se produit.
+     La cause n'est pas Facebook : le même comportement se reproduit sur une page statique
+     triviale, où un clic par `ref` sur un simple lien ne navigue pas alors qu'un clic par
+     coordonnées au même endroit fonctionne. Le clic par `ref` **donne le focus mais n'active
+     pas** : il suffit pour placer le curseur dans un champ de saisie — ce que fait le point 4 —
+     et ne suffit pas pour déclencher un bouton ou un lien. Deux clics `ref` par publication,
+     c'est deux à trois allers-retours perdus : commencer par la capture coûte moins cher que d'y
+     venir après avoir échoué.
    - **Une seule capture par publication**, et uniquement pour ce clic-là. Tout le reste
      (vérification du dialogue, du texte, de l'image) se fait par `read_page` borné.
    - **Une fois le dialogue ouvert, revenir aux `ref`** : ceux obtenus dans le dialogue sont
@@ -592,8 +633,15 @@ c'est voulu. Ne pas regrouper ni découper le run en lots.
   l'utilisateur en début de run qu'il ne doit pas taper pendant ces quelques secondes, plutôt que
   de lui demander de ne pas toucher à sa machine du début à la fin. En méthode A, ne pas
   l'avertir de quoi que ce soit : il n'y a rien à subir.
-- **Ne pas paralléliser les publications**, quelle que soit la méthode : les sous-agents
-  piloteraient le même navigateur et leurs `ref` s'invalideraient mutuellement. En méthode B
-  s'ajoute le presse-papiers, ressource unique : deux collages simultanés enverraient l'image
-  dans le mauvais onglet, sans erreur visible.
+- **En méthode B uniquement, ne pas paralléliser** : le presse-papiers est une ressource unique
+  et deux collages simultanés enverraient l'image dans le mauvais onglet, sans erreur visible.
+  En méthode A, la parallélisation est au contraire le mode par défaut — voir la section
+  correspondante à l'étape 4. L'argument des `ref` mutuellement invalidés, présent dans les
+  versions antérieures, était faux : les `ref` sont résolus par onglet.
+- **Un clic par `ref` donne le focus mais n'active pas.** Testé sur une page statique triviale,
+  hors de tout cadre React : l'outil répond « Clicked on element ref_N » et le lien ne navigue
+  pas, alors qu'un clic par coordonnées au même endroit fonctionne. C'est la vraie raison pour
+  laquelle le composeur s'ouvre par coordonnées — et non la réhydratation de Facebook, qu'invo-
+  quaient les versions précédentes. Les `ref` restent fiables pour placer le curseur dans un
+  champ, et pour `form_input` et `file_upload`, qui n'ont pas besoin d'activer quoi que ce soit.
 - Ne jamais publier ; ne jamais cocher « Publié ? » dans Airtable.
