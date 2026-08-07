@@ -4,14 +4,14 @@
     "name": "SaRecrute"
   },
   "metadata": {
-    "description": "Compétences Claude Code des recruteurs SaRecrute (recrutement vétérinaire)."
+    "description": "Compétences Claude Code de SaRecrute (recrutement vétérinaire) : un plugin pour les recruteurs, un pour l'administration."
   },
   "plugins": [
     {
       "name": "sarecrute-recruteur",
       "source": "./plugins/sarecrute-recruteur",
-      "description": "Compétences quotidiennes des recruteurs SaRecrute : créer une clinique et son offre d'emploi depuis une annonce, préparer les brouillons de publication Facebook du jour, et scraper les posts du groupe Facebook vétérinaire vers Airtable.",
-      "version": "0.2.1",
+      "description": "Compétences quotidiennes des recruteurs SaRecrute : créer une clinique et son offre d'emploi depuis une annonce, et préparer les brouillons de publication Facebook du jour.",
+      "version": "0.3.0",
       "author": {
         "name": "SaRecrute"
       },
@@ -20,8 +20,24 @@
         "recrutement",
         "veterinaire",
         "airtable",
+        "facebook"
+      ]
+    },
+    {
+      "name": "sarecrute-admin",
+      "source": "./plugins/sarecrute-admin",
+      "description": "Compétences d'administration SaRecrute, hors poste de recrutement : collecte des posts du groupe Facebook vétérinaire vers Airtable. Exige une clé d'API Airtable dans l'environnement et le Chrome réel de la machine.",
+      "version": "0.1.0",
+      "author": {
+        "name": "SaRecrute"
+      },
+      "keywords": [
+        "sarecrute",
+        "veterinaire",
+        "airtable",
         "facebook",
-        "scraping"
+        "scraping",
+        "administration"
       ]
     }
   ]

@@ -45,10 +45,9 @@ Puis redémarrer Claude Code. Vérifie ensuite que les deux compétences sont bi
 `creer-clinique-offre` et `creer-brouillons-facebook`. Si elles n'apparaissent pas, c'est le
 redémarrage qui manque.
 
-Le plugin embarque aussi `scrape-veto` (collecte des posts du groupe Facebook vétérinaire). Elle ne
-fait **pas** partie de cet onboarding : elle demande une clé d'API Airtable dans l'environnement du
-poste et ne se déclenche que si on la demande explicitement. Ne la présente pas au recruteur et ne
-cherche pas à la configurer.
+Le plugin ne contient que ces deux compétences. La marketplace en propose un second,
+`sarecrute-admin` (collecte des posts du groupe Facebook) : il est réservé au poste
+d'administration, **ne l'installe pas** et n'en parle pas au recruteur.
 
 Les scripts dont la compétence a besoin sont livrés avec elle, il n'y a rien d'autre à écrire.
 
