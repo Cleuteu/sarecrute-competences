@@ -185,8 +185,10 @@ Pour chaque URL Drive distincte trouvée dans `url image publication` :
    SRC="<chemin_txt>"; NOM="<nom>"
 
    # Dossier de sortie : IMPÉRATIVEMENT un dossier que file_upload accepte.
-   # file_upload n'autorise que les fichiers des dossiers partagés avec la session
-   # (uploads/outputs/working de la session, ou un dossier ouvert par l'utilisateur).
+   # file_upload n'autorise QUE les dossiers `uploads` et `outputs` de la session (ou un dossier
+   # ouvert par l'utilisateur). `working` est REFUSÉ, bien qu'il soit lisible par l'agent :
+   # CLAUDE_ADDITIONAL_DIRECTORIES gouverne l'accès en lecture, pas ce que file_upload accepte.
+   # Vérifié en run réel — ne pas le remettre dans les candidats.
    # Un dossier temporaire système ($TMPDIR, /tmp) est REFUSÉ : ne jamais l'utiliser ici.
    #
    # En Cowork, l'arbre partagé est /mnt/user-data (cf. CLAUDE_ADDITIONAL_DIRECTORIES) et le cwd
@@ -196,7 +198,7 @@ Pour chaque URL Drive distincte trouvée dans `url image publication` :
    # et rejouer le brouillon. Mesuré : ce seul aller-retour a doublé la durée du 1er brouillon.
    # Donc en Cowork on CRÉE le dossier, on ne se demande pas s'il existe.
    if [ -d /mnt/user-data ]; then
-     for c in /mnt/user-data/outputs /mnt/user-data/uploads /mnt/user-data/working; do
+     for c in /mnt/user-data/outputs /mnt/user-data/uploads; do
        [ -d "$c" ] && [ -w "$c" ] && { OUT="$c/pub_images"; break; }
      done
      OUT="${OUT:-/mnt/user-data/outputs/pub_images}"   # aucun n'existe : on crée outputs
@@ -239,9 +241,9 @@ Pour chaque URL Drive distincte trouvée dans `url image publication` :
    navigateur, il ne demande pas au poste d'ouvrir le fichier. **Ne pas le convertir en chemin
    hôte** (`/Users/...`, `C:\...`) : un chemin hôte serait refusé.
 
-   Vérifié en session Cowork : un chemin sous `/mnt/user-data/...` (`outputs`, `uploads` ou
-   `working`) `/pub_images/<nom>.png` est accepté du premier coup. En revanche `/home/claude/...`
-   est systématiquement refusé — c'est le symptôme d'une sonde de dossier tombée dans le repli.
+   Vérifié en run réel : `/mnt/user-data/outputs/pub_images/<nom>.png` et son équivalent sous
+   `uploads` sont acceptés du premier coup. Sont refusés, eux, `/mnt/user-data/working/...` et
+   `/home/claude/...` — ce dernier étant le symptôme d'une sonde de dossier tombée dans le repli.
 
    Si l'outil refuse malgré tout le fichier, le problème est le **dossier**, pas la forme du
    chemin : l'image a été écrite hors des dossiers partagés avec la session. Reprendre le
