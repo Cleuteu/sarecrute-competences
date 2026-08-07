@@ -224,12 +224,14 @@ Pour chaque URL Drive distincte trouvée dans `url image publication` :
      done
      OUT="${OUT:-/mnt/user-data/outputs/pub_images}"   # aucun n'existe : on crée outputs
    else
-     # Hors Cowork (poste macOS/Windows, méthode B) : /mnt/user-data n'existe pas et n'est pas
-     # créable sans droits root. Le fichier n'a pas à être partagé, le script le lit localement.
-     for c in outputs uploads; do
-       [ -d "$c" ] && [ -w "$c" ] && { OUT="$c/pub_images"; break; }
-     done
-     OUT="${OUT:-pub_images}"
+     # Hors Cowork (poste macOS/Windows) : /mnt/user-data n'existe pas et n'est pas créable sans
+     # droits root. Ici la méthode d'attache est TOUJOURS la B — le script lit le fichier
+     # localement, il n'a pas à être partagé avec la session. On écrit donc dans un dossier au
+     # nom neutre, surtout PAS `outputs` ni `uploads` : ces deux noms sont le critère de choix de
+     # la méthode A à l'étape 4, et les réutiliser ici a déjà fait croire à un agent sous Windows
+     # qu'il était en session Cowork. Il a tenté file_upload, qui a échoué, et a demandé au
+     # recruteur de partager un dossier — alors que le script attendait à côté.
+     OUT="sarecrute_pub_images"
    fi
    mkdir -p "$OUT"; DST="$OUT/$NOM.png"
 
@@ -430,9 +432,22 @@ Ouvrir ensuite un **nouvel onglet** par publication (`tabs_create_mcp`), puis :
 6. Joindre l'image. S'il n'y a pas d'image pour cette publication, ne rien joindre et passer à
    la suite.
 
-   **Choisir la méthode selon la session, en le vérifiant et non en le supposant** : si l'étape 3
-   a pu écrire l'image dans un dossier `outputs/` ou `uploads/` de la session, utiliser
-   `file_upload` (méthode A). Sinon, passer par le presse-papiers (méthode B).
+   **Choisir la méthode sur l'environnement, pas sur le nom du dossier obtenu** :
+
+   - **`/mnt/user-data` existe** (session Cowork) → **méthode A**, `file_upload`.
+   - **sinon** (poste macOS ou Windows) → **méthode B**, le script presse-papiers. Sans
+     exception, et sans essayer `file_upload` d'abord.
+
+   Le critère est cette seule condition, celle-là même qui a orienté l'écriture de l'image à
+   l'étape 3. **Ne jamais déduire la méthode du nom du dossier de sortie** : un poste Windows
+   peut très bien avoir un dossier `outputs` local sans être une session Cowork.
+
+   Ce que ça évite, constaté en production chez un recruteur sous Windows : `file_upload` refuse
+   le chemin, l'agent en conclut qu'il manque un partage et demande au recruteur de connecter un
+   dossier — puis constate que même un dossier connecté ne suffit pas. Le run reste bloqué en
+   texte seul alors que le script de la méthode B était livré avec la compétence et n'avait
+   besoin d'aucun partage. `file_upload` n'accepte que les dossiers de session Cowork : hors
+   Cowork, il n'y a rien à débloquer, c'est la mauvaise porte.
 
    **Méthode A — `file_upload` (session Cowork)**
 
