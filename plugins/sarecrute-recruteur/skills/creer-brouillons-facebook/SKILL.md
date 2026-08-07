@@ -311,6 +311,11 @@ dans une action lente : le levier est donc d'en faire moins, pas d'en accélére
   aller-retour perdu à chaque fois, multiplié par le nombre de publications.
 - **Lui passer ce qu'il sait déjà** : le `tabId` de son onglet, l'URL du canal, le texte à saisir,
   le chemin de l'image. Il ne doit rien redécouvrir — ni relire Airtable, ni rechercher le canal.
+- **Créer tous les onglets en une fois**, pas un par tour de boucle : chaque `tabs_create_mcp`
+  isolé est un aller-retour complet. Constaté sur un run réel : 5 onglets créés en 4 appels
+  séparés, et les téléchargements Drive enchaînés en série alors que l'étape 3 prescrit le
+  contraire depuis la 0.3.2. Ces deux écarts coûtent 1 à 2 min par run — les consignes
+  d'ordonnancement de l'étape 3 ne sont pas facultatives.
 - **Grouper en `browser_batch` ce qui est sûr** : le clic dans le champ de texte suivi de la
   frappe, ou la navigation suivie de l'attente. **Ne jamais y fusionner une vérification et
   l'action qui la suit** — en particulier taper le texte puis joindre l'image dans un même batch.
@@ -319,8 +324,20 @@ dans une action lente : le levier est donc d'en faire moins, pas d'en accélére
   composeur vide sans que rien ne le signale. La vérification reste un appel à part, toujours.
 
 Ce qui reste **incompressible** : les brouillons ne sont pas parallélisables (même navigateur,
-`ref` invalidés, presse-papiers unique en méthode B). La durée croît linéairement avec le nombre
-de publications — compter ~25 min pour une dizaine. Ne pas promettre mieux à l'utilisateur.
+`ref` invalidés, presse-papiers unique en méthode B, et surtout une seule connexion CDP). La
+durée croît linéairement avec le nombre de publications.
+
+**Compter ~3 min par brouillon**, soit ~30 min pour une dizaine. Mesuré sur 5 brouillons :
+3,3 min de moyenne avant les corrections ci-dessus, ~2,5 min attendues après. Ne pas promettre
+mieux à l'utilisateur — les versions précédentes annonçaient 2,5 min et se trompaient.
+
+**Une piste non tranchée** : sur ce même run, le coût par appel a doublé du 1ᵉʳ au 5ᵉ brouillon
+(9,5 s → 20,4 s) à nombre d'appels constant, ce qui suggère une taxe liée aux onglets Facebook
+laissés vivants. Mais la série n'est pas monotone (9,5 / 16,1 / 11,2 / 18,4 / 20,4) et 5 points
+bruités ne suffisent pas à conclure. À mesurer sur une dizaine avant d'en tirer quoi que ce soit.
+Ne **pas** « publier et fermer au fur et à mesure » pour y remédier : la compétence ne publie
+jamais. Si la taxe se confirme, la réponse est de découper le run en lots avec relecture humaine
+entre deux.
 
 ### Déroulé, pour chaque publication retenue
 
@@ -333,18 +350,32 @@ Le premier brouillon utilise le `tabId` ainsi renvoyé ; les suivants seulement 
 
 Ouvrir ensuite un **nouvel onglet** par publication (`tabs_create_mcp`), puis :
 
-1. `navigate` vers l'URL du canal ; attendre ~3 s le chargement. **Pas de capture ici** :
-   appeler `read_page` borné comme indiqué ci-dessus.
+1. **En un seul `browser_batch`** : `navigate` vers l'URL du canal, une attente de ~3 s, puis la
+   capture d'écran du point 2. Un aller-retour au lieu de trois.
+
+   **Pas de `read_page` ici.** Il servait à vérifier l'appartenance au groupe, or la capture
+   qu'on prend de toute façon juste après montre déjà le bouton « Rejoindre le groupe » quand il
+   est là. Lire les deux informations sur la même image.
    - Toutes les URL traitées ici contiennent `/groups/` : les murs de profil ont été écartés au
      filtrage de l'étape 2. Si une URL sans `/groups/` arrive jusqu'ici, c'est que le filtre a
      été contourné — ne pas la traiter.
-   - Si l'arbre montre que le compte n'est **pas membre** du groupe ou n'a pas le droit d'y
+   - Si la capture montre que le compte n'est **pas membre** du groupe ou n'a pas le droit d'y
      publier (bouton « Rejoindre le groupe », composeur absent, message d'autorisation) : ne pas
      insister, fermer l'onglet, et noter ce canal comme **« accès manquant »** pour le compte
      rendu. C'est le cas le plus fréquent quand un nouveau recruteur démarre.
 2. Ouvrir le composeur — **par coordonnées, dès le premier essai** :
-   - Prendre **une** capture (`screenshot`), y lire les coordonnées de la zone « Exprimez-vous… » /
-     « Écrivez quelque chose à … », et cliquer par `coordinate`.
+   - Sur la capture prise au point 1, lire les coordonnées de la zone « Exprimez-vous… » /
+     « Écrivez quelque chose à … » et cliquer par `coordinate`. A marché du premier coup
+     4 fois sur 5 sur le run mesuré.
+   - **Grouper ce clic et la lecture qui le vérifie dans un seul `browser_batch`** : les
+     coordonnées écrites dans un batch se réfèrent à la capture prise *avant* l'appel, donc celle
+     du point 1 — c'est valide. Si le clic échoue, le batch s'arrête et le signale ; s'il n'ouvre
+     rien, la lecture ne montre pas de dialogue. Dans les deux cas c'est détecté, jamais supposé.
+   - La lecture en question : **un** `read_page` borné (`filter: "interactive"`, `max_chars: 8000`). Il sert
+     à quatre choses d'un coup : confirmer la présence du `dialog "Créer une publication"`,
+     récupérer le `ref` du `textbox`, celui du bouton « Photo/Vidéo » qui servira au point 6, et
+     le `ref` du dialogue lui-même — c'est ce dernier qui permettra de borner les lectures
+     suivantes par `ref_id`. **Ne pas refaire de `find` pour le champ image.**
    - **Ce n'est pas le repli, c'est la voie normale**, contrairement au reste de la compétence qui
      travaille par `ref`. Mesuré sur un groupe et sur un profil : **le clic par `ref` n'ouvre
      jamais le composeur**. `computer` répond « Clicked on element ref_N », `find` renvoie ensuite
@@ -357,7 +388,7 @@ Ouvrir ensuite un **nouvel onglet** par publication (`tabs_create_mcp`), puis :
    - **Une fois le dialogue ouvert, revenir aux `ref`** : ceux obtenus dans le dialogue sont
      fiables et servent pour la frappe et la pièce jointe.
    - **Ne jamais interpréter un clic « réussi » comme une preuve** — seule la présence du
-     `dialog "Créer une publication"` compte, vérifiée par `find`.
+     `dialog "Créer une publication"` compte, lue dans le `read_page` ci-dessus.
    - Ce que la capture montre en prime, et qui explique certains échecs : une fenêtre **Messenger**
      ouverte peut recouvrir la colonne de droite, et une bannière d'approbation admin décaler le
      composeur vers le bas. Lire les coordonnées sur l'image plutôt que les supposer.
@@ -378,9 +409,18 @@ Ouvrir ensuite un **nouvel onglet** par publication (`tabs_create_mcp`), puis :
 4. Cliquer dans le champ de texte du composeur (par `ref`), puis **taper le texte** de l'annonce.
    - **Nettoyer le texte** : retirer les tirets « - » en début de ligne des listes
      (Facebook les transforme en puces et laisse le tiret en double). Garder emojis et sauts de ligne.
-   - Sur un texte long, l'action `type` peut répondre « CDP sendCommand Input.dispatchKeyEvent
-     timed out » **alors que la frappe a bien abouti**. Ne pas retaper d'emblée : vérifier d'abord
-     (point suivant), sinon on obtient le texte en double.
+   - **Taper le texte par morceaux, dans un seul `browser_batch`** : un `left_click` sur le
+     `ref` du textbox, puis une action `type` **par paragraphe**. Le tout part en un aller-retour,
+     et chaque morceau reste largement sous la deadline CDP.
+
+     C'est le correctif du poste de coût le plus cher du run. Mesuré sur 5 brouillons : envoyer
+     l'annonce entière (~1 500 caractères) en un seul `type` déclenche « CDP sendCommand
+     Input.dispatchKeyEvent timed out » **4 fois sur 5**, l'outil attendant sa deadline complète
+     alors que la frappe a déjà abouti. Le seul brouillon épargné est aussi le plus rapide du
+     run (94 s contre 134 à 286 s).
+   - Si un timeout survient malgré tout, **ne pas retaper d'emblée** : la frappe a
+     probablement abouti. Vérifier d'abord (point suivant), sinon on obtient le texte en double.
+     Cette règle a évité 4 doublons sur le run mesuré — elle reste valable après le découpage.
 5. **Vérifier que le texte est bien apparu** avec `read_page` borné au `ref` de la zone de texte
    (`ref_id` = ref du textbox, `depth: 3`, `max_chars: 2500`) : chaque paragraphe saisi y apparaît
    comme un nœud, ce qui permet de contrôler le contenu ligne par ligne pour ~1,5 Ko.
@@ -404,11 +444,15 @@ Ouvrir ensuite un **nouvel onglet** par publication (`tabs_create_mcp`), puis :
      ce n'est pas un décalage de version, juste cet appel-là qu'il faut éviter.
    - Utiliser le chemin **tel que le shell le voit** (étape 3), par exemple
      `/mnt/user-data/uploads/pub_images/<nom>.png`. Ne pas le convertir en chemin hôte.
-   - **Choisir le bon champ** : un `find` renvoie typiquement **une dizaine** de champs
-     `type=file`, un seul est le bon — celui nommé **« Photo/Vidéo »** appartenant au dialogue
-     « Créer une publication ». Tous ceux nommés « Joignez une photo ou une vidéo » sont des zones
-     de **commentaire** des posts environnants ; les utiliser attacherait l'image au post d'un
-     autre membre.
+   - **Choisir le bon champ — sans `find`.** Le `ref` du bouton **« Photo/Vidéo »** figure déjà
+     dans le `read_page` borné au sous-arbre du dialogue, fait au point 2. Le réutiliser.
+
+     **Ne pas faire un `find` des champs `type=file` à l'échelle de la page** : il en renvoie
+     typiquement une dizaine, dont un seul est le bon. Tous ceux nommés « Joignez une photo ou
+     une vidéo » sont des zones de **commentaire** des posts environnants, et les utiliser
+     attacherait l'image au post d'un autre membre. Se limiter au sous-arbre du dialogue
+     supprime l'ambiguïté au lieu de demander de trancher entre dix candidats — c'est à la fois
+     un aller-retour de moins et un risque de moins.
    - Si l'outil répond « requires a non-empty `paths` array of files the user has shared with
      this session », le fichier n'est pas dans un dossier partagé : ce n'est pas un problème de
      Drive, ne pas retélécharger l'image. Après deux échecs, basculer sur la méthode B.
@@ -444,9 +488,10 @@ Ouvrir ensuite un **nouvel onglet** par publication (`tabs_create_mcp`), puis :
    frappe synthétique : elle ne porte pas le presse-papiers, l'outil répond « Pressed 1 key » et
    **rien n'est collé**. Seul un raccourci envoyé par le script au niveau du système fonctionne.
 
-   **Contrôler le résultat dans les deux cas** : `find` doit renvoyer une `image` **et** un bouton
-   « Supprimer la pièce jointe de la publication ». Vérifier aussi que le texte déjà saisi n'a pas
-   été remplacé (`read_page` borné au textbox).
+   **Contrôler le résultat dans les deux cas, en UN seul appel** : un `read_page` borné au
+   sous-arbre du dialogue (`ref_id` du dialogue, `depth: 3`) montre à la fois l'`image`, le bouton
+   « Supprimer la pièce jointe de la publication » et le texte déjà saisi — donc aussi qu'il n'a
+   pas été remplacé. Ne pas faire `find` **puis** `read_page` : c'est un aller-retour pour rien.
 7. **Ne pas cliquer sur « Publier ».** Laisser l'onglet ouvert.
 
 Enchaîner ainsi, un onglet par publication — tous les onglets restent ouverts pour la relecture,
