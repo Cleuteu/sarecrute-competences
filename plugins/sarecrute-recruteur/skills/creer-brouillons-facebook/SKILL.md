@@ -29,7 +29,8 @@ Prérequis, propres à chaque utilisateur :
 - connecteurs **Airtable** et **Google Drive** connectés sur son compte Claude ;
 - **Claude in Chrome** actif, Chrome ouvert et connecté à **son** compte Facebook ;
 - être membre des groupes Facebook visés (sinon ces canaux seront signalés, voir étape 4) ;
-- pour les images : soit une **session Cowork** (l'upload direct fonctionne, rien à régler), soit
+- pour les images : soit une session disposant de **dossiers partagés** sous `/mnt/user-data`
+  (l'upload direct fonctionne, rien à régler), soit
   le script de repli livré avec la compétence dans `scripts/` (`attach_image.ps1` sous Windows,
   `attach_image.sh` sous macOS) — et, sous macOS uniquement, l'app Claude cochée dans Réglages
   Système > Confidentialité et sécurité > Accessibilité. Sans l'un ou l'autre, les brouillons
@@ -224,13 +225,16 @@ Pour chaque URL Drive distincte trouvée dans `url image publication` :
      done
      OUT="${OUT:-/mnt/user-data/outputs/pub_images}"   # aucun n'existe : on crée outputs
    else
-     # Hors Cowork (poste macOS/Windows) : /mnt/user-data n'existe pas et n'est pas créable sans
-     # droits root. Ici la méthode d'attache est TOUJOURS la B — le script lit le fichier
-     # localement, il n'a pas à être partagé avec la session. On écrit donc dans un dossier au
-     # nom neutre, surtout PAS `outputs` ni `uploads` : ces deux noms sont le critère de choix de
-     # la méthode A à l'étape 4, et les réutiliser ici a déjà fait croire à un agent sous Windows
-     # qu'il était en session Cowork. Il a tenté file_upload, qui a échoué, et a demandé au
-     # recruteur de partager un dossier — alors que le script attendait à côté.
+     # Pas de dossier de session partagé : /mnt/user-data n'existe pas (et n'est pas créable sans
+     # droits root). Le shell tourne alors sur la machine du recruteur — c'est le cas d'un poste
+     # macOS ou Windows, MAIS AUSSI de certaines sessions Cowork, où le shell est l'hôte et non un
+     # conteneur. Ne pas se fier au nom « Cowork » pour trancher : seul ce test compte.
+     #
+     # Ici la méthode d'attache est TOUJOURS la B — le script lit le fichier localement, il n'a
+     # pas à être partagé avec la session. On écrit donc dans un dossier au nom neutre, surtout
+     # PAS `outputs` ni `uploads` : ces deux noms ont servi de critère de choix de la méthode A,
+     # et les réutiliser ici a déjà fait tenter file_upload à un agent, qui a échoué puis demandé
+     # au recruteur de partager un dossier — alors que le script attendait à côté.
      OUT="sarecrute_pub_images"
    fi
    mkdir -p "$OUT"; DST="$OUT/$NOM.png"
@@ -432,24 +436,29 @@ Ouvrir ensuite un **nouvel onglet** par publication (`tabs_create_mcp`), puis :
 6. Joindre l'image. S'il n'y a pas d'image pour cette publication, ne rien joindre et passer à
    la suite.
 
-   **Choisir la méthode sur l'environnement, pas sur le nom du dossier obtenu** :
+   **Le critère est l'existence d'un dossier de session partagé, et rien d'autre** :
 
-   - **`/mnt/user-data` existe** (session Cowork) → **méthode A**, `file_upload`.
-   - **sinon** (poste macOS ou Windows) → **méthode B**, le script presse-papiers. Sans
-     exception, et sans essayer `file_upload` d'abord.
+   - **`/mnt/user-data` existe** → **méthode A**, `file_upload`.
+   - **sinon** → **méthode B**, le script presse-papiers. Sans exception, et sans essayer
+     `file_upload` d'abord.
 
-   Le critère est cette seule condition, celle-là même qui a orienté l'écriture de l'image à
-   l'étape 3. **Ne jamais déduire la méthode du nom du dossier de sortie** : un poste Windows
-   peut très bien avoir un dossier `outputs` local sans être une session Cowork.
+   C'est exactement le test fait à l'étape 3, et l'image a déjà été écrite en conséquence.
 
-   Ce que ça évite, constaté en production chez un recruteur sous Windows : `file_upload` refuse
-   le chemin, l'agent en conclut qu'il manque un partage et demande au recruteur de connecter un
-   dossier — puis constate que même un dossier connecté ne suffit pas. Le run reste bloqué en
-   texte seul alors que le script de la méthode B était livré avec la compétence et n'avait
-   besoin d'aucun partage. `file_upload` n'accepte que les dossiers de session Cowork : hors
-   Cowork, il n'y a rien à débloquer, c'est la mauvaise porte.
+   **Ne pas trancher sur le nom de la session.** « Être en Cowork » ne garantit pas la méthode A :
+   certaines sessions Cowork ont pour shell la machine du recruteur, sans `/mnt/user-data`, et
+   `file_upload` y refuse tout. **Ne pas trancher non plus sur le nom du dossier de sortie** :
+   une machine peut avoir un dossier `outputs` local sans que ce soit un dossier de session.
 
-   **Méthode A — `file_upload` (session Cowork)**
+   Ce que ça évite, constaté en production chez un recruteur sous Windows en session Cowork :
+   `file_upload` refuse le chemin de session comme le chemin Windows, l'agent en conclut qu'il
+   manque un partage et demande au recruteur de connecter un dossier — puis constate que même un
+   dossier connecté ne suffit pas. Le run reste bloqué en texte seul alors que le script de la
+   méthode B était livré avec la compétence et n'avait besoin d'aucun partage. Quand
+   `file_upload` refuse **le chemin de session lui-même**, il n'y a rien à débloquer : c'est le
+   signe qu'on n'est pas dans un environnement à dossiers partagés, et la réponse est la
+   méthode B, pas un partage supplémentaire.
+
+   **Méthode A — `file_upload` (session à dossiers partagés)**
 
    C'est la voie à privilégier : rien n'est envoyé au système, le navigateur ne passe pas au
    premier plan, l'utilisateur garde sa machine.
