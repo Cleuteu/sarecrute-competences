@@ -38,18 +38,32 @@ claude plugin update sarecrute-recruteur
 |---|---|---|
 | `creer-clinique-offre` | à partir d'une annonce collée dans Claude : crée la clinique et l'offre d'emploi dans Airtable, puis prépare le premier contact (brouillon Gmail, ou message Messenger à copier) | « crée la clinique et l'offre », ou simplement en collant l'annonce |
 | `creer-brouillons-facebook` | prépare un brouillon de publication Facebook par canal pour les publications du jour, texte + image, **sans publier** | « prépare les brouillons Facebook », « les publications du jour » |
+| `scrape-veto` | parcourt le groupe Facebook vétérinaire sur une fenêtre de temps (6 h par défaut), en tire les posts et les commentaires utiles, et les pousse dans la table « Posts scrappés » sans créer de doublon | « scrape les posts véto », « scrape veto 48h », « les posts d'aujourd'hui » |
 
-Aucune des deux n'envoie ni ne publie quoi que ce soit : elles préparent, le recruteur relit et
-clique.
+Aucune ne publie ni n'envoie quoi que ce soit sur Facebook : les deux premières préparent, le
+recruteur relit et clique ; `scrape-veto` ne fait que lire le groupe et écrire dans Airtable.
 
 ## Ce qu'il faut avoir branché
 
 Les compétences s'appuient sur les connecteurs du compte Claude de chaque recruteur :
 
-- **Airtable** — les deux compétences ;
+- **Airtable** — `creer-clinique-offre` et `creer-brouillons-facebook` ;
 - **Gmail** — pour le brouillon de premier contact (`creer-clinique-offre`) ;
 - **Google Drive** + **Claude in Chrome** — pour les visuels et les onglets Facebook
   (`creer-brouillons-facebook`).
+
+`scrape-veto` a des exigences à part, plus techniques que les deux autres :
+
+- **Claude in Chrome** obligatoire — elle travaille dans le Chrome réel, où la session Facebook est
+  déjà ouverte (le navigateur intégré est déconnecté de Facebook, le scrape y est impossible) ;
+- **une clé d'API Airtable dans l'environnement du poste** (`AIRTABLE_API_KEY`) : l'écriture passe
+  par `curl`, pas par le connecteur Airtable, parce que Facebook bloque les requêtes sortantes
+  depuis sa page. Sur macOS/Linux la compétence relit la clé du shell ; ailleurs elle la demande.
+  La clé ne doit jamais atterrir dans ce dépôt ;
+- **`python3`** disponible sur le poste (pour `scripts/airtable_push.py`).
+
+En pratique, c'est la compétence d'un poste d'administration plutôt que d'un poste de recrutement
+au quotidien.
 
 Chaque recruteur travaille sous sa propre identité, lue dans `~/.sarecrute/recruteur.json`
 (`%USERPROFILE%\.sarecrute\recruteur.json` sous Windows) :
@@ -84,6 +98,10 @@ chaque publication. Les ressources bundlées se désignent relativement au dossi
 compétence (`scripts/…`, `references/…`).
 
 Ce dépôt est public : il décrit des workflows et la structure d'une base Airtable, il ne contient
-**aucun identifiant, jeton, coordonnée personnelle ni donnée de candidat ou de clinique**. Ne rien
-y ajouter de tel — les clés d'API vivent dans l'environnement local de chaque poste, les identités
-des recruteurs dans `~/.sarecrute/recruteur.json`.
+**aucun identifiant, jeton, coordonnée (e-mail, téléphone) ni donnée de candidat ou de clinique**.
+Ne rien y ajouter de tel — les clés d'API vivent dans l'environnement local de chaque poste, les
+identités des recruteurs dans `~/.sarecrute/recruteur.json`.
+
+Seule exception assumée : `skills/scrape-veto/references/auteurs_exclus.json` nomme les auteurs dont
+les publications ne doivent jamais être collectées, dont les recruteuses elles-mêmes. Des noms, rien
+d'autre — pas de coordonnées.

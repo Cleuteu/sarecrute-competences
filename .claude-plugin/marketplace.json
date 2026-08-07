@@ -10,8 +10,8 @@
     {
       "name": "sarecrute-recruteur",
       "source": "./plugins/sarecrute-recruteur",
-      "description": "Compétences quotidiennes des recruteurs SaRecrute : créer une clinique et son offre d'emploi depuis une annonce, et préparer les brouillons de publication Facebook du jour.",
-      "version": "0.1.2",
+      "description": "Compétences quotidiennes des recruteurs SaRecrute : créer une clinique et son offre d'emploi depuis une annonce, préparer les brouillons de publication Facebook du jour, et scraper les posts du groupe Facebook vétérinaire vers Airtable.",
+      "version": "0.2.0",
       "author": {
         "name": "SaRecrute"
       },
@@ -20,7 +20,8 @@
         "recrutement",
         "veterinaire",
         "airtable",
-        "facebook"
+        "facebook",
+        "scraping"
       ]
     }
   ]

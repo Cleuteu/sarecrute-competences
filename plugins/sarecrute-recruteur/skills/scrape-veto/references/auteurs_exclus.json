@@ -1,0 +1,8 @@
+{
+ "note": "Auteurs/pages à TOUJOURS exclure du scrape (jamais poussés en base, quel que soit le contenu). Comparaison insensible à la casse, sur auteur ET signature/coordonnées en fin de post. Ajouter ici au fil de l'eau.",
+ "auteurs": [
+  "Service Remplacement Vétérinaire",
+  "Sarah Vanhersel",
+  "Pamela Martinez"
+ ]
+}
