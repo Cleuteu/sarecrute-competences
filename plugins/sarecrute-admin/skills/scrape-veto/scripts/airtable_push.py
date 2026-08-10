@@ -39,6 +39,11 @@ Déduplication — deux régimes :
   • Nom ANONYME / non fiable → PAS de fusion. On crée, sauf si EXACTEMENT la
     même publication est déjà en base (garde d'idempotence Date|Type|Nom|Contenu[:60]).
 
+Dans les DEUX régimes, « rien de neuf dans le contenu » ne veut pas dire « rien à
+écrire » : un post rigoureusement identique cross-posté dans deux groupes apporte une
+ORIGINE nouvelle. Les gardes d'idempotence ajoutent donc le canal manquant (ligne
+« ⊕ CANAL » en --dry) sans toucher au contenu ni aux champs scalaires.
+
 candidat_key = prénom+nom normalisés (sans accents, minuscules). Vide (donc pas
 de fusion) si : nom vide / "Membre anonyme" / non-personnel (chiffres, tout en
 capitales, > 4 mots, marqueurs "clinique/service/recrute/cabinet") / surnom
@@ -72,14 +77,45 @@ SCALAR_FIELDS = ["Prénom", "Nom", "Profil Facebook", "Date du post", "Lien du p
 UNION_FIELDS = ["Canaux"]
 
 # Garde-fou : n'écrire QUE des valeurs select existantes (sinon Airtable crée une option).
-_VOCAB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "matching_vocab.json")
-try:
-    _V = json.load(open(_VOCAB_PATH))
-    ALLOWED = {"Zones de recherche": set(_V["zones_de_recherche"]),
-               "Statuts contractuels": set(_V["statuts_contractuels"]),
-               "Type de temps de travail": set(_V["type_de_temps_de_travail"])}
-except Exception:
-    ALLOWED = {}
+# ⚠️ Le vocabulaire vit dans references/, pas à côté de ce script : on cherche donc les
+# deux emplacements (le second sert quand le script est copié ailleurs avec son vocab).
+# ⚠️ Un échec de chargement N'EST PAS silencieux : jusqu'au 10 août 2026 un `except: pass`
+# laissait ALLOWED vide et sanitize_selects ne filtrait plus rien — le garde-fou était
+# désactivé sans que rien ne l'indique. Désormais l'absence de vocab est fatale dès qu'un
+# enregistrement porte un champ protégé (cf. check_vocab_loaded).
+GUARDED_FIELDS = ("Zones de recherche", "Statuts contractuels", "Type de temps de travail")
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_VOCAB_PATHS = [os.path.join(_HERE, os.pardir, "references", "matching_vocab.json"),
+                os.path.join(_HERE, "matching_vocab.json")]
+ALLOWED, VOCAB_ERROR = {}, None
+for _p in _VOCAB_PATHS:
+    try:
+        _V = json.load(open(_p))
+        ALLOWED = {"Zones de recherche": set(_V["zones_de_recherche"]),
+                   "Statuts contractuels": set(_V["statuts_contractuels"]),
+                   "Type de temps de travail": set(_V["type_de_temps_de_travail"])}
+        VOCAB_ERROR = None
+        break
+    except Exception as e:
+        VOCAB_ERROR = "%s : %s" % (os.path.normpath(_p), e)
+
+
+def check_vocab_loaded(records):
+    """Refuse d'écrire des champs select si le vocabulaire n'a pas pu être chargé.
+
+    Sans vocabulaire, toute valeur mal orthographiée créerait une option Airtable —
+    ce que le projet interdit. Un records.json qui ne touche à aucun champ protégé
+    peut en revanche passer sans vocab."""
+    if ALLOWED:
+        return
+    touched = sorted({fl for r in records for fl in GUARDED_FIELDS if r["fields"].get(fl)})
+    if touched:
+        sys.exit("Vocabulaire des selects introuvable (%s).\n"
+                 "Champs protégés présents dans records.json : %s\n"
+                 "Sans ce fichier, une valeur hors vocab créerait une option Airtable : "
+                 "arrêt. Attendu dans references/matching_vocab.json." % (VOCAB_ERROR, ", ".join(touched)))
+    print("  ⚠️  vocabulaire des selects non chargé (%s) — aucun champ protégé dans l'input, on continue."
+          % VOCAB_ERROR)
 
 
 def sanitize_selects(f):
@@ -249,6 +285,7 @@ def main():
     if not args:
         sys.exit("Usage: airtable_push.py records.json [--dry]")
     records = json.load(open(args[0]))
+    check_vocab_loaded(records)
 
     # 0) Canaux : on valide AVANT d'écrire. Un recId inconnu = arrêt, pas de canal
     #    créé à la volée (la table des canaux se gère dans Airtable, pas ici).
@@ -277,10 +314,12 @@ def main():
     # 2) Index de l'existant. On recalcule la clé depuis le nom (les records
     #    legacy ont candidat_key vide) → l'upsert marche même sans backfill.
     existing = fetch_all(token)
-    by_key, exact_sigs = {}, set()
+    by_key, exact_recs = {}, {}
     for r in existing:
         f = r["fields"]
-        exact_sigs.add(exact_key(f))
+        # exact_recs (et pas un simple set) : quand la publication est déjà en base, il
+        # faut pouvoir la PATCHER pour lui ajouter un canal manquant (cf. add_canaux).
+        exact_recs.setdefault(exact_key(f), r)
         if f.get("Type d'entrée") == "Commentaire":
             continue  # un commentaire n'est jamais une cible de fusion
         k = candidat_key(f.get("Prénom"), f.get("Nom"))
@@ -289,7 +328,27 @@ def main():
             if not cur or f.get("Date du post", "") > cur["fields"].get("Date du post", ""):
                 by_key[k] = r
 
-    to_create, to_patch, skipped = [], [], 0
+    to_create, to_patch, to_link, skipped = [], [], [], 0
+
+    def add_canaux(target, flist):
+        """Le contenu est déjà en base : ne reste-t-il qu'un canal à ajouter ?
+
+        Un post RIGOUREUSEMENT identique publié dans deux groupes ne crée aucune section
+        nouvelle (la signature de section est date+corps, pas le lien) — mais son origine,
+        elle, est nouvelle. Avant le 10 août 2026 les gardes d'idempotence sortaient avant
+        l'union et le second canal était perdu : c'est précisément ce que « Canaux » doit
+        enregistrer. On ne touche QUE Canaux : le post n'étant pas plus récent, il n'a
+        aucune raison d'écraser les champs scalaires."""
+        # Si le même enregistrement reçoit déjà un patch de contenu, ne pas en ajouter un
+        # second : celui-ci porte une union calculée avant, il écraserait la plus large.
+        if any(rid == target["id"] for rid, _f, _tf in to_patch):
+            return False
+        tf = target["fields"]
+        union = union_links([tf] + list(flist))
+        if union and union != (tf.get("Canaux") or []):
+            to_link.append((target["id"], {"Canaux": union}, tf))
+            return True
+        return False
 
     # 3) Personnes fiables → upsert.
     for k, flist in groups.items():
@@ -302,7 +361,8 @@ def main():
             t_secs = parse_sections(tf.get("Contenu complet"), tf.get("Date du post"),
                                     tf.get("Lien du post"), canal_of(tf, canaux))
             t_sigs = {sec_sig(s) for s in t_secs}
-            if {sec_sig(s) for s in in_secs} <= t_sigs:      # rien de neuf → idempotent
+            if {sec_sig(s) for s in in_secs} <= t_sigs:      # aucune section nouvelle
+                add_canaux(target, flist)                    # …mais peut-être un canal
                 skipped += len(flist)
                 continue
             fields = scalars_from_newest(flist + [tf])
@@ -325,17 +385,31 @@ def main():
             to_create.append({"fields": fields})
 
     # 4) Anonymes / non fiables → pas de fusion, garde d'idempotence exacte.
-    seen_batch = set()
+    #    Même règle que ci-dessus : publication déjà en base ⇒ on n'en recrée pas une,
+    #    mais on lui ajoute le canal si elle vient d'un second groupe.
+    seen_batch = {}
     for f in singles:
         ek = exact_key(f)
-        if ek in exact_sigs or ek in seen_batch:
+        queued = seen_batch.get(ek)
+        if queued is not None:
+            # Même publication deux fois dans CE lot (cross-post entre deux groupes, nom
+            # non fusionnable) : on n'en crée qu'une, mais elle porte les deux canaux.
+            union = union_links([queued, f])
+            if union:
+                queued["Canaux"] = union
             skipped += 1
             continue
-        seen_batch.add(ek)
+        dup = exact_recs.get(ek)
+        if dup is not None:
+            add_canaux(dup, [f])
+            skipped += 1
+            continue
+        seen_batch[ek] = f
         to_create.append({"fields": f})
 
-    print("Input: %d lignes | nouveaux: %d | mises à jour: %d | ignorés (déjà en base): %d"
-          % (len(records), len(to_create), len(to_patch), skipped))
+    print("Input: %d lignes | nouveaux: %d | mises à jour: %d | canaux ajoutés: %d | "
+          "ignorés (déjà en base): %d"
+          % (len(records), len(to_create), len(to_patch), len(to_link), skipped))
 
     if dry:
         def cnames(f):
@@ -351,6 +425,10 @@ def main():
             canal_txt = apres if avant == apres else "%s → %s" % (avant, apres)
             print("  ~ MAJ   ", rid, "|", who, "| nouveau top:", f.get("Date du post"),
                   "| canaux:", canal_txt)
+        for rid, f, tf in to_link:
+            who = ((tf.get("Prénom") or "") + " " + (tf.get("Nom") or "")).strip() or "(anonyme)"
+            print("  ⊕ CANAL ", rid, "|", who, "| contenu déjà en base, canaux:",
+                  "%s → %s" % (cnames(tf), cnames(f)))
         return
 
     created = 0
@@ -364,7 +442,7 @@ def main():
         except urllib.error.HTTPError as e:
             print("POST ERREUR %d: %s" % (e.code, e.read().decode())); sys.exit(1)
 
-    patched = 0
+    patched, linked = 0, 0
     for rid, fields, _tf in to_patch:
         body = json.dumps({"fields": fields}).encode()
         req = urllib.request.Request(API + "/" + rid, data=body, method="PATCH",
@@ -375,7 +453,17 @@ def main():
         except urllib.error.HTTPError as e:
             print("PATCH %s ERREUR %d: %s" % (rid, e.code, e.read().decode())); sys.exit(1)
 
-    print("CRÉÉS: %d | MIS À JOUR: %d" % (created, patched))
+    for rid, fields, _tf in to_link:
+        body = json.dumps({"fields": fields}).encode()
+        req = urllib.request.Request(API + "/" + rid, data=body, method="PATCH",
+                                     headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"})
+        try:
+            urllib.request.urlopen(req).read()
+            linked += 1
+        except urllib.error.HTTPError as e:
+            print("PATCH canaux %s ERREUR %d: %s" % (rid, e.code, e.read().decode())); sys.exit(1)
+
+    print("CRÉÉS: %d | MIS À JOUR: %d | CANAUX AJOUTÉS: %d" % (created, patched, linked))
 
 
 if __name__ == "__main__":

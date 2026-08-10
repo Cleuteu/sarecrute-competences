@@ -108,6 +108,15 @@ claude plugin validate plugins/sarecrute-recruteur
 claude plugin validate plugins/sarecrute-admin
 ```
 
+Les fixes de `scrape-veto` qui ont été **silencieux** (données fausses sans erreur) sont épinglés
+par des tests, hors de `plugins/` pour ne rien embarquer chez les recruteurs — voir
+[tests/README.md](tests/README.md) :
+
+```bash
+node tests/troncature.test.mjs
+npm i --no-save jsdom@22 && node tests/attribution_commentaires.test.js
+```
+
 **Toute correction exige de monter `version`**, dans le `plugin.json` du plugin touché **et** dans
 son entrée de `.claude-plugin/marketplace.json` — les deux doivent rester d'accord. Sans ce
 changement de numéro, `claude plugin update` répond « already at the latest version » et ne tire

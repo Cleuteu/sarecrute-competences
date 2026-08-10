@@ -27,7 +27,7 @@ Scraper les posts des **groupes Facebook vétérinaires** (tri chronologique) su
 
 ## Ressources bundlées
 
-- **`scripts/scrape_helpers.js`** — Read ce fichier, injecte tout son contenu via `javascript_tool`. Fournit `__decodeTS`, `__parseTS`, `__harvestAll`, `__store`/`__merge`, `__expandPostText`, `__profileUrl`, `__gid` (id du groupe courant, jamais codé en dur), `__alive`, `__chrono` (contrôle du tri). **Ré-injecte après toute navigation** (le window est vidé).
+- **`scripts/scrape_helpers.js`** — Read ce fichier, injecte tout son contenu via `javascript_tool`. Fournit `__decodeTS`, `__parseTS`, `__harvestAll`, `__store`/`__merge`, `__expandPostText`, `__expandCommentText`, `__truncated`, `__truncatedComments`, `__exportBlocked` (garde unique avant export), `__profileUrl`, `__gid` (id du groupe courant, jamais codé en dur), `__alive`, `__chrono` (contrôle du tri), `__orphanComments` (compteur). **Ré-injecte après toute navigation** (le window est vidé).
 - **`scripts/airtable_push.py`** — pousse un `records.json` en upsert-merge. Voir §5.
 - **`scripts/focus_chrome.sh`** (macOS) / **`scripts/focus_chrome.ps1`** (Windows) — ramènent l'onglet du scrape au premier plan pour réveiller le rendu. Voir §1 bis.
 - **`references/matching_vocab.json`** — valeurs select valides (Zones/Statuts/Temps) + mapping `macro_regions` → départements. Source de vérité pour remplir les champs de matching (cf. §3). Régénérable depuis la base si le vocab change.
@@ -106,7 +106,7 @@ Boucle dans **un seul** appel JS (répète si besoin), ex. :
 ```javascript
 await (async function(){
   for (let i=0;i<6;i++){
-    window.__expandPostText();                    // 1) déplier les "Voir plus"
+    window.__expandPostText(); window.__expandCommentText();   // 1) déplier les "Voir plus"
     await new Promise(r=>setTimeout(r,1500));      // 2) laisser l'expansion se faire (≥1,5 s)
     window.__merge();                              // 3) MERGE APRÈS expansion (sinon on fige du tronqué)
     window.scrollBy(0,2600);
@@ -117,6 +117,7 @@ await (async function(){
   const isos={}; ps.forEach(p=>isos[p.iso]=(isos[p.iso]||0)+1);
   return JSON.stringify({stored:ps.length, byIso:isos,
     hidden: document.visibilityState==='hidden',   // true ⇒ page gelée, cf. §1 bis
+    orphans: window.__orphanComments,              // commentaires non rattachés à ce cycle (normal, ils repassent)
     tail: window.__harvestAll().slice(-6).map(p=>p.author+'/'+p.iso+'/'+p.decoded.replace(/\s/g,''))});
 })();
 ```
@@ -132,14 +133,17 @@ await (async function(){
 
 Note : `__parseTS` met midi par défaut pour les dates sans heure ; quand l'heure est présente (« Le 20 juin à 19:41 ») elle est exacte. Pour une borne fine (« aujourd'hui », 48h), filtre sur `iso`/`ageH` calculé.
 
-### 2 bis. Vérifier qu'AUCUN post n'est tronqué (OBLIGATOIRE avant export)
+### 2 bis. Vérifier qu'AUCUN post NI commentaire n'est tronqué (OBLIGATOIRE avant export)
 
-Le merge est auto-réparant (il garde le corps le plus long), mais un post jamais déplié reste tronqué. **Avant d'exporter**, contrôle qu'il ne reste aucun « Voir plus » non déplié :
+Le merge est auto-réparant (il garde le corps le plus long), mais un post jamais déplié reste tronqué. **Avant d'exporter**, contrôle qu'il ne reste aucun « Voir plus » non déplié — **posts ET commentaires** :
 ```javascript
-JSON.stringify(window.__truncated());   // -> [] attendu
+JSON.stringify({stop: window.__exportBlocked('<borne YYYY-MM-DD>'),
+                posts: window.__truncated(), coms: window.__truncatedComments()});
 ```
-- Si la liste est **vide** → OK, passe à l'export.
-- Si **non vide** : ces posts (souvent les plus récents, en haut du fil) ont été captés avant dépliage. Remonte jusqu'à eux (`window.scrollTo(0,0)` puis re-descends par petits pas de ~650 px), en refaisant `__expandPostText()` → attendre **≥1,5 s** → `__merge()` à chaque pas, puis **re-vérifie `__truncated()`**. Répète jusqu'à `[]`. Ne jamais exporter tant que ce n'est pas vide.
+- `stop` **vide** → OK, passe à l'export.
+- `stop` **non vide** : ces entrées (souvent les plus récentes, en haut du fil) ont été captées avant dépliage. Remonte jusqu'à elles (`window.scrollTo(0,0)` puis re-descends par petits pas de ~650 px), en refaisant `__expandPostText()` **et `__expandCommentText()`** → attendre **≥1,5 s** → `__merge()` à chaque pas, puis **re-vérifie**. Répète jusqu'à `stop` vide. Ne jamais exporter tant que ce n'est pas le cas.
+
+⚠️ `__truncated()` seul ne suffit pas : il ne regarde que les **posts**. Un commentaire figé sur « Bonjour,… Voir plus » passait donc en base sans aucun signal (constaté le 10 août 2026). Utilise `__exportBlocked(borne)`, qui contrôle les deux — et qui filtre sur la fenêtre, pour ne pas te bloquer sur un vieux post hors périmètre qui ne sera pas exporté.
 
 > **Permalinks — limite connue.** Sur le fil, FB n'injecte l'id du post (donc le permalink reconstructible via `p.permalink`) que pour **~40 % des posts**. Testé et **écarté** pour débloquer le reste : le `.click()` JS sur la date ne navigue **que** pour les posts déjà résolus (n'apporte rien) ; le **hover** ne résout rien (`isTrusted=false`) ; l'attente/dwell non plus ; le fiber React n'expose pas de props lisibles. Donc ~60 % retombent sur l'URL de recherche (repli prévu). Seule piste restante non testée : le menu « … » → « Copier le lien » par post.
 >
@@ -152,8 +156,8 @@ JSON.stringify(window.__truncated());   // -> [] attendu
 **D'abord, sors les données de la page** (le contenu doit être **complet**, la sortie JS est tronquée à ~950 car). Utilise `__cleanBody` pour retirer les marqueurs FB finaux (« Voir plus »/« Voir moins »). Dans un `javascript_tool`, construis la fenêtre et déclenche un download :
 ```javascript
 (function(){
-  const trunc = window.__truncated();
-  if (trunc.length) return 'STOP — '+trunc.length+' post(s) encore tronqué(s), NE PAS exporter : '+JSON.stringify(trunc);
+  const stop = window.__exportBlocked('<borne YYYY-MM-DD>');   // posts ET commentaires
+  if (stop) return stop;
   const win = Object.values(window.__store).filter(p=>p.iso && p.iso>='<borne YYYY-MM-DD>');
   const data = win.map(p=>({author:p.author, authorUrl:p.authorUrl, iso:p.iso, gid:p.gid||window.__gid(), pid:p.pid, permalink:p.permalink,
     body:window.__cleanBody(p.body),                                  // corps INTÉGRAL, marqueurs FB retirés
@@ -242,7 +246,11 @@ Renseigne **uniquement** avec des valeurs de **`references/matching_vocab.json`*
 
 Les commentaires sont déjà récoltés par `__harvestAll`/`__merge` (champ `comments` de chaque post), via `div[role="article"][aria-label="Commentaire de {Nom} il y a {temps}"]`.
 
-**Couverture par défaut (sûre)** : `__merge()` n'attrape que les commentaires affichés (« plus pertinents ») au fil du scroll. **NE PAS cliquer « Voir plus de commentaires »** ni le compteur de commentaires : ça navigue vers le permalink et vide le window.
+**Couverture par défaut (sûre)** : `__merge()` n'attrape que les commentaires affichés (« plus pertinents ») au fil du scroll. **NE PAS cliquer « Voir plus de commentaires »** ni le compteur de commentaires : ça navigue vers le permalink et vide le window. (`__expandCommentText()` est sûr : il ne clique que l'expander de texte *à l'intérieur* d'un commentaire, dont le libellé exact ne matche jamais « Voir plus de commentaires ».)
+
+**Rattachement — ce qui est garanti et ce qui ne l'est pas.** Un commentaire est rattaché au post via **son propre conteneur `div[role="article"]`**, jamais par proximité dans le flux. Si le conteneur ne contient aucune ancre de timestamp — la virtualisation de FB est **partielle**, le commentaire peut être rendu alors que l'en-tête de son post ne l'est plus — le commentaire est **abandonné** pour ce cycle et compté dans `__orphanComments` ; il repassera à un cycle suivant. **Un `orphans` non nul dans le retour d'un lot est normal, ce n'est pas une erreur.**
+
+⚠️ Ne rétablis jamais un repli « plus proche timestamp qui précède » comme mécanisme principal : le 10 août 2026 il a recopié le jeu de commentaires de deux posts sur un post voisin qui ne les portait pas. Un commentaire mal rattaché est **pire** qu'un commentaire manquant — il fabrique un faux candidat sous une annonce qui n'est pas la sienne, et le `Post source` comme le post parent recopié dans `Contenu complet` deviennent faux. En cas de doute à la relecture, vérifie la cohérence du contenu (un commentaire sur des fiches de révision n'appartient pas à une annonce d'emploi) et écarte.
 
 **Couverture exhaustive (optionnelle, plus lente)** : pour les posts à fort engagement, ouvrir le **permalink** du post dans l'onglet (`…/posts/{pid}/`) où **tous** les commentaires sont visibles sans virtualisation, ré-injecter `scripts/scrape_helpers.js`, `__merge()`, puis revenir au feed. Ne le faire que si l'utilisateur veut la couverture complète.
 
@@ -259,8 +267,11 @@ Les commentaires sont déjà récoltés par `__harvestAll`/`__merge` (champ `com
 Le script fait un **upsert-merge par personne** (ne renseigne pas `candidat_key`, il le calcule) :
 - **Nom fiable** (`candidat_key` non vide) → si la personne existe déjà (toutes dates confondues), il **met à jour** son enregistrement : le nouveau post est empilé **en haut** de `Contenu complet` (séparateur `──────────`, en-tête `[date] lien`), et les champs scalaires (Date, Zone, Pratiques…) prennent les valeurs du **post le plus récent**. Sinon il crée.
 - **Nom anonyme / non fiable** (vide, « Membre anonyme », tout en capitales, marqueurs orga, surnom tronqué type *Lmd/Drc/Vie*) → **pas de fusion** : création, sauf si **exactement la même publication** est déjà en base.
+- **Cross-post identique entre deux groupes** → aucune section nouvelle (la signature d'une section est *date + corps*, pas le lien), mais une **origine** nouvelle : le script ajoute alors le canal manquant sans toucher au contenu ni aux champs scalaires (ligne `⊕ CANAL` en `--dry`). Vaut dans les deux régimes ci-dessus, y compris quand les deux exemplaires arrivent dans le même `records.json`.
 
-Idempotent : re-scraper un post déjà fusionné ne change rien (garde par section `[date] lien`). `--dry` affiche le plan (CRÉER / MAJ). Push par lots de 10.
+Idempotent : re-scraper un post déjà fusionné ne change rien (garde par section `[date] lien`). `--dry` affiche le plan (CRÉER / MAJ / ⊕ CANAL). Push par lots de 10.
+
+⚠️ **Le script s'arrête si `references/matching_vocab.json` est introuvable** et que `records.json` porte un champ select protégé (`Zones de recherche`, `Statuts contractuels`, `Type de temps de travail`) : sans vocabulaire, une valeur mal orthographiée créerait une option Airtable. Ne « répare » jamais ça en retirant le contrôle — corrige le chemin. (Avant le 10 août 2026 un `except` silencieux désactivait le garde-fou sans le dire.)
 
 ### 6. Résumé final
 

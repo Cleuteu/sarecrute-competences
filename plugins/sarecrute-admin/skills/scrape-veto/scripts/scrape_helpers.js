@@ -12,9 +12,14 @@
  *   __profileUrl(anchor) -> string  : lien de profil FB depuis une ancre de nom
  *   __store, __merge()   : accumulateur persistant AUTO-RÉPARANT (garde le corps
  *                          le plus long → corrige la troncature "Voir plus")
- *   __expandPostText()   -> n  : clique les "Voir plus" des posts (pas les commentaires)
- *   __truncated()        -> [{author,iso,len}] : posts encore tronqués (à vérifier
- *                          AVANT export ; doit être vide)
+ *   __expandPostText()   -> n  : clique les "Voir plus" des posts
+ *   __expandCommentText()-> n  : idem DANS les commentaires (jamais "Voir plus de
+ *                          commentaires", qui navigue et viderait le store)
+ *   __truncated()        -> [{author,iso,len}] : posts encore tronqués
+ *   __truncatedComments()-> [{post,iso,name,len}] : commentaires encore tronqués
+ *   __exportBlocked(borne)-> '' ou raison : garde UNIQUE à appeler avant l'export
+ *   __orphanComments     : nb de commentaires non rattachés au dernier harvest (leur
+ *                          post n'était pas rendu — ils repasseront)
  *   __cleanBody(str)     -> string : corps nettoyé des marqueurs FB pour l'export
  * ========================================================================== */
 
@@ -92,7 +97,15 @@ window.__harvestAll = function () {
   const postByAnchor = new Map();
   for (const tsA of tsAnchors) {
     let root = tsA;
-    for (let i = 0; i < 14; i++) { if (!root.parentElement) break; root = root.parentElement; if ((root.innerText || '').length > 500) break; }
+    for (let i = 0; i < 14; i++) {
+      const next = root.parentElement;
+      if (!next) break;
+      // ⚠️ Ne JAMAIS laisser la racine d'un post engloutir le timestamp d'un AUTRE post :
+      // sinon l'auteur et le corps peuvent être lus chez le voisin. (10 août 2026)
+      if (tsAnchors.some(x => x !== tsA && next.contains(x))) break;
+      root = next;
+      if ((root.innerText || '').length > 500) break;
+    }
     let author = '';
     const strong = root.querySelector('h2 strong,h3 strong,h2 a,h3 a,strong');
     if (strong) author = (strong.innerText || '').trim().split('\n')[0];
@@ -118,21 +131,50 @@ window.__harvestAll = function () {
   }
   // Commentaires = div[role=article][aria-label="Commentaire de {Nom} il y a {temps}"]
   const cArts = Array.from(document.querySelectorAll('div[role="article"][aria-label]')).filter(a => /^Commentaire de/i.test(a.getAttribute('aria-label') || ''));
+  window.__orphanComments = 0;
   for (const a of cArts) {
-    // remonter jusqu'au plus bas ancêtre contenant une anchor de post ; si
-    // plusieurs, prendre celle qui PRÉCÈDE le commentaire, la plus proche.
-    let parent = null, e = a.parentElement;
-    while (e) {
-      const contained = tsAnchors.filter(tsA => e.contains(tsA));
-      if (contained.length) {
-        const before = contained.filter(tsA => tsA.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_FOLLOWING);
-        const pick = (before.length ? before : contained);
-        pick.sort((x, y) => (x.compareDocumentPosition(y) & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1);
-        parent = postByAnchor.get(pick[pick.length - 1]); break;
+    // Rattachement par le CONTENEUR du post (son propre div[role="article"]), et non
+    // par proximité dans le flux.
+    //
+    // ⚠️ Pourquoi (bug corrigé le 10 août 2026) : la virtualisation de FB est PARTIELLE
+    // — un commentaire peut rester rendu alors que l'ancre de timestamp de SON post ne
+    // l'est plus. L'ancienne heuristique remontait alors au plus proche timestamp qui
+    // précède, c'est-à-dire celui du post VOISIN : le même jeu de commentaires se
+    // retrouvait dupliqué sur un post qui ne les portait pas. Un commentaire mal
+    // rattaché est pire qu'un commentaire manquant (il fabrique un faux candidat sous
+    // une annonce qui n'est pas la sienne), donc en cas de doute on ABANDONNE : le post
+    // repassera à un cycle suivant, où son en-tête sera rendu.
+    const ownerArticle = (function (el) {
+      let e = el.parentElement;
+      while (e) {
+        if (e.matches && e.matches('div[role="article"]') &&
+            !/^Commentaire de/i.test(e.getAttribute('aria-label') || '')) return e;
+        e = e.parentElement;
       }
-      e = e.parentElement;
+      return null;
+    })(a);
+    let parent = null;
+    if (ownerArticle) {
+      // Le 1er timestamp du conteneur est celui de son en-tête. Aucun ⇒ post non capté
+      // à ce cycle : on ne devine pas.
+      const own = tsAnchors.filter(x => ownerArticle.contains(x));
+      if (own.length) parent = postByAnchor.get(own[0]);
+      else { window.__orphanComments++; continue; }
+    } else {
+      // Repli (structure FB inattendue) : ancienne heuristique de proximité.
+      let e = a.parentElement;
+      while (e) {
+        const contained = tsAnchors.filter(tsA => e.contains(tsA));
+        if (contained.length) {
+          const before = contained.filter(tsA => tsA.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_FOLLOWING);
+          const pick = (before.length ? before : contained);
+          pick.sort((x, y) => (x.compareDocumentPosition(y) & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1);
+          parent = postByAnchor.get(pick[pick.length - 1]); break;
+        }
+        e = e.parentElement;
+      }
     }
-    if (!parent) continue;
+    if (!parent) { window.__orphanComments++; continue; }
     const m = a.getAttribute('aria-label').match(/^Commentaire de (.+?)(?: il y a (.+))?$/i);
     const da = a.querySelector('div[dir="auto"]');
     const name = m ? m[1].trim() : '';
@@ -196,13 +238,34 @@ window.__merge = function () {
  * ⚠️ Ne PAS cliquer "Voir plus de commentaires" / le compteur de commentaires :
  * ça navigue vers le permalink et vide le window. On ne déplie que le texte
  * tronqué des posts ("Voir plus" / "En voir plus"). */
+window.__EXPAND_RX = /^(?:en )?voir plus$|^afficher la suite$|^afficher plus$/i;
+
 window.__expandPostText = function () {
   let n = 0;
-  const RX = /^(?:en )?voir plus$|^afficher la suite$|^afficher plus$/i;
   for (const b of document.querySelectorAll('div[role="button"],span[role="button"]')) {
     if (b.closest('a')) continue;
     const t = (b.innerText || '').trim();
-    if (RX.test(t)) { try { b.click(); n++; } catch (e) {} }
+    if (window.__EXPAND_RX.test(t)) { try { b.click(); n++; } catch (e) {} }
+  }
+  return n;
+};
+
+/* --- Expansion du texte des COMMENTAIRES (sûre) -----------------------------
+ * Complète __expandPostText, qui déplie au passage la plupart des commentaires mais
+ * en laisse échapper (commentaire rendu après le clic, expander imbriqué dans une
+ * réponse). Restreint aux boutons SITUÉS DANS un article de commentaire, avec le même
+ * test de texte strict : « Voir plus de commentaires » et « N réponses » ne matchent
+ * pas le regex, donc on ne déclenche jamais la navigation vers le permalink (qui
+ * viderait window.__store). */
+window.__expandCommentText = function () {
+  let n = 0;
+  for (const art of document.querySelectorAll('div[role="article"][aria-label]')) {
+    if (!/^Commentaire de/i.test(art.getAttribute('aria-label') || '')) continue;
+    for (const b of art.querySelectorAll('div[role="button"],span[role="button"]')) {
+      if (b.closest('a')) continue;
+      const t = (b.innerText || '').trim();
+      if (window.__EXPAND_RX.test(t)) { try { b.click(); n++; } catch (e) {} }
+    }
   }
   return n;
 };
@@ -216,6 +279,35 @@ window.__truncated = function () {
   return Object.values(window.__store)
     .filter(p => window.__isTrunc(p.body))
     .map(p => ({ author: p.author || '(anon)', iso: p.iso, len: (p.body || '').length }));
+};
+
+/* --- Idem pour les COMMENTAIRES du store -----------------------------------
+ * __truncated() ne regardait que les posts : un commentaire pouvait partir en base
+ * figé sur « … Voir plus » sans qu'aucun garde-fou ne le signale (constaté le
+ * 10 août 2026). À vérifier AUSSI avant l'export — cf. __exportBlocked(). */
+window.__truncatedComments = function () {
+  const out = [];
+  for (const p of Object.values(window.__store)) {
+    for (const c of Object.values(p.comments || {})) {
+      if (window.__isTrunc(c.text)) {
+        out.push({ post: p.author || '(anon)', iso: p.iso, name: c.name, len: (c.text || '').length });
+      }
+    }
+  }
+  return out;
+};
+
+/* --- Garde unique à appeler AVANT l'export ----------------------------------
+ * Renvoie '' si l'export peut se faire, sinon la raison. Regroupe les deux
+ * contrôles pour qu'on ne puisse plus en oublier un.
+ * Usage : const stop = window.__exportBlocked('2026-08-07'); if (stop) return stop; */
+window.__exportBlocked = function (borne) {
+  const inWin = p => !borne || (p.iso && p.iso >= borne);
+  const tp = window.__truncated().filter(inWin);
+  const tc = window.__truncatedComments().filter(inWin);
+  if (tp.length) return 'STOP — ' + tp.length + ' post(s) tronqué(s) : ' + JSON.stringify(tp);
+  if (tc.length) return 'STOP — ' + tc.length + ' commentaire(s) tronqué(s) : ' + JSON.stringify(tc);
+  return '';
 };
 
 /* --- Nettoyage du corps pour l'export (retire les marqueurs FB finaux) ------ */
