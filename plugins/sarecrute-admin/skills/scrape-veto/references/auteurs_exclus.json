@@ -1,11 +1,15 @@
 {
- "note": "Auteurs/pages/enseignes à TOUJOURS exclure du scrape (jamais poussés en base, quel que soit le contenu). Comparaison insensible à la casse, en SOUS-CHAÎNE, sur l'auteur ET la signature/coordonnées en fin de post. Une entrée peut donc être partielle : un nom de famille tronqué attrape ses variantes, et un nom d'enseigne (ex. « Univet ») attrape aussi les recruteurs qui l'affichent dans leur nom de profil. Ajouter ici au fil de l'eau — dans le dépôt source, pas dans la copie installée (réécrite à chaque plugin update).",
+ "note": "Auteurs/pages/enseignes à TOUJOURS exclure du scrape (jamais poussés en base, quel que soit le contenu). Comparaison insensible à la casse, en SOUS-CHAÎNE, sur l'auteur ET la signature/coordonnées en fin de post. Une entrée peut donc être partielle : un nom de famille tronqué attrape ses variantes, et un nom d'enseigne (ex. « Univet ») attrape aussi les recruteurs qui l'affichent dans leur nom de profil. Une entrée n'est pas forcément un nom : un **téléphone ou un domaine mail de signature** (ex. « 06 67 64 46 53 ») attrape un cabinet quel que soit le pseudo employé — pense alors à lister les variantes de formatage (avec et sans espaces). ⚠️ La liste se teste **entrée par entrée** (post ET commentaire, cf. SKILL.md §Exclure) : un commentaire de candidat sous l'annonce d'un exclu reste à pousser, il embarquera le texte de l'annonce dans son contenu — donc ne juge jamais un commentaire sur la seule présence d'une entrée de cette liste dans son `Contenu complet`. Ajouter ici au fil de l'eau — dans le dépôt source, pas dans la copie installée (réécrite à chaque plugin update).",
  "auteurs": [
   "Service Remplacement Vétérinaire",
   "Sarah Vanhersel",
   "Pamela Martinez",
   "Justine Chou",
   "Lola Escand",
-  "Univet"
+  "Univet",
+  "Flo Ky",
+  "Manon Vet",
+  "06 67 64 46 53",
+  "0667644653"
  ]
 }

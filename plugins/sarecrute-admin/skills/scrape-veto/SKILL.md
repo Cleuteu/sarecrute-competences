@@ -177,7 +177,12 @@ Filtre la fenêtre sur `iso` (ou `ageH`) et classe depuis ce fichier local.
 - **Auteur blacklisté** : Read `references/auteurs_exclus.json` (bundlé) en début de classification. Si `p.author` (ou la signature/coordonnées en fin de post) matche une entrée de la liste (insensible à la casse, substring) → exclu d'office, **sans lire le contenu pour juger de la pertinence**.
 - Pas une annonce d'emploi vétérinaire (ni « cherche poste », ni « cherche vétérinaire »).
 - Question générale, partage d'article, sondage, RH sans annonce, formation, appel à thèse/sondage, **offre ASV** sans lien vétérinaire.
-- Si exclu → ignorer aussi ses commentaires.
+- Si exclu pour **non-pertinence** (les motifs ci-dessus, hors blacklist) → ignorer aussi ses commentaires.
+- ⚠️ **La blacklist, elle, s'applique à l'auteur — jamais au post en tant que contenant.** Elle se teste **entrée par entrée**, sur `p.author` comme sur chaque `c.author` :
+  - **Post d'un auteur blacklisté** → pas d'entrée pour le post…
+  - …mais **ses commentaires restent à traiter normalement**. Un candidat qui postule sous l'annonce d'un cabinet concurrent est une information **précieuse** : on apprend qu'il cherche un poste. Le commentaire entre en base avec les règles habituelles (§Commentaires pertinents), y compris l'intégralité du post parent blacklisté dans `Contenu complet` — c'est le contexte de sa candidature.
+  - **Commentaire d'un auteur blacklisté** sous le post d'un tiers (« envoyez-moi un MP pour discuter de votre recherche ») → **pas d'entrée** pour ce commentaire ; le post parent et les autres commentaires ne sont pas affectés.
+  - Constaté le 11 août 2026 : les deux sens étaient faux — un cabinet blacklisté entrait en base en commentant, et les candidatures sous ses annonces étaient jetées.
 - ⚠️ **Ne JAMAIS pousser un post exclu dans Airtable, même avec `"Non pertinent": true`.** Ce champ est réservé au **recruteur** (usage manuel côté Airtable) — le scrape ne doit jamais l'écrire. Un post jugé non pertinent avant l'envoi est simplement **ignoré** (pas d'entrée créée), pas loggé. Mentionne-le uniquement dans le résumé final (compte + raison courte).
 
 #### Classer candidat vs clinique (à ne PAS rater — sinon ça pollue le matching)
