@@ -177,12 +177,47 @@ Filtre la fenêtre sur `iso` (ou `ageH`) et classe depuis ce fichier local.
 - **Auteur blacklisté** : Read `references/auteurs_exclus.json` (bundlé) en début de classification. Si `p.author` (ou la signature/coordonnées en fin de post) matche une entrée de la liste (insensible à la casse, substring) → exclu d'office, **sans lire le contenu pour juger de la pertinence**.
 - Pas une annonce d'emploi vétérinaire (ni « cherche poste », ni « cherche vétérinaire »).
 - Question générale, partage d'article, sondage, RH sans annonce, formation, appel à thèse/sondage, **offre ASV** sans lien vétérinaire.
+- **Intermédiaire de recrutement** : cabinet de recrutement, chasseur de têtes, ou **RH/recruteur d'un groupe de cliniques** (type Univet). On ne veut **que les annonces publiées par la clinique qui recrute pour elle-même** — un intermédiaire ne donne pas accès à la clinique et pollue la géographie. Voir le §Détecter un intermédiaire ci-dessous.
 - Si exclu pour **non-pertinence** (les motifs ci-dessus, hors blacklist) → ignorer aussi ses commentaires.
 - ⚠️ **La blacklist, elle, s'applique à l'auteur — jamais au post en tant que contenant.** Elle se teste **entrée par entrée**, sur `p.author` comme sur chaque `c.author` :
   - **Post d'un auteur blacklisté** → pas d'entrée pour le post…
   - …mais **ses commentaires restent à traiter normalement**. Un candidat qui postule sous l'annonce d'un cabinet concurrent est une information **précieuse** : on apprend qu'il cherche un poste. Le commentaire entre en base avec les règles habituelles (§Commentaires pertinents), y compris l'intégralité du post parent blacklisté dans `Contenu complet` — c'est le contexte de sa candidature.
   - **Commentaire d'un auteur blacklisté** sous le post d'un tiers (« envoyez-moi un MP pour discuter de votre recherche ») → **pas d'entrée** pour ce commentaire ; le post parent et les autres commentaires ne sont pas affectés.
   - Constaté le 11 août 2026 : les deux sens étaient faux — un cabinet blacklisté entrait en base en commentant, et les candidatures sous ses annonces étaient jetées.
+#### Détecter un intermédiaire de recrutement (cabinet, chasseur de têtes, RH de groupe)
+
+Signal principal, et il est fiable : **un même auteur qui publie des postes dans des zones
+géographiquement distinctes.** Une clinique recrute pour elle-même, donc à **un seul endroit** ;
+seul un intermédiaire recrute à Béziers, Ferney-Voltaire et La Souterraine le même mois.
+
+- Compare les **départements** des annonces d'un même auteur, sur la fenêtre **et** contre ce qui
+  est déjà en base pour lui (le `Contenu complet` de son record empile ses posts précédents).
+- ⚠️ **Neutralise les mentions de proximité avant de compter** : « à 1h de Paris », « 15 min des
+  Sables d'Olonne », « 10 min du RER B », « à 25 min de Nancy et de Metz » citent un département
+  voisin **pour situer**, pas un second poste. Compté naïvement, ça transforme toute clinique bien
+  desservie en faux positif (testé : c'est le principal générateur de bruit).
+- **Départements limitrophes** (73/74, 16/17, 81/82…) = une clinique en zone frontière, **pas** un
+  intermédiaire. Le signal ne vaut que pour des zones **éloignées**.
+- Signaux d'appui, jamais suffisants seuls : aucune clinique nommée, contact exclusivement « en MP »,
+  formulations « je recrute **pour** une clinique », « nous **accompagnons** des cliniques
+  partenaires », « nos équipes de X et Y », « voici **nos** postes ouverts ».
+
+**Que faire** : ne pousse pas ses annonces, et **préviens l'utilisateur dans le résumé final** —
+auteur, nombre d'annonces, départements constatés, extrait — pour qu'il tranche.
+
+⛔ **N'ajoute JAMAIS personne à `auteurs_exclus.json` sans son accord explicite, demandé au
+préalable.** Détecter, c'est ton travail ; bannir, c'est le sien. Tu présentes les éléments, il
+répond, et seulement ensuite tu écris dans le fichier — dans le **dépôt source**, jamais dans la
+copie installée (cf. §Ressources bundlées). Vaut aussi pour la suppression de ses entrées déjà
+en base : proposer, pas exécuter.
+
+Un même groupe peut employer **plusieurs** recruteurs qui postent pour les mêmes cliniques :
+signale le rapprochement quand tu le vois, il y a plusieurs entrées à proposer.
+⚠️ **N'entre jamais un nom de groupe ou d'enseigne comme entrée de blacklist** (Mon Véto, Qovetia,
+Smartemis…) : une clinique **du** groupe qui recrute pour elle-même est légitime, et la citation du
+groupe dans sa signature la ferait exclure à tort (deux cas vérifiés le 11 août 2026). Ces noms
+servent à **identifier** un recruteur à signaler, pas à filtrer.
+
 - ⚠️ **Ne JAMAIS pousser un post exclu dans Airtable, même avec `"Non pertinent": true`.** Ce champ est réservé au **recruteur** (usage manuel côté Airtable) — le scrape ne doit jamais l'écrire. Un post jugé non pertinent avant l'envoi est simplement **ignoré** (pas d'entrée créée), pas loggé. Mentionne-le uniquement dans le résumé final (compte + raison courte).
 
 #### Classer candidat vs clinique (à ne PAS rater — sinon ça pollue le matching)
@@ -276,6 +311,29 @@ Le script fait un **upsert-merge par personne** (ne renseigne pas `candidat_key`
 
 Idempotent : re-scraper un post déjà fusionné ne change rien (garde par section `[date] lien`). `--dry` affiche le plan (CRÉER / MAJ / ⊕ CANAL). Push par lots de 10.
 
+**La fusion par personne vaut pour les DEUX types de post**, clinique comprise : une clinique qui
+republie son annonce, la reformule ou ouvre un second poste au même endroit doit rester **un seul
+enregistrement**. C'est le régime par défaut, ne le contourne pas.
+
+Deux garde-fous, à appliquer **avant** d'écrire dans `records.json` :
+
+- **Annonce vraiment différente ⇒ entrée séparée.** Une clinique peut recruter en mars, puis
+  chercher un **autre** vétérinaire en septembre — c'est une nouvelle annonce, pas un re-post. À
+  séparer quand le poste change (espèce/pratique, contrat, spécialité) **ou** que plusieurs mois
+  séparent les deux publications sans continuité de texte. À fusionner quand c'est le même poste
+  reformulé, relancé ou remonté. Dans le doute, **fusionne** : deux sections empilées dans un même
+  record restent lisibles, alors qu'un doublon éclaté fausse les décomptes de prospection.
+  ⚠️ Après §Détecter un intermédiaire, un même auteur postant dans **des départements éloignés**
+  n'est pas ce cas de figure : ne l'éclate pas en plusieurs entrées, **exclus-le et signale-le**.
+- **Vérifie contre ce qui est déjà en base**, pas seulement contre la fenêtre courante : le
+  `Contenu complet` du record existant contient l'historique des sections de cet auteur, c'est
+  là que se voit un « même poste qu'en juin ».
+
+Historique (11 août 2026) : `candidat_key` avait été conçu pour les posts candidat et appliqué tel
+quel aux posts clinique. Sur 681 posts clinique, ça avait produit **34 records agrégeant des
+annonces sans rapport** (pire cas : 20 sections / 18 offres distinctes) — tous des intermédiaires
+de recrutement, désormais exclus à la source. La clé reste la bonne pour de vraies cliniques.
+
 ⚠️ **Le script s'arrête si `references/matching_vocab.json` est introuvable** et que `records.json` porte un champ select protégé (`Zones de recherche`, `Statuts contractuels`, `Type de temps de travail`) : sans vocabulaire, une valeur mal orthographiée créerait une option Airtable. Ne « répare » jamais ça en retirant le contrôle — corrige le chemin. (Avant le 10 août 2026 un `except` silencieux désactivait le garde-fou sans le dire.)
 
 ### 6. Résumé final
@@ -286,4 +344,9 @@ Idempotent : re-scraper un post déjà fusionné ne change rien (garde par secti
 - Commentaires pertinents (candidats / cliniques).
 - Doublons ignorés (par le dédup).
 - **Nouveaux enregistrements réellement créés.**
+- **Intermédiaires de recrutement suspectés** (§Détecter un intermédiaire) : un bloc à part, jamais
+  noyé dans le décompte des exclusions. Pour chacun : auteur, nombre d'annonces, **départements
+  constatés**, un extrait, et le rapprochement s'il partage des cliniques avec un autre auteur.
+  Termine par la question explicite : faut-il l'ajouter à `auteurs_exclus.json` et supprimer ses
+  entrées existantes ? C'est une décision de l'utilisateur, pas la tienne.
 - Mentionne si la couverture commentaires est partielle (défaut) ou exhaustive.
