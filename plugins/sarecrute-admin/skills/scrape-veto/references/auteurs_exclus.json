@@ -1,5 +1,5 @@
 {
- "note": "Auteurs/pages/enseignes à TOUJOURS exclure du scrape (jamais poussés en base, quel que soit le contenu). Comparaison insensible à la casse, en SOUS-CHAÎNE, sur l'auteur ET la signature/coordonnées en fin de post. Une entrée peut donc être partielle : un nom de famille tronqué attrape ses variantes, et un nom d'enseigne (ex. « Univet ») attrape aussi les recruteurs qui l'affichent dans leur nom de profil. Une entrée n'est pas forcément un nom : un **téléphone ou un domaine mail de signature** (ex. « 06 67 64 46 53 ») attrape un cabinet quel que soit le pseudo employé — pense alors à lister les variantes de formatage (avec et sans espaces). ⚠️ La liste se teste **entrée par entrée** (post ET commentaire, cf. SKILL.md §Exclure) : un commentaire de candidat sous l'annonce d'un exclu reste à pousser, il embarquera le texte de l'annonce dans son contenu — donc ne juge jamais un commentaire sur la seule présence d'une entrée de cette liste dans son `Contenu complet`. Ajouter ici au fil de l'eau — dans le dépôt source, pas dans la copie installée (réécrite à chaque plugin update). Indices d'appartenance repérés en août 2026, utiles pour identifier un NOUVEAU recruteur à signaler (pas des entrées de matching, trop larges) : suffixe « MV » dans le nom de profil = groupe Mon Véto ; « Qovetia », « Smartemis », « Fovéa-Vet » cités en signature = intermédiaire. ⚠️ Ne PAS transformer ces noms de groupe en entrées : une clinique du groupe qui recrute pour elle-même est légitime et serait exclue à tort (cas vérifiés : Cabinet Vétérinaire des Coutures, Clinique du Gros Chêne).",
+ "note": "Auteurs/pages/enseignes/GROUPES à TOUJOURS exclure du scrape (jamais poussés en base, quel que soit le contenu). Comparaison insensible à la casse, en SOUS-CHAÎNE, sur l'auteur ET la signature/coordonnées en fin de post. Une entrée peut donc être partielle : un nom de famille tronqué attrape ses variantes, et un nom d'enseigne (ex. « Univet ») attrape aussi les recruteurs qui l'affichent dans leur nom de profil. Une entrée n'est pas forcément un nom : un **téléphone ou un domaine mail de signature** (ex. « 06 67 64 46 53 », « Monveto » pour veterinaire-monveto.com) attrape une structure quel que soit le pseudo employé — pense alors à lister les variantes de formatage (avec et sans espaces, avec et sans accents). **Les GROUPES de cliniques y figurent en tant que tels** (Univet, Mon Véto, Qovetia, Smartemis, Fovéa-Vet…) : on ne rentre aucune offre de groupe, y compris celle d'une de ses cliniques qui recrute pour elle-même — décision d'Alex du 11 août 2026. Le marqueur le plus fiable est le **domaine mail ou le site carrière** en signature. Indice complémentaire : le suffixe « MV » dans un nom de profil Facebook = groupe Mon Véto. ⚠️ La liste se teste **entrée par entrée** (post ET commentaire, cf. SKILL.md §Exclure) : un commentaire de candidat sous l'annonce d'un exclu reste à pousser, il embarquera le texte de l'annonce dans son contenu — donc ne juge jamais un commentaire sur la seule présence d'une entrée de cette liste dans son `Contenu complet`. ⚠️ « Mon Véto » sous sa forme espacée peut apparaître dans une tournure banale (« j'ai appelé mon véto ») : ne l'applique qu'à l'auteur, à la signature ou à une URL, jamais au milieu d'une phrase. Ajouter ici au fil de l'eau — dans le dépôt source, pas dans la copie installée (réécrite à chaque plugin update).",
  "auteurs": [
   "Service Remplacement Vétérinaire",
   "Sarah Vanhersel",
@@ -29,6 +29,12 @@
   "Floriane Fernandez",
   "Marie Durand",
   "Camille Sarniguet",
-  "Mariama Cissoko"
+  "Mariama Cissoko",
+  "Monveto",
+  "Mon Véto",
+  "Qovetia",
+  "Smartemis",
+  "Fovéa-Vet",
+  "Fovea-Vet"
  ]
 }

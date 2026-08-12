@@ -177,7 +177,7 @@ Filtre la fenêtre sur `iso` (ou `ageH`) et classe depuis ce fichier local.
 - **Auteur blacklisté** : Read `references/auteurs_exclus.json` (bundlé) en début de classification. Si `p.author` (ou la signature/coordonnées en fin de post) matche une entrée de la liste (insensible à la casse, substring) → exclu d'office, **sans lire le contenu pour juger de la pertinence**.
 - Pas une annonce d'emploi vétérinaire (ni « cherche poste », ni « cherche vétérinaire »).
 - Question générale, partage d'article, sondage, RH sans annonce, formation, appel à thèse/sondage, **offre ASV** sans lien vétérinaire.
-- **Intermédiaire de recrutement** : cabinet de recrutement, chasseur de têtes, ou **RH/recruteur d'un groupe de cliniques** (type Univet). On ne veut **que les annonces publiées par la clinique qui recrute pour elle-même** — un intermédiaire ne donne pas accès à la clinique et pollue la géographie. Voir le §Détecter un intermédiaire ci-dessous.
+- **Intermédiaire de recrutement, ou groupe de cliniques** : cabinet de recrutement, chasseur de têtes, RH/recruteur d'un groupe (Univet, Mon Véto, Qovetia, Smartemis…), **et aussi une clinique appartenant à un groupe même quand elle recrute pour elle-même**. On ne veut que les annonces de **cliniques indépendantes** — un intermédiaire ne donne pas accès à la clinique et pollue la géographie, et une offre de groupe n'est pas commercialisable. Voir le §Détecter un intermédiaire ci-dessous.
 - Si exclu pour **non-pertinence** (les motifs ci-dessus, hors blacklist) → ignorer aussi ses commentaires.
 - ⚠️ **La blacklist, elle, s'applique à l'auteur — jamais au post en tant que contenant.** Elle se teste **entrée par entrée**, sur `p.author` comme sur chaque `c.author` :
   - **Post d'un auteur blacklisté** → pas d'entrée pour le post…
@@ -213,10 +213,19 @@ en base : proposer, pas exécuter.
 
 Un même groupe peut employer **plusieurs** recruteurs qui postent pour les mêmes cliniques :
 signale le rapprochement quand tu le vois, il y a plusieurs entrées à proposer.
-⚠️ **N'entre jamais un nom de groupe ou d'enseigne comme entrée de blacklist** (Mon Véto, Qovetia,
-Smartemis…) : une clinique **du** groupe qui recrute pour elle-même est légitime, et la citation du
-groupe dans sa signature la ferait exclure à tort (deux cas vérifiés le 11 août 2026). Ces noms
-servent à **identifier** un recruteur à signaler, pas à filtrer.
+
+**Le nom du groupe est lui-même une bonne entrée de blacklist** (Univet, Mon Véto, Qovetia,
+Smartemis, Fovéa-Vet…) : on ne rentre **aucune** offre de groupe, y compris celle d'une de ses
+cliniques qui recrute pour elle-même. Une entrée d'enseigne couvre d'un coup tous ses recruteurs,
+présents et futurs, sans attendre qu'ils se signalent par leur géographie.
+- Le marqueur le plus fiable est le **domaine mail ou le site carrière** en signature
+  (`@smartemis.com`, `veterinaire-monveto.com`, `smartemisfrance.teamtailor.com`) — il est présent
+  même quand le nom du groupe n'apparaît nulle part dans le texte, et il ne produit pas de faux
+  positif. Préfère-le au nom commercial quand les deux existent.
+- Attention aux **tournures banales** : « mon véto » se dit couramment. Une entrée d'enseigne
+  ambiguë ne s'applique qu'à l'auteur, à la signature ou à une URL, jamais au milieu d'une phrase.
+- Une clinique de groupe se présente souvent comme « structure indépendante » : ne te fie pas à
+  cette formule, regarde la signature.
 
 - ⚠️ **Ne JAMAIS pousser un post exclu dans Airtable, même avec `"Non pertinent": true`.** Ce champ est réservé au **recruteur** (usage manuel côté Airtable) — le scrape ne doit jamais l'écrire. Un post jugé non pertinent avant l'envoi est simplement **ignoré** (pas d'entrée créée), pas loggé. Mentionne-le uniquement dans le résumé final (compte + raison courte).
 
