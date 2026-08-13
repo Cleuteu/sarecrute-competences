@@ -11,7 +11,6 @@
   "06 67 64 46 53",
   "0667644653",
   "Benoit Viviano",
-  "Team Milou",
   "Caroline Zighem",
   "An Drise",
   "Agatha Hias Romero",
@@ -28,9 +27,7 @@
   "Floriane Fernandez",
   "Marie Durand",
   "Camille Sarniguet",
-  "Mariama Cissoko",
-  "Fovéa-Vet",
-  "Fovea-Vet"
+  "Mariama Cissoko"
  ],
  "groupes_exclus": [
   "Univet",
@@ -43,7 +40,10 @@
   "AniCura",
   "anicura.fr",
   "VetPartners",
-  "vetpartners.fr"
+  "vetpartners.fr",
+  "Team Milou",
+  "Fovéa-Vet",
+  "Fovea-Vet"
  ],
  "groupes_acceptes": [
   "Vet'Alliance",
