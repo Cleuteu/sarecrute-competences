@@ -282,6 +282,60 @@ Renseigne **uniquement** avec des valeurs de **`references/matching_vocab.json`*
   - ⚠️ Un **temps partiel durable** (mi-temps à l'année, « consultations le samedi 1 semaine sur 2 ») n'est **pas** un contrat court : c'est un petit volume, pas une courte durée.
   - ⚠️ **Jamais hérité par un commentaire** depuis son post parent (contrairement à Zones/Statuts/Temps/Expérience) : un candidat qui commente une annonce courte ne cherche pas forcément du court, et cocher à tort le sort de tout le matching. Coche uniquement si **le commentaire lui-même** le dit.
 
+#### Champs de matching (post `Clinique cherche vétérinaire`)
+**Mêmes champs, sémantique inversée.** Ils décrivent ce que la clinique **propose**, pas ce qu'un
+candidat cherche. Même vocabulaire (`references/matching_vocab.json`), même règle d'or : **vide
+plutôt que deviné**. Renseigne-les au même titre que pour un post candidat — une annonce de
+clinique sans géo ni contrat n'est pas exploitable en prospection.
+
+| Champ | Côté candidat | Côté clinique |
+|---|---|---|
+| `Zones de recherche` | zone de mobilité | **lieu du poste** |
+| `Statuts contractuels` | contrat cherché | **contrat proposé** |
+| `Type de temps de travail` | temps voulu | **temps proposé** |
+| `Date de disponibilité` | dispo du candidat | **prise de poste** |
+| `Expérience` | expérience du candidat | **expérience acceptée** |
+| `Contrat court` | mission courte cherchée | **mission courte proposée** |
+| `Rayon accepté (km)` | rayon du candidat | **sans objet — laisse vide** |
+
+⚠️ **Pas d'expansion des macro-régions ici** — c'est l'inverse exact de la règle candidat
+ci-dessus. Un candidat « Sud-Ouest » est mobile sur 25 départements ; une clinique est à **un seul
+endroit**. Une annonce qui ne dit que « dans l'Est » reste **vide** : l'éclater en 18 départements
+fabriquerait une géo fausse, et la géo est le filtre dur de la prospection.
+
+⚠️ **Une mention de proximité n'est pas un lieu de travail.** « à 1h de Paris », « 15 min des
+Sables d'Olonne », « 25 min de Nancy et de Metz », « accès RER B » situent la clinique pour
+séduire — le poste n'est pas dans ces départements-là. Ne retiens que la commune ou le département
+**où l'on exerce**. C'est de loin l'erreur la plus fréquente, elle donne Paris à toute clinique
+bien desservie.
+
+Pièges vérifiés sur les annonces réelles (août 2026) :
+- **Une date passée est l'histoire de la clinique**, jamais une prise de poste : « nous avons
+  ouvert en février 2025 », « installés depuis 2019 ». De même « jusqu'en octobre » est une **fin**
+  de mission, pas un début.
+- **« 5 associés et 3 ASV » décrit l'équipe** — ce n'est pas une `Association` proposée. Ne coche
+  `Association` que si elle est **offerte** (« recherche un futur associé », « association possible
+  à terme », « prise de parts »).
+- **« formations en interne » n'est pas un `Internat`.** Seuls « internat » et « clinicat » comptent.
+- **« 4 jours par semaine » est couramment un temps plein** en clinique : n'en déduis pas un temps
+  partiel. Et **« 50 % canine / 50 % rurale » est une répartition d'activité**, pas un temps de
+  travail.
+- **`Pratiques` : « mixte » sans espèce nommée = `Canine` + `Bovins`** (convention arrêtée). « rurale »
+  seule vaut aussi `Bovins` ; « allaitant »/« laitier » impliquent `Bovins`.
+- **`Spécialités` ne se lit pas dans la liste de matériel.** « radio numérique, échographe neuf,
+  analyseur, laser » décrit un plateau technique — ça ne fait pas de l'échographie une spécialité
+  du poste. Ne retiens une spécialité que présentée comme **pratiquée ou attendue** :
+  « compétences en… », « orientation… », « appétence pour… », « possibilité de développer… »,
+  « service de… », « référé en… ». Dans le doute, laisse vide : sur-remplir ce champ le rend inutile.
+- **`Expérience` = ce que la clinique accepte** : « débutants bienvenus », « ouvert aux profils
+  juniors », « carte verte acceptée » → `Débutant` ; « autonome en consultation » → `Autonome`.
+  Quand l'annonce ouvre plusieurs profils (« junior ou expérimenté »), prends le **plus permissif**.
+
+> Pour résoudre une commune en département, le CSV `villes_france - villes.csv` du dépôt
+> `Cleuteu/geo-data` fait foi (colonne `departement` déjà au format du vocab). C'est celui
+> qu'utilisent l'automation Airtable « Localisation Clinique » et `ville.py` de la compétence
+> `creer-clinique-offre` ; il se cache dans `~/.sarecrute/villes_france.csv`.
+
 #### Commentaires pertinents (cf. §4 pour la capture)
 - Sous « Clinique cherche vétérinaire » → **candidat** (profil, dispo, zone, compétences) — y compris « MP envoyé » → contenu = `Candidature en MP`.
 - Sous « Vétérinaire cherche poste » → **clinique/recruteur** (propose poste/zone/contrat) — y compris « je t'envoie un MP » → contenu = `Proposition en MP`.
@@ -295,7 +349,19 @@ Renseigne **uniquement** avec des valeurs de **`references/matching_vocab.json`*
   {body intégral du post parent}
   ```
   Ainsi un commentaire est toujours exploitable seul (le lien FB pointe le parent, mais son texte est déjà là).
-- **Commentaire candidat (sous une annonce clinique)** — en plus : **hérite des caractéristiques du post parent** — `Zones de recherche`, `Statuts contractuels`, `Type de temps de travail`, `Expérience`, `Pratiques`, `Spécialités` (**jamais `Contrat court`**, cf. §Champs de matching) — mêmes règles d'extraction/vocab que pour un post. **Sauf** indication **contraire explicite** du commentaire (sa valeur prime ; s'il réserve/exclut sans alternative, laisse le champ vide).
+- **Un commentaire hérite des caractéristiques de son post parent**, dans **les deux sens** de type
+  (candidat sous une annonce clinique, comme recruteur sous une annonce de candidat) :
+  `Zones de recherche`, `Statuts contractuels`, `Type de temps de travail`, `Expérience`,
+  `Pratiques`, `Spécialités` — **jamais `Contrat court`** (cf. §Champs de matching) — avec les
+  mêmes règles d'extraction et le même vocabulaire que pour un post, **et la sémantique du type du
+  commentaire**, pas celle du parent (un commentaire de recruteur se remplit avec les règles
+  `Clinique cherche vétérinaire` même si le parent est un post candidat).
+  - ⚠️ **Le commentaire est la première source de vérité.** S'il contredit le post commenté, **c'est
+    le commentaire qui l'emporte** — l'héritage ne sert qu'à combler ce qu'il ne dit pas. S'il
+    réserve ou exclut sans proposer d'alternative, laisse le champ vide plutôt que d'hériter.
+  - L'héritage n'est légitime que parce que le commentaire répond au post : « j'ai tout ce que tu
+    cherches **sauf la localisation** » autorise à reprendre les pratiques du parent tout en
+    n'héritant **pas** de sa géo. Lis la réserve, elle est presque toujours explicite.
 
 #### Règles Expérience (singleSelect)
 - **Etudiant** : école/stage/carte verte en attente de diplôme.
