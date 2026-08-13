@@ -1,12 +1,11 @@
 {
- "note": "Auteurs/pages/enseignes/GROUPES à TOUJOURS exclure du scrape (jamais poussés en base, quel que soit le contenu). Comparaison insensible à la casse, en SOUS-CHAÎNE, sur l'auteur ET la signature/coordonnées en fin de post. Une entrée peut donc être partielle : un nom de famille tronqué attrape ses variantes, et un nom d'enseigne (ex. « Univet ») attrape aussi les recruteurs qui l'affichent dans leur nom de profil. Une entrée n'est pas forcément un nom : un **téléphone ou un domaine mail de signature** (ex. « 06 67 64 46 53 », « Monveto » pour veterinaire-monveto.com) attrape une structure quel que soit le pseudo employé — pense alors à lister les variantes de formatage (avec et sans espaces, avec et sans accents). **Les GROUPES de cliniques y figurent en tant que tels** (Univet, Mon Véto, Qovetia, Smartemis, Fovéa-Vet…) : on ne rentre aucune offre de groupe, y compris celle d'une de ses cliniques qui recrute pour elle-même — décision d'Alex du 11 août 2026. Le marqueur le plus fiable est le **domaine mail ou le site carrière** en signature. Indice complémentaire : le suffixe « MV » dans un nom de profil Facebook = groupe Mon Véto. ⚠️ La liste se teste **entrée par entrée** (post ET commentaire, cf. SKILL.md §Exclure) : un commentaire de candidat sous l'annonce d'un exclu reste à pousser, il embarquera le texte de l'annonce dans son contenu — donc ne juge jamais un commentaire sur la seule présence d'une entrée de cette liste dans son `Contenu complet`. ⚠️ « Mon Véto » sous sa forme espacée peut apparaître dans une tournure banale (« j'ai appelé mon véto ») : ne l'applique qu'à l'auteur, à la signature ou à une URL, jamais au milieu d'une phrase. Ajouter ici au fil de l'eau — dans le dépôt source, pas dans la copie installée (réécrite à chaque plugin update).",
+ "note": "Trois listes. **`auteurs`** = personnes, pages et intermédiaires (cabinets de recrutement, chasseurs de têtes) à TOUJOURS exclure. **`groupes_exclus`** = groupes de cliniques dont on refuse les offres. **`groupes_acceptes`** = groupes dont on ACCEPTE les offres, déjà arbitrés : ne les exclus pas et ne les signale plus. Pour le filtrage, `auteurs` + `groupes_exclus` se testent de la même façon : insensible à la casse, en SOUS-CHAÎNE, sur l'auteur ET la signature/coordonnées en fin de post. Une entrée peut être partielle : un nom de famille tronqué attrape ses variantes, un nom d'enseigne (« Univet ») attrape les recruteurs qui l'affichent dans leur profil. Une entrée n'est pas forcément un nom : un téléphone ou un domaine mail/site carrière de signature (« 06 67 64 46 53 », « sevetys.fr », « emplois.anicura.fr ») attrape une structure quel que soit le pseudo employé — liste alors les variantes de formatage (avec/sans espaces, avec/sans accents). ⚠️ **L'appartenance à un groupe n'exclut PAS par défaut** : c'est un choix d'Alex groupe par groupe. Un groupe absent des deux listes est un groupe NON ARBITRÉ — signale-le et demande, ne décide pas (cf. SKILL.md §Détecter un intermédiaire). ⚠️ La liste se teste **entrée par entrée** (post ET commentaire, cf. SKILL.md §Exclure) : un commentaire de candidat sous l'annonce d'un exclu reste à pousser, il embarquera le texte de l'annonce dans son contenu — ne juge jamais un commentaire sur la seule présence d'une entrée dans son `Contenu complet`. ⚠️ « Mon Véto » sous sa forme espacée peut apparaître dans une tournure banale (« j'ai appelé mon véto ») : ne l'applique qu'à l'auteur, à la signature ou à une URL, jamais au milieu d'une phrase. Ajouter ici au fil de l'eau — dans le dépôt source, pas dans la copie installée (réécrite à chaque plugin update).",
  "auteurs": [
   "Service Remplacement Vétérinaire",
   "Sarah Vanhersel",
   "Pamela Martinez",
   "Justine Chou",
   "Lola Escand",
-  "Univet",
   "Flo Ky",
   "Manon Vet",
   "06 67 64 46 53",
@@ -30,11 +29,24 @@
   "Marie Durand",
   "Camille Sarniguet",
   "Mariama Cissoko",
-  "Monveto",
-  "Mon Véto",
-  "Qovetia",
-  "Smartemis",
   "Fovéa-Vet",
   "Fovea-Vet"
+ ],
+ "groupes_exclus": [
+  "Univet",
+  "Mon Véto",
+  "Monveto",
+  "Qovetia",
+  "Smartemis",
+  "Sevetys",
+  "sevetys.fr",
+  "AniCura",
+  "anicura.fr",
+  "VetPartners",
+  "vetpartners.fr"
+ ],
+ "groupes_acceptes": [
+  "Vet'Alliance",
+  "Mikan"
  ]
 }

@@ -31,7 +31,7 @@ Scraper les posts des **groupes Facebook vétérinaires** (tri chronologique) su
 - **`scripts/airtable_push.py`** — pousse un `records.json` en upsert-merge. Voir §5.
 - **`scripts/focus_chrome.sh`** (macOS) / **`scripts/focus_chrome.ps1`** (Windows) — ramènent l'onglet du scrape au premier plan pour réveiller le rendu. Voir §1 bis.
 - **`references/matching_vocab.json`** — valeurs select valides (Zones/Statuts/Temps) + mapping `macro_regions` → départements. Source de vérité pour remplir les champs de matching (cf. §3). Régénérable depuis la base si le vocab change.
-- **`references/auteurs_exclus.json`** — liste des auteurs/pages à **toujours exclure**, quel que soit le contenu du post. Voir §3 Exclure. Si tu identifies un nouvel auteur à bannir durablement, ajoute-le **dans le dépôt source** (`Cleuteu/sarecrute-competences`) et non dans le dossier installé : celui-ci est réécrit à chaque `claude plugin update`, l'ajout serait perdu. Signale-le à l'utilisateur au lieu de modifier la copie locale.
+- **`references/auteurs_exclus.json`** — **trois** listes : `auteurs` (personnes, pages, intermédiaires) et `groupes_exclus` (groupes de cliniques refusés) s'excluent de la même façon ; `groupes_acceptes` recense les groupes qu'Alex a **arbitrés et acceptés** — ne les exclus pas, et ne les signale plus. Voir §3 Exclure. Si tu identifies un nouvel auteur à bannir durablement, ajoute-le **dans le dépôt source** (`Cleuteu/sarecrute-competences`) et non dans le dossier installé : celui-ci est réécrit à chaque `claude plugin update`, l'ajout serait perdu. Signale-le à l'utilisateur au lieu de modifier la copie locale.
 
 ## Étapes
 
@@ -174,10 +174,11 @@ Puis copie/lis le fichier localement : `cp ~/Downloads/veto_<gid>.json <scratchp
 Filtre la fenêtre sur `iso` (ou `ageH`) et classe depuis ce fichier local.
 
 #### Exclure (ne PAS compter comme offre) :
-- **Auteur blacklisté** : Read `references/auteurs_exclus.json` (bundlé) en début de classification. Si `p.author` (ou la signature/coordonnées en fin de post) matche une entrée de la liste (insensible à la casse, substring) → exclu d'office, **sans lire le contenu pour juger de la pertinence**.
+- **Auteur blacklisté** : Read `references/auteurs_exclus.json` (bundlé) en début de classification. Si `p.author` (ou la signature/coordonnées en fin de post) matche une entrée de **`auteurs` ou `groupes_exclus`** (insensible à la casse, substring) → exclu d'office, **sans lire le contenu pour juger de la pertinence**. Une entrée de `groupes_acceptes` n'exclut rien.
 - Pas une annonce d'emploi vétérinaire (ni « cherche poste », ni « cherche vétérinaire »).
 - Question générale, partage d'article, sondage, RH sans annonce, formation, appel à thèse/sondage, **offre ASV** sans lien vétérinaire.
-- **Intermédiaire de recrutement, ou groupe de cliniques** : cabinet de recrutement, chasseur de têtes, RH/recruteur d'un groupe (Univet, Mon Véto, Qovetia, Smartemis…), **et aussi une clinique appartenant à un groupe même quand elle recrute pour elle-même**. On ne veut que les annonces de **cliniques indépendantes** — un intermédiaire ne donne pas accès à la clinique et pollue la géographie, et une offre de groupe n'est pas commercialisable. Voir le §Détecter un intermédiaire ci-dessous.
+- **Intermédiaire de recrutement** : cabinet de recrutement ou chasseur de têtes. Toujours exclu — il ne donne pas accès à la clinique et pollue la géographie. Voir le §Détecter un intermédiaire ci-dessous.
+- **Groupe de cliniques figurant dans `groupes_exclus`** : exclu, **y compris quand c'est une de ses cliniques qui recrute pour elle-même** (l'appartenance suffit). Mais ⚠️ **l'exclusion des groupes n'est pas automatique** : elle est arbitrée groupe par groupe par Alex. Un groupe de `groupes_acceptes` est à traiter normalement, un groupe **absent des deux listes** est à **signaler, pas à exclure**.
 - Si exclu pour **non-pertinence** (les motifs ci-dessus, hors blacklist) → ignorer aussi ses commentaires.
 - ⚠️ **La blacklist, elle, s'applique à l'auteur — jamais au post en tant que contenant.** Elle se teste **entrée par entrée**, sur `p.author` comme sur chaque `c.author` :
   - **Post d'un auteur blacklisté** → pas d'entrée pour le post…
@@ -214,18 +215,31 @@ en base : proposer, pas exécuter.
 Un même groupe peut employer **plusieurs** recruteurs qui postent pour les mêmes cliniques :
 signale le rapprochement quand tu le vois, il y a plusieurs entrées à proposer.
 
-**Le nom du groupe est lui-même une bonne entrée de blacklist** (Univet, Mon Véto, Qovetia,
-Smartemis, Fovéa-Vet…) : on ne rentre **aucune** offre de groupe, y compris celle d'une de ses
-cliniques qui recrute pour elle-même. Une entrée d'enseigne couvre d'un coup tous ses recruteurs,
-présents et futurs, sans attendre qu'ils se signalent par leur géographie.
+#### Groupes de cliniques : un arbitrage par groupe, jamais une déduction
+
+**Appartenir à un groupe n'exclut pas en soi.** Alex choisit **groupe par groupe** : certains sont
+refusés (`groupes_exclus`), d'autres acceptés (`groupes_acceptes`). Ta tâche est de **reconnaître le
+groupe**, pas d'en déduire un verdict.
+
+- Groupe dans `groupes_exclus` → exclu, y compris quand c'est une de ses cliniques qui recrute pour
+  elle-même. Une entrée d'enseigne couvre d'un coup tous ses recruteurs, présents et futurs.
+- Groupe dans `groupes_acceptes` → **traite l'annonce normalement**, et ne la signale plus : la
+  question a déjà été tranchée, la reposer à chaque scrape est du bruit.
+- Groupe **dans aucune des deux listes** → pousse l'annonce **ou** retiens-la, mais dans tous les cas
+  **signale le groupe dans le résumé final** avec le marqueur qui l'a révélé, et demande l'arbitrage.
+  N'écris jamais dans `groupes_exclus` sans réponse.
+
+Reconnaître le groupe :
 - Le marqueur le plus fiable est le **domaine mail ou le site carrière** en signature
-  (`@smartemis.com`, `veterinaire-monveto.com`, `smartemisfrance.teamtailor.com`) — il est présent
-  même quand le nom du groupe n'apparaît nulle part dans le texte, et il ne produit pas de faux
-  positif. Préfère-le au nom commercial quand les deux existent.
-- Attention aux **tournures banales** : « mon véto » se dit couramment. Une entrée d'enseigne
-  ambiguë ne s'applique qu'à l'auteur, à la signature ou à une URL, jamais au milieu d'une phrase.
-- Une clinique de groupe se présente souvent comme « structure indépendante » : ne te fie pas à
-  cette formule, regarde la signature.
+  (`@sevetys.fr`, `@vetpartners.fr`, `emplois.anicura.fr`, `@smartemis.com`,
+  `veterinaire-monveto.com`, `smartemisfrance.teamtailor.com`). Il est présent même quand le nom du
+  groupe n'apparaît nulle part dans le texte, et ne produit pas de faux positif. Préfère-le au nom
+  commercial quand les deux existent — mais garde **les deux** entrées : certaines annonces ne citent
+  que le nom (« Membre du groupe SEVETYS », « AniCura Paris III recrute ») sans mail du groupe.
+- Attention aux **tournures banales** : « mon véto » se dit couramment. Une entrée ambiguë ne
+  s'applique qu'à l'auteur, à la signature ou à une URL, jamais au milieu d'une phrase.
+- Une clinique de groupe se présente souvent comme « **structure indépendante** » : la formule ne
+  vaut rien, seule la signature compte (constaté sur Smartemis).
 
 - ⚠️ **Ne JAMAIS pousser un post exclu dans Airtable, même avec `"Non pertinent": true`.** Ce champ est réservé au **recruteur** (usage manuel côté Airtable) — le scrape ne doit jamais l'écrire. Un post jugé non pertinent avant l'envoi est simplement **ignoré** (pas d'entrée créée), pas loggé. Mentionne-le uniquement dans le résumé final (compte + raison courte).
 
@@ -358,4 +372,8 @@ de recrutement, désormais exclus à la source. La clé reste la bonne pour de v
   constatés**, un extrait, et le rapprochement s'il partage des cliniques avec un autre auteur.
   Termine par la question explicite : faut-il l'ajouter à `auteurs_exclus.json` et supprimer ses
   entrées existantes ? C'est une décision de l'utilisateur, pas la tienne.
+- **Groupes de cliniques non arbitrés** rencontrés dans la fenêtre (absents de `groupes_exclus` **et**
+  de `groupes_acceptes`) : un bloc à part également, avec pour chacun le marqueur qui l'a révélé
+  (domaine mail, site carrière, mention « membre du groupe ») et le nombre d'annonces concernées.
+  Demande l'arbitrage : exclure ou accepter. Ne re-signale pas les groupes déjà arbitrés.
 - Mentionne si la couverture commentaires est partielle (défaut) ou exhaustive.
