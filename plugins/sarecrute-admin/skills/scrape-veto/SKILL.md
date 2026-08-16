@@ -387,6 +387,16 @@ exactement ceux que ce genre d'annonce vise. Classé Autonome, le poste ne sort 
 signaux qui l'accompagnent sont « on t'accompagnera », formations financées, back-up permanent,
 « rémunération selon les compétences ».
 
+⚠️ **Dans le doute, prends la valeur la PLUS PERMISSIVE.** Alex préfère un matching large,
+quitte à trancher lui-même ensuite : un poste qui remonte devant un candidat un peu juste se
+s'écarte d'un coup d'œil, alors qu'un poste qui ne remonte devant personne est invisible et ne se
+rattrape jamais. Concrètement, l'échelle se lit de la plus permissive à la plus restrictive —
+vide > `Débutant` > `1 à 2 ans` > `Autonome` > `Spécialiste` — et toute formule molle
+(« autonomie **appréciée** / **souhaitée** / **de préférence** », « **tout profil** sera étudié »,
+« **un peu** d'expérience », « une **certaine** autonomie ») descend d'un cran plutôt que de
+monter. Même logique que `Contrat court`, qu'on laisse à `false` dans le doute, et que
+`Spécialiste`, réservé à l'explicite.
+
 ### 4. Commentaires — capture
 
 Les commentaires sont déjà récoltés par `__harvestAll`/`__merge` (champ `comments` de chaque post), via `div[role="article"][aria-label="Commentaire de {Nom} il y a {temps}"]`.
