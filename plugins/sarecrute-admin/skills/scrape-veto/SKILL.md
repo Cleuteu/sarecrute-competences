@@ -366,10 +366,26 @@ Pièges vérifiés sur les annonces réelles (août 2026) :
 #### Règles Expérience (singleSelect)
 - **Etudiant** : école/stage/carte verte en attente de diplôme.
 - **Débutant** : jeune diplômé, < 1 an, « débutant accepté », « carte verte acceptée ».
-- **1 à 2 ans** : 1-2 ans explicitement.
+- **1 à 2 ans** : 1-2 ans explicitement — **ou** autonomie exigée sur un seul volet quand la
+  clinique s'engage à former sur le reste (cf. ⚠️ ci-dessous).
 - **Autonome** : expérimenté/autonome/senior/3 ans+ — **défaut** quand de l'expérience est requise sans durée précise.
 - **Spécialiste** : très pointu / +7 ans / expertise — **rare**, seulement si explicite.
 - Vide si aucune info.
+
+⚠️ **Ne monte pas à `Autonome` sur le seul mot « autonome ».** Lis l'exigence **et** ce que la
+clinique s'engage à former. Quand l'autonomie demandée est **partielle** et que l'annonce propose
+de former sur le reste — la **chirurgie** surtout, qui est ce qui sépare un jeune diplômé d'un
+confirmé — le profil visé est **`1 à 2 ans`**, pas un senior.
+
+> « cherche un(e) véto canin **autonome en médecine** (nous formons sans problème sur **toutes**
+> les chirurgies tissus mous) » → `1 à 2 ans`. Une structure qui forme sur toute la chirurgie des
+> tissus mous ne cherche pas un expérimenté.
+
+Pourquoi ça compte : `Autonome` **exclut du matching** les candidats `Débutant` et `1 à 2 ans` —
+exactement ceux que ce genre d'annonce vise. Classé Autonome, le poste ne sort devant personne
+(constaté le 16 août 2026 sur l'annonce de Coëx/Commequiers). La formule est fréquente ; les
+signaux qui l'accompagnent sont « on t'accompagnera », formations financées, back-up permanent,
+« rémunération selon les compétences ».
 
 ### 4. Commentaires — capture
 
