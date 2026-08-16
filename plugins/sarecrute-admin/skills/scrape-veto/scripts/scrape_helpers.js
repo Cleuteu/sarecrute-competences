@@ -6,7 +6,10 @@
  * clic qui part en permalink…), le window est vidé → RÉ-INJECTE ce fichier.
  *
  * Fournit sur window :
- *   __decodeTS(anchor)   -> string  : décode un timestamp de post obfusqué
+ *   __decodeTS(anchor)   -> string  : décode un timestamp de post (SVG, obfusqué
+ *                          ou clair) ; s'appuie sur __decodeTSSvg / __decodeTSGeom
+ *   __isTsAnchor(anchor) -> bool    : cette ancre est-elle le timestamp d'un POST ?
+ *                          (rejette les ancres de commentaire)
  *   __parseTS(str)       -> {iso, ageH} : "24 min" / "Le 20 juin à 19:41" -> date
  *   __harvestAll()       -> [{author, authorUrl, decoded, iso, ageH, pid, body, comments[]}]
  *   __profileUrl(anchor) -> string  : lien de profil FB depuis une ancre de nom
@@ -26,11 +29,18 @@
 window.__veto = window.__veto || {};
 
 /* --- Décodage des timestamps de posts (anti-scraping FB) -------------------
- * FB mélange les caractères du timestamp via CSS `order` dans un conteneur
- * flex `overflow:hidden` de largeur fixe. Les leurres débordent (clippés).
- * On garde uniquement les glyphes réellement DANS la boîte visible, triés par
- * position (haut->bas, gauche->droite). */
-window.__decodeTS = function (tsA) {
+ * TROIS régimes coexistent sur le fil, d'où l'ordre d'essai de __decodeTS :
+ *
+ * 1. SVG (majoritaire depuis août 2026) : l'ancre ne contient AUCUN texte, juste
+ *    <svg><use href="#SvgTn"></svg> ; le libellé vit dans un <text id="SvgTn">
+ *    ailleurs dans le document. innerText est vide et le décodage géométrique
+ *    ci-dessous renvoie '' → sans __decodeTSSvg, plus AUCUN post n'est capté
+ *    (constaté le 16 août 2026 : 8 posts sur 11 illisibles).
+ * 2. Géométrique : FB mélange les caractères via CSS `order` dans un conteneur
+ *    flex `overflow:hidden` de largeur fixe ; les leurres débordent (clippés).
+ *    On garde les glyphes réellement DANS la boîte visible, triés par position.
+ * 3. Texte en clair (« 8 août à 21:03 ») : innerText suffit. */
+window.__decodeTSGeom = function (tsA) {
   const flex = Array.from(tsA.querySelectorAll('*')).find(e => getComputedStyle(e).display === 'flex');
   if (!flex) return null;
   const fr = flex.getBoundingClientRect();
@@ -40,6 +50,57 @@ window.__decodeTS = function (tsA) {
   }).filter(k => k.w > 0 && k.left >= fr.left - 1 && k.right <= fr.right + 1 && k.top >= fr.top - 1 && k.bottom <= fr.bottom + 1);
   vis.sort((a, b) => Math.abs(a.top - b.top) > 3 ? a.top - b.top : a.left - b.left);
   return vis.map(v => v.t).join('').trim();
+};
+
+/* Régime SVG : suivre <use href="#SvgTn"> jusqu'au <text> qui porte le libellé. */
+window.__decodeTSSvg = function (a) {
+  for (const u of a.querySelectorAll('use')) {
+    const h = u.getAttribute('xlink:href') || u.getAttribute('href') || '';
+    if (!h.startsWith('#')) continue;
+    const t = document.getElementById(h.slice(1));
+    if (!t) continue;
+    const s = (t.textContent || '').replace(/[͏​-‍⁠﻿­]/g, '').replace(/\s+/g, ' ').trim();
+    if (s && window.__parseTS(s).iso) return s;
+  }
+  return null;
+};
+
+/* Essaie les trois régimes ; ne retient que ce que __parseTS sait dater.
+ * Cache les décodages POSITIFS (WeakMap) : __merge re-décode les mêmes ancres à
+ * chaque cycle et le décodage géométrique coûte un getComputedStyle par nœud. */
+window.__tsCache = window.__tsCache || new WeakMap();
+window.__decodeTS = function (a) {
+  const hit = window.__tsCache.get(a);
+  if (hit) return hit;
+  let v = window.__decodeTSSvg(a);
+  if (!v) {
+    const g = window.__decodeTSGeom(a);
+    if (g && window.__parseTS(g).iso) v = g;
+    else {
+      const t = (a.innerText || '').trim();
+      v = (t.length <= 40 && window.__parseTS(t).iso) ? t : g;
+    }
+  }
+  if (v && window.__parseTS(v).iso) window.__tsCache.set(a, v);
+  return v;
+};
+
+/* --- Une ancre est-elle le timestamp d'un POST ? ---------------------------
+ * Remplace l'ancien test `innerText.length >= 12` (qui supposait le texte
+ * obfusqué présent dans le DOM : faux sous le régime SVG, où innerText est vide).
+ * ⚠️ Le rejet des ancres situées DANS un commentaire est indispensable : les
+ * commentaires portent eux aussi un href `?__cft__`. Sans ce filtre, chaque
+ * commentaire devient un faux post ET, pire, la remontée de racine du vrai post
+ * s'arrête sur lui — son corps ressort vide (constaté le 16 août 2026 :
+ * 89 faux posts et 46 corps vides sur 265 entrées). */
+window.__isTsAnchor = function (a) {
+  const h = a.getAttribute('href') || '';
+  if (!h.includes('__cft__')) return false;
+  if (!(h.startsWith('?__cft__') || /\/(posts|permalink)\//.test(h) || /story_fbid=/.test(h))) return false;
+  const art = a.closest('div[role="article"][aria-label]');
+  if (art && /^Commentaire de/i.test(art.getAttribute('aria-label') || '')) return false;
+  const d = window.__decodeTS(a);
+  return !!(d && window.__parseTS(d).iso);
 };
 
 /* --- Conversion timestamp relatif/absolu -> date absolue (horloge du navigateur) */
@@ -85,15 +146,9 @@ window.__profileUrl = function (a) {
 
 /* --- Récolte complète : posts + commentaires rattachés par CONTAINMENT ----- */
 window.__harvestAll = function () {
-  // Anchors de timestamp de post = href contient __cft__ et décode en un temps
-  const tsAnchors = Array.from(document.querySelectorAll('a')).filter(a => {
-    const h = a.getAttribute('href') || '';
-    if (!h.includes('__cft__')) return false;
-    const t = (a.innerText || '').replace(/\s/g, '');
-    if (!(t.length >= 12 && /[0-9]/.test(t))) return false;
-    const d = window.__decodeTS(a);
-    return d && /\d/.test(d);
-  });
+  // Anchors de timestamp de post (cf. __isTsAnchor : les 3 régimes de rendu,
+  // commentaires exclus)
+  const tsAnchors = Array.from(document.querySelectorAll('a')).filter(window.__isTsAnchor);
   const postByAnchor = new Map();
   for (const tsA of tsAnchors) {
     let root = tsA;
@@ -240,12 +295,16 @@ window.__merge = function () {
  * tronqué des posts ("Voir plus" / "En voir plus"). */
 window.__EXPAND_RX = /^(?:en )?voir plus$|^afficher la suite$|^afficher plus$/i;
 
+/* ⚠️ Pré-filtrer sur textContent, PAS innerText : innerText force un reflow par
+ * bouton. Sur un fil déroulé (≈6700 boutons) l'appel passait de ~50 ms à ~3 s,
+ * ce qui faisait sauter le timeout CDP de 45 s à chaque lot (16 août 2026). */
 window.__expandPostText = function () {
   let n = 0;
   for (const b of document.querySelectorAll('div[role="button"],span[role="button"]')) {
+    const tc = (b.textContent || '').trim();
+    if (tc.length > 18 || !window.__EXPAND_RX.test(tc)) continue;
     if (b.closest('a')) continue;
-    const t = (b.innerText || '').trim();
-    if (window.__EXPAND_RX.test(t)) { try { b.click(); n++; } catch (e) {} }
+    try { b.click(); n++; } catch (e) {}
   }
   return n;
 };
@@ -262,9 +321,10 @@ window.__expandCommentText = function () {
   for (const art of document.querySelectorAll('div[role="article"][aria-label]')) {
     if (!/^Commentaire de/i.test(art.getAttribute('aria-label') || '')) continue;
     for (const b of art.querySelectorAll('div[role="button"],span[role="button"]')) {
+      const tc = (b.textContent || '').trim();   // textContent : cf. __expandPostText
+      if (tc.length > 18 || !window.__EXPAND_RX.test(tc)) continue;
       if (b.closest('a')) continue;
-      const t = (b.innerText || '').trim();
-      if (window.__EXPAND_RX.test(t)) { try { b.click(); n++; } catch (e) {} }
+      try { b.click(); n++; } catch (e) {}
     }
   }
   return n;

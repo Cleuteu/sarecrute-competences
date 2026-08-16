@@ -27,7 +27,13 @@
   "Floriane Fernandez",
   "Marie Durand",
   "Camille Sarniguet",
-  "Mariama Cissoko"
+  "Mariama Cissoko",
+  "Hanane Véto",
+  "Hanane Veto",
+  "Hanane Messad",
+  "06 61 41 32 00",
+  "0661413200",
+  "Audrey Bpro"
  ],
  "groupes_exclus": [
   "Univet",
@@ -43,11 +49,16 @@
   "vetpartners.fr",
   "Team Milou",
   "Fovéa-Vet",
-  "Fovea-Vet"
+  "Fovea-Vet",
+  "IVC Evidensia",
+  "Evidensia"
  ],
  "groupes_acceptes": [
   "Vet'Alliance",
   "Mikan",
-  "Argos"
+  "Argos",
+  "BeVet",
+  "Optimavet",
+  "SAS BLUE"
  ]
 }
