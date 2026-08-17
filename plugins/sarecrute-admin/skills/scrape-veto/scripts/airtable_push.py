@@ -27,11 +27,11 @@ records.json = liste d'objets {"fields": {...}} au format Airtable.
   Contrat court (bool) : à émettre EXPLICITEMENT (true ou false) sur toute entrée
   "Vétérinaire cherche poste", jamais omis — c'est un scalaire, donc le post le plus
   récent gagne à la fusion ; omis, l'ancienne valeur resterait figée.
-  Ne PAS renseigner candidat_key : le script le calcule. Les valeurs select hors
+  Ne PAS renseigner auteur_key : le script le calcule. Les valeurs select hors
   vocabulaire sont ignorées automatiquement (jamais de création d'option).
 
 Déduplication — deux régimes :
-  • Nom FIABLE (candidat_key non vide) → UPSERT par personne, toutes dates
+  • Nom FIABLE (auteur_key non vide) → UPSERT par personne, toutes dates
     confondues. Si la personne existe déjà, on MET À JOUR son enregistrement :
     le nouveau post est empilé en haut de "Contenu complet" (séparateur daté,
     plus récent en premier), et les champs scalaires (Date, Zone, Pratiques…)
@@ -44,7 +44,7 @@ Dans les DEUX régimes, « rien de neuf dans le contenu » ne veut pas dire « r
 ORIGINE nouvelle. Les gardes d'idempotence ajoutent donc le canal manquant (ligne
 « ⊕ CANAL » en --dry) sans toucher au contenu ni aux champs scalaires.
 
-candidat_key = prénom+nom normalisés (sans accents, minuscules). Vide (donc pas
+auteur_key = prénom+nom normalisés (sans accents, minuscules). Vide (donc pas
 de fusion) si : nom vide / "Membre anonyme" / pseudo FB auto-généré (contient des
 chiffres) / tout en capitales / > 6 mots (un titre d'annonce capté à la place de
 l'auteur).
@@ -68,12 +68,12 @@ HEADER_RE = re.compile(r"^\[(\d{4}-\d{2}-\d{2})\]\s*((?:https?://\S+)?)\s*(?:·\
 CANAUX_TABLE = "tbluH5M2sogAN85dl"      # Canaux de diffusion (groupes FB, réseaux)
 # (VOWELS / ORG_MARKERS retirés le 16 août 2026 : ils servaient à refuser une clé aux
 #  noms de structure et aux surnoms tronqués, ce qui bloquait la fusion des pages de
-#  clinique — cf. docstring de candidat_key.)
+#  clinique — cf. docstring de auteur_key.)
 
 # Champs recopiés depuis le post le plus récent lors d'un merge (tout sauf le contenu).
 SCALAR_FIELDS = ["Prénom", "Nom", "Profil Facebook", "Date du post", "Lien du post", "Zone de recherche",
                  "Type de post", "Pratiques", "Spécialités", "Type d'entrée",
-                 "Post source", "Expérience", "Nom de la clinique", "Archivé", "candidat_key",
+                 "Post source", "Expérience", "Nom de la clinique", "Archivé", "auteur_key",
                  "Zones de recherche", "Statuts contractuels", "Type de temps de travail",
                  "Date de disponibilité", "Rayon accepté (km)", "Contrat court"]
 
@@ -137,7 +137,7 @@ def sanitize_selects(f):
 
 # Champs demandés au fetch (on a besoin du contenu pour merger la cible).
 FETCH_FIELDS = ["Prénom", "Nom", "Date du post", "Lien du post", "Contenu complet",
-                "Type d'entrée", "candidat_key", "Canaux"]
+                "Type d'entrée", "auteur_key", "Canaux"]
 
 
 def strip_accents(s):
@@ -148,7 +148,7 @@ def norm(s):
     return re.sub(r"\s+", " ", strip_accents(s).lower()).strip()
 
 
-def candidat_key(prenom, nom):
+def auteur_key(prenom, nom):
     """Clé personne fiable, ou '' si anonyme / non fiable (→ pas de fusion).
 
     ⚠️ Ne rejette PLUS les noms de structure ni les surnoms tronqués (16 août 2026).
@@ -333,13 +333,13 @@ def main():
         # "Type d'entrée", et on ne saurait plus si elle a publié une annonce ou
         # seulement réagi sous celle d'un autre.
         is_comment = f.get("Type d'entrée") == "Commentaire"
-        k = candidat_key(f.get("Prénom"), f.get("Nom"))
-        f["candidat_key"] = k
+        k = auteur_key(f.get("Prénom"), f.get("Nom"))
+        f["auteur_key"] = k
         gk = ("com:" + k) if (k and is_comment) else k
         (groups.setdefault(gk, []).append(f) if gk else singles.append(f))
 
     # 2) Index de l'existant. On recalcule la clé depuis le nom (les records
-    #    legacy ont candidat_key vide) → l'upsert marche même sans backfill.
+    #    legacy ont auteur_key vide) → l'upsert marche même sans backfill.
     existing = fetch_all(token)
     by_key, exact_recs = {}, {}
     for r in existing:
@@ -347,7 +347,7 @@ def main():
         # exact_recs (et pas un simple set) : quand la publication est déjà en base, il
         # faut pouvoir la PATCHER pour lui ajouter un canal manquant (cf. add_canaux).
         exact_recs.setdefault(exact_key(f), r)
-        k = candidat_key(f.get("Prénom"), f.get("Nom"))
+        k = auteur_key(f.get("Prénom"), f.get("Nom"))
         if k:
             # Même espace de clés séparé qu'à l'étape 1 : un commentaire existant n'est
             # une cible de fusion que pour un autre commentaire de la même personne.
@@ -381,7 +381,7 @@ def main():
     # 3) Personnes fiables → upsert.
     for gk, flist in groups.items():
         # gk peut porter le préfixe interne "com:" (groupe de commentaires) ; le champ
-        # candidat_key, lui, ne stocke jamais le préfixe.
+        # auteur_key, lui, ne stocke jamais le préfixe.
         k = gk[4:] if gk.startswith("com:") else gk
         in_secs = dedup_sections([s for f in flist for s in parse_sections(
             f.get("Contenu complet"), f.get("Date du post"), f.get("Lien du post"),
@@ -397,7 +397,7 @@ def main():
                 skipped += len(flist)
                 continue
             fields = scalars_from_newest(flist + [tf])
-            fields["candidat_key"] = k
+            fields["auteur_key"] = k
             # Union des canaux : la fusion ajoute une origine, elle n'en remplace pas.
             # (in_secs d'abord dans le dédup → un en-tête legacy sans canal se voit
             #  enrichi par la version datée du canal, à signature identique.)
@@ -408,7 +408,7 @@ def main():
             to_patch.append((target["id"], fields, tf))
         else:
             fields = scalars_from_newest(flist)
-            fields["candidat_key"] = k
+            fields["auteur_key"] = k
             union = union_links(flist)
             if union:
                 fields["Canaux"] = union

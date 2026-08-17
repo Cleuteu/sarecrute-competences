@@ -250,8 +250,8 @@ Le `Type de post` conditionne tout. Décide sur le **sens du texte**, pas sur l'
 - ⚠️ **Pas de troisième option.** Le champ `Type de post` ne prend que ces deux valeurs — jamais `Autre`. En cas de doute réel entre les deux, ne force jamais `Vétérinaire cherche poste` par défaut ; **exclus le post** (cf. §Exclure ci-dessus, même traitement qu'un post non pertinent — pas d'entrée créée, mentionné uniquement dans le résumé final).
 
 #### Champs d'un post retenu :
-- **Prénom / Nom** : depuis l'auteur (clinique/page → Prénom vide, Nom = nom de la page). « Membre anonyme » → vides. ⚠️ Matche les posts par **corps**, pas par auteur (l'auteur peut être mal capté). Soigne cette capture : le push en dérive le `candidat_key` pour fusionner les re-posts d'une même personne (cf. §5). Ne « répare » pas un nom tronqué en inventant — laisse tel quel (le push le traitera comme non fusionnable).
-- **`candidat_key`** : **ne pas le renseigner** — le push le calcule depuis Prénom+Nom.
+- **Prénom / Nom** : depuis l'auteur (clinique/page → Prénom vide, Nom = nom de la page). « Membre anonyme » → vides. ⚠️ Matche les posts par **corps**, pas par auteur (l'auteur peut être mal capté). Soigne cette capture : le push en dérive le `auteur_key` pour fusionner les re-posts d'une même personne (cf. §5). Ne « répare » pas un nom tronqué en inventant — laisse tel quel (le push le traitera comme non fusionnable).
+- **`auteur_key`** : **ne pas le renseigner** — le push le calcule depuis Prénom+Nom.
 - **Profil Facebook** : `p.authorUrl` tel quel (`https://www.facebook.com/{uid}`, reconstruit depuis l'ancre du header — validé en live : redirige vers le profil réel). **Vide pour « Membre anonyme »** (FB ne rend alors aucune ancre) — laisse vide, ne devine jamais. ⚠️ Si `authorUrl` est vide alors que l'auteur est nommé, c'est que la capture de l'auteur est retombée sur le fallback `strong` (souvent un post sponsorisé) : **vérifie le nom** avant de pousser, ou exclus le post s'il s'agit d'une pub.
 - **Canaux** : `["<recId du canal>"]`, le canal de §0 dont le `gid` correspond à celui du post (`p.gid`). **Obligatoire sur chaque ligne**, post comme commentaire — c'est ce qui donne l'origine du contenu. Le push refuse un `recId` inconnu et n'en crée jamais ; il écrit aussi le nom du canal dans l'en-tête de la section (`[date] lien · Canal`), donc l'origine reste lisible post par post même après fusion de plusieurs groupes sur une même personne.
 - **Date du post** : `iso` (YYYY-MM-DD).
@@ -419,8 +419,8 @@ Les commentaires sont déjà récoltés par `__harvestAll`/`__merge` (champ `com
 2. Écris les enregistrements jugés dans un fichier `records.json` (liste de `{"fields": {...}}`), **hors du dossier de la compétence** (scratchpad de session).
 3. `python3 <dossier_skill>/scripts/airtable_push.py records.json --dry` puis sans `--dry`.
 
-Le script fait un **upsert-merge par personne** (ne renseigne pas `candidat_key`, il le calcule) :
-- **Nom fiable** (`candidat_key` non vide) → si la personne existe déjà (toutes dates confondues), il **met à jour** son enregistrement : le nouveau post est empilé **en haut** de `Contenu complet` (séparateur `──────────`, en-tête `[date] lien`), et les champs scalaires (Date, Zone, Pratiques…) prennent les valeurs du **post le plus récent**. Sinon il crée.
+Le script fait un **upsert-merge par personne** (ne renseigne pas `auteur_key`, il le calcule) :
+- **Nom fiable** (`auteur_key` non vide) → si la personne existe déjà (toutes dates confondues), il **met à jour** son enregistrement : le nouveau post est empilé **en haut** de `Contenu complet` (séparateur `──────────`, en-tête `[date] lien`), et les champs scalaires (Date, Zone, Pratiques…) prennent les valeurs du **post le plus récent**. Sinon il crée.
 - **Nom anonyme / non fiable** → **pas de fusion** : création, sauf si **exactement la même publication** est déjà en base. Ne sont « non fiables » que les noms qui ne désignent personne de stable : vide, « Membre anonyme », pseudo auto-généré par FB (il porte des chiffres, type *EagerGiraffe2400*), tout en capitales, et titre d'annonce capté à la place de l'auteur (> 6 mots).
   - ⚠️ Une **page de clinique** (« Clinique Vétérinaire de l'Ecluse ») et un **pseudo tronqué** (*Lisa Jrn*, *Jo Vstk*) sont au contraire **fusionnables** depuis le 16 août 2026. Les exclure était un reste de l'époque où la clé ne servait qu'aux candidats, et ça bloquait la fusion qu'on veut : l'Écluse avait **7** enregistrements, Vétérinaire des Salines **6**. Seul un homonyme *exact* peut désormais fusionner à tort — c'est le garde-fou « annonce vraiment différente ⇒ entrée séparée » ci-dessous qui le rattrape.
 - **Commentaires** → ils fusionnent **entre eux par personne**, mais **jamais avec le post** de la même personne. Un recruteur qui démarche répète la même offre sous chaque post candidat : sans cette fusion il créait un enregistrement par commentaire (constaté sur 17 personnes / 44 enregistrements, dont Christelle Duchemin 4× la même offre à Chilly-Mazarin). L'espace de clés reste séparé du post, sinon le plus récent des deux imposerait son `Type d'entrée` et on ne saurait plus si la personne a publié une annonce ou seulement réagi sous celle d'un autre.
@@ -446,7 +446,7 @@ Deux garde-fous, à appliquer **avant** d'écrire dans `records.json` :
   `Contenu complet` du record existant contient l'historique des sections de cet auteur, c'est
   là que se voit un « même poste qu'en juin ».
 
-Historique (11 août 2026) : `candidat_key` avait été conçu pour les posts candidat et appliqué tel
+Historique (11 août 2026) : `auteur_key` avait été conçu pour les posts candidat et appliqué tel
 quel aux posts clinique. Sur 681 posts clinique, ça avait produit **34 records agrégeant des
 annonces sans rapport** (pire cas : 20 sections / 18 offres distinctes) — tous des intermédiaires
 de recrutement, désormais exclus à la source. La clé reste la bonne pour de vraies cliniques.
