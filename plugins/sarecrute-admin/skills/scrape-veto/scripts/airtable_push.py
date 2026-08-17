@@ -181,6 +181,37 @@ def auteur_key(prenom, nom):
     return norm(full)
 
 
+PIN = "#"   # marqueur de clé figée à la main, ex. "remi mereaux#etudiants-a6"
+
+
+def effective_key(f):
+    """Clé d'indexation réelle : la clé calculée, SAUF si elle a été figée à la main.
+
+    Le champ auteur_key est normalement recalculé depuis Prénom+Nom (les
+    enregistrements legacy l'ont vide, l'upsert marche quand même). Mais une clé
+    renseignée à la main et contenant « # » est RESPECTÉE telle quelle.
+
+    À quoi ça sert : sortir un enregistrement du chemin de fusion automatique. Deux
+    annonces vraiment différentes du même auteur (Rémi Mereaux : un poste vétérinaire
+    mixte ET une offre pour étudiants A6 ; Liora Simmenauer : urgentiste ET clinicat)
+    doivent vivre dans deux enregistrements. Séparées à la main, elles étaient
+    refusionnées au scrape suivant puisque la clé se recalcule depuis le nom. Il
+    suffit désormais d'écrire « remi mereaux#etudiants-a6 » dans auteur_key : plus
+    aucun post ne l'y rejoindra automatiquement.
+
+    ⚠️ Conséquence à connaître : un enregistrement figé ne reçoit plus rien tout seul.
+    Laisse toujours UN enregistrement non figé par auteur pour absorber ses nouvelles
+    publications — sinon elles créeront un enregistrement de plus.
+
+    Le marqueur est volontairement explicite : on ne devine jamais un figeage à partir
+    d'un écart entre la clé stockée et le nom (un nom corrigé après coup produirait cet
+    écart sans qu'on veuille figer quoi que ce soit)."""
+    stored = (f.get("auteur_key") or "").strip()
+    if PIN in stored:
+        return stored
+    return auteur_key(f.get("Prénom"), f.get("Nom"))
+
+
 def exact_key(f):
     """Signature d'une publication exacte (idempotence pour les anonymes)."""
     body = re.sub(r"\s+", " ", (f.get("Contenu complet") or "")).strip().lower()[:60]
@@ -333,7 +364,10 @@ def main():
         # "Type d'entrée", et on ne saurait plus si elle a publié une annonce ou
         # seulement réagi sous celle d'un autre.
         is_comment = f.get("Type d'entrée") == "Commentaire"
-        k = auteur_key(f.get("Prénom"), f.get("Nom"))
+        # effective_key et pas auteur_key : records.json n'est pas censé renseigner la
+        # clé, mais s'il porte une clé figée ("…#suffixe") c'est un choix délibéré de
+        # viser l'enregistrement figé — on le respecte.
+        k = effective_key(f)
         f["auteur_key"] = k
         gk = ("com:" + k) if (k and is_comment) else k
         (groups.setdefault(gk, []).append(f) if gk else singles.append(f))
@@ -342,12 +376,21 @@ def main():
     #    legacy ont auteur_key vide) → l'upsert marche même sans backfill.
     existing = fetch_all(token)
     by_key, exact_recs = {}, {}
+    # Sections déjà en base par AUTEUR (clé nue : regroupe ses enregistrements figés et
+    # non figés). Sert à ne jamais ré-empiler ailleurs un texte déjà présent chez lui.
+    sigs_by_person = {}
     for r in existing:
         f = r["fields"]
         # exact_recs (et pas un simple set) : quand la publication est déjà en base, il
         # faut pouvoir la PATCHER pour lui ajouter un canal manquant (cf. add_canaux).
         exact_recs.setdefault(exact_key(f), r)
-        k = auteur_key(f.get("Prénom"), f.get("Nom"))
+        person = auteur_key(f.get("Prénom"), f.get("Nom"))
+        if person:
+            sigs_by_person.setdefault(person, set()).update(
+                sec_sig(s) for s in parse_sections(
+                    f.get("Contenu complet"), f.get("Date du post"),
+                    f.get("Lien du post"), canal_of(f, canaux)))
+        k = effective_key(f)   # respecte une clé figée à la main ("…#suffixe")
         if k:
             # Même espace de clés séparé qu'à l'étape 1 : un commentaire existant n'est
             # une cible de fusion que pour un autre commentaire de la même personne.
@@ -386,7 +429,18 @@ def main():
         in_secs = dedup_sections([s for f in flist for s in parse_sections(
             f.get("Contenu complet"), f.get("Date du post"), f.get("Lien du post"),
             canal_of(f, canaux))])
+        # Une section déjà présente CHEZ CET AUTEUR — même dans un autre de ses
+        # enregistrements, figé compris — n'est pas nouvelle : sans ce filtre, une
+        # annonce séparée à la main était ré-empilée dans l'enregistrement resté
+        # ouvert, et le même texte se retrouvait en base deux fois.
+        already = sigs_by_person.get(k.split(PIN)[0], set())
+        in_secs = [s for s in in_secs if sec_sig(s) not in already]
         target = by_key.get(gk)
+        if not in_secs:                    # rien de neuf nulle part chez cet auteur
+            if target:
+                add_canaux(target, flist)  # …mais peut-être une origine nouvelle
+            skipped += len(flist)
+            continue
         if target:
             tf = target["fields"]
             t_secs = parse_sections(tf.get("Contenu complet"), tf.get("Date du post"),

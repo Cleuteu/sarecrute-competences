@@ -426,7 +426,17 @@ Le script fait un **upsert-merge par personne** (ne renseigne pas `auteur_key`, 
 - **Commentaires** → ils fusionnent **entre eux par personne**, mais **jamais avec le post** de la même personne. Un recruteur qui démarche répète la même offre sous chaque post candidat : sans cette fusion il créait un enregistrement par commentaire (constaté sur 17 personnes / 44 enregistrements, dont Christelle Duchemin 4× la même offre à Chilly-Mazarin). L'espace de clés reste séparé du post, sinon le plus récent des deux imposerait son `Type d'entrée` et on ne saurait plus si la personne a publié une annonce ou seulement réagi sous celle d'un autre.
 - **Cross-post identique entre deux groupes** → aucune section nouvelle (la signature d'une section est *date + corps*, pas le lien), mais une **origine** nouvelle : le script ajoute alors le canal manquant sans toucher au contenu ni aux champs scalaires (ligne `⊕ CANAL` en `--dry`). Vaut dans les deux régimes ci-dessus, y compris quand les deux exemplaires arrivent dans le même `records.json`.
 
-Idempotent : re-scraper un post déjà fusionné ne change rien (garde par section `[date] lien`). `--dry` affiche le plan (CRÉER / MAJ / ⊕ CANAL). Push par lots de 10.
+Idempotent : re-scraper un post déjà fusionné ne change rien (garde par section `[date] lien`). Une section déjà présente **chez cet auteur** — y compris dans un *autre* de ses enregistrements — n'est jamais ré-empilée ailleurs, donc le même texte ne peut pas se retrouver deux fois en base. `--dry` affiche le plan (CRÉER / MAJ / ⊕ CANAL). Push par lots de 10.
+
+#### Figer une séparation manuelle (`auteur_key` avec `#`)
+
+Quand deux annonces d'un même auteur doivent vivre **séparément** (Rémi Mereaux : poste vétérinaire mixte **et** offre pour étudiants A6 ; Liora Simmenauer : urgentiste **et** clinicat), il ne suffit pas de les séparer à la main : la clé se recalcule depuis Prénom+Nom, donc le scrape suivant les rapproche.
+
+Écris alors dans `auteur_key` la clé suivie d'un suffixe : `remi mereaux#etudiants-a6`. Toute valeur contenant `#` est **respectée telle quelle** au lieu d'être recalculée — l'enregistrement sort du routage automatique et ne sera plus choisi comme cible de fusion.
+
+- Laisse toujours **un** enregistrement non figé par auteur, pour absorber ses nouvelles publications ; sinon elles créeront un enregistrement de plus.
+- Le marqueur doit être explicite : un simple écart entre la clé stockée et le nom n'est **pas** interprété comme un figeage (un nom corrigé après coup produirait cet écart sans qu'on veuille rien figer).
+- ⚠️ **Ce que le figeage ne fait pas** : router une *republication* vers le bon enregistrement. Si l'annonce figée est republiée avec un texte remanié, sa section est nouvelle et part dans l'enregistrement resté ouvert — le script ne peut pas deviner à quelle annonce un texte inédit correspond. Quand tu repères ce cas à la relecture, renseigne toi-même la clé figée sur cette ligne de `records.json` : elle est respectée aussi à l'entrée.
 
 **La fusion par personne vaut pour les DEUX types de post**, clinique comprise : une clinique qui
 republie son annonce, la reformule ou ouvre un second poste au même endroit doit rester **un seul
