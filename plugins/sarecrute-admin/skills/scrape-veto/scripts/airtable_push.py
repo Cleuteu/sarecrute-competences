@@ -45,9 +45,14 @@ ORIGINE nouvelle. Les gardes d'idempotence ajoutent donc le canal manquant (lign
 « ⊕ CANAL » en --dry) sans toucher au contenu ni aux champs scalaires.
 
 candidat_key = prénom+nom normalisés (sans accents, minuscules). Vide (donc pas
-de fusion) si : nom vide / "Membre anonyme" / non-personnel (chiffres, tout en
-capitales, > 4 mots, marqueurs "clinique/service/recrute/cabinet") / surnom
-tronqué (nom ≤ 3 lettres ou sans voyelle, ex. Lmd, Drc, Vie).
+de fusion) si : nom vide / "Membre anonyme" / pseudo FB auto-généré (contient des
+chiffres) / tout en capitales / > 6 mots (un titre d'annonce capté à la place de
+l'auteur).
+
+Les COMMENTAIRES fusionnent entre eux par personne, mais JAMAIS avec le post de la
+même personne (espace de clés séparé) : le plus récent des deux imposerait son
+"Type d'entrée" et on ne saurait plus si la personne a publié une annonce ou
+seulement réagi sous celle d'un autre.
 """
 import json, os, sys, re, unicodedata, urllib.request, urllib.parse, urllib.error
 
@@ -61,8 +66,9 @@ SEP = "\n\n──────────\n\n"
 # à continuer de matcher, sinon la garde d'idempotence tombe et tout est réempilé.
 HEADER_RE = re.compile(r"^\[(\d{4}-\d{2}-\d{2})\]\s*((?:https?://\S+)?)\s*(?:·\s*(.+?))?\s*$")
 CANAUX_TABLE = "tbluH5M2sogAN85dl"      # Canaux de diffusion (groupes FB, réseaux)
-VOWELS = set("aeiouy")
-ORG_MARKERS = ("clinique", "cabinet", "service", "recrute", "hopital", "groupe", "veterinaire ")
+# (VOWELS / ORG_MARKERS retirés le 16 août 2026 : ils servaient à refuser une clé aux
+#  noms de structure et aux surnoms tronqués, ce qui bloquait la fusion des pages de
+#  clinique — cf. docstring de candidat_key.)
 
 # Champs recopiés depuis le post le plus récent lors d'un merge (tout sauf le contenu).
 SCALAR_FIELDS = ["Prénom", "Nom", "Profil Facebook", "Date du post", "Lien du post", "Zone de recherche",
@@ -143,7 +149,21 @@ def norm(s):
 
 
 def candidat_key(prenom, nom):
-    """Clé personne fiable, ou '' si anonyme / non fiable (→ pas de fusion)."""
+    """Clé personne fiable, ou '' si anonyme / non fiable (→ pas de fusion).
+
+    ⚠️ Ne rejette PLUS les noms de structure ni les surnoms tronqués (16 août 2026).
+    Les deux exclusions datent de l'époque où la clé ne servait qu'aux candidats ;
+    appliquées aux pages de clinique elles empêchaient précisément la fusion qu'on
+    veut (une clinique qui republie son annonce doit rester UN enregistrement) :
+    « Clinique Vétérinaire de l'Ecluse » avait 7 enregistrements, « Vétérinaire des
+    Salines » 6, et les pseudos FB tronqués (Lisa Jrn, Jo Vstk, San Cmb) 3 à 5.
+    Le nom complet normalisé reste discriminant : le seul faux positif possible est
+    un homonyme EXACT, que le garde-fou « annonce vraiment différente ⇒ entrée
+    séparée » (cf. SKILL.md §5) rattrape à la relecture.
+
+    Ce qui reste rejeté, ce sont les noms qui ne désignent personne de stable :
+    anonymes, pseudos auto-générés par FB (ils portent des chiffres), tout en
+    capitales, et les titres d'annonce captés à la place de l'auteur (> 6 mots)."""
     prenom = (prenom or "").strip()
     nom = (nom or "").strip()
     full = (prenom + " " + nom).strip()
@@ -154,14 +174,9 @@ def candidat_key(prenom, nom):
         return ""
     if any(ch.isdigit() for ch in full):
         return ""
-    if len(full.split()) > 4:
+    if len(full.split()) > 6:
         return ""
     if any(c.isalpha() for c in full) and full == full.upper():   # tout en capitales
-        return ""
-    if any(m in low + " " for m in ORG_MARKERS):
-        return ""
-    n_alpha = re.sub(r"[^a-z]", "", strip_accents(nom).lower())   # surnom tronqué
-    if len(n_alpha) <= 3 or not (set(n_alpha) & VOWELS):
         return ""
     return norm(full)
 
@@ -304,12 +319,24 @@ def main():
     groups, singles = {}, []
     for r in records:
         f = sanitize_selects(dict(r["fields"]))
-        # Les commentaires ne fusionnent JAMAIS par personne (une réaction n'est pas
-        # un profil candidat) → toujours créés (dédup sur publication exacte).
+        # Les commentaires fusionnent ENTRE EUX par personne, dans un espace de clés
+        # séparé ("com:") — jamais avec le post de la même personne.
+        #
+        # ⚠️ Avant le 16 août 2026 ils ne fusionnaient pas du tout (« une réaction n'est
+        # pas un profil candidat »). Vrai pour un candidat qui réagit, faux pour un
+        # RECRUTEUR qui démarche : il répète la même offre sous chaque post candidat, et
+        # chaque commentaire créait un enregistrement. Constaté sur 17 personnes / 44
+        # enregistrements, dont 15 recruteurs (Christelle Duchemin : 4 fois la même
+        # offre à Chilly-Mazarin).
+        # L'espace séparé, lui, reste nécessaire : fusionner un commentaire avec le post
+        # de la même personne laisserait le plus récent des deux imposer son
+        # "Type d'entrée", et on ne saurait plus si elle a publié une annonce ou
+        # seulement réagi sous celle d'un autre.
         is_comment = f.get("Type d'entrée") == "Commentaire"
-        k = "" if is_comment else candidat_key(f.get("Prénom"), f.get("Nom"))
+        k = candidat_key(f.get("Prénom"), f.get("Nom"))
         f["candidat_key"] = k
-        (groups.setdefault(k, []).append(f) if k else singles.append(f))
+        gk = ("com:" + k) if (k and is_comment) else k
+        (groups.setdefault(gk, []).append(f) if gk else singles.append(f))
 
     # 2) Index de l'existant. On recalcule la clé depuis le nom (les records
     #    legacy ont candidat_key vide) → l'upsert marche même sans backfill.
@@ -320,13 +347,14 @@ def main():
         # exact_recs (et pas un simple set) : quand la publication est déjà en base, il
         # faut pouvoir la PATCHER pour lui ajouter un canal manquant (cf. add_canaux).
         exact_recs.setdefault(exact_key(f), r)
-        if f.get("Type d'entrée") == "Commentaire":
-            continue  # un commentaire n'est jamais une cible de fusion
         k = candidat_key(f.get("Prénom"), f.get("Nom"))
         if k:
-            cur = by_key.get(k)
+            # Même espace de clés séparé qu'à l'étape 1 : un commentaire existant n'est
+            # une cible de fusion que pour un autre commentaire de la même personne.
+            gk = ("com:" + k) if f.get("Type d'entrée") == "Commentaire" else k
+            cur = by_key.get(gk)
             if not cur or f.get("Date du post", "") > cur["fields"].get("Date du post", ""):
-                by_key[k] = r
+                by_key[gk] = r
 
     to_create, to_patch, to_link, skipped = [], [], [], 0
 
@@ -351,11 +379,14 @@ def main():
         return False
 
     # 3) Personnes fiables → upsert.
-    for k, flist in groups.items():
+    for gk, flist in groups.items():
+        # gk peut porter le préfixe interne "com:" (groupe de commentaires) ; le champ
+        # candidat_key, lui, ne stocke jamais le préfixe.
+        k = gk[4:] if gk.startswith("com:") else gk
         in_secs = dedup_sections([s for f in flist for s in parse_sections(
             f.get("Contenu complet"), f.get("Date du post"), f.get("Lien du post"),
             canal_of(f, canaux))])
-        target = by_key.get(k)
+        target = by_key.get(gk)
         if target:
             tf = target["fields"]
             t_secs = parse_sections(tf.get("Contenu complet"), tf.get("Date du post"),
