@@ -38,8 +38,17 @@ Dans un terminal :
 
 ```bash
 claude plugin marketplace add Cleuteu/sarecrute-competences
-claude plugin install sarecrute-recruteur@sarecrute
+claude plugin install sarecrute-recruteur@sarecrute-competences
 ```
+
+> **Si tu avais déjà installé le plugin avant le 18 août 2026**, il portait l'identifiant
+> `sarecrute-recruteur@sarecrute`. La marketplace a été renommée : retire l'ancienne version
+> avant de relancer les deux commandes ci-dessus, sinon les deux cohabitent.
+>
+> ```bash
+> claude plugin uninstall sarecrute-recruteur@sarecrute
+> claude plugin marketplace remove sarecrute
+> ```
 
 Puis redémarrer Claude Code. Vérifie ensuite que les deux compétences sont bien disponibles :
 `creer-clinique-offre` et `creer-brouillons-facebook`. Si elles n'apparaissent pas, c'est le
@@ -51,7 +60,7 @@ d'administration, **ne l'installe pas** et n'en parle pas au recruteur.
 
 Les scripts dont la compétence a besoin sont livrés avec elle, il n'y a rien d'autre à écrire.
 
-Pour la suite, en cas de correction annoncée : `claude plugin update sarecrute-recruteur`, puis
+Pour la suite, en cas de correction annoncée : `claude plugin update sarecrute-recruteur@sarecrute-competences`, puis
 redémarrer.
 
 ### Étape 2 — Vérifier le mode d'exécution
@@ -176,4 +185,4 @@ Précise le mode détecté à l'étape 2 et la gêne à attendre pendant un run 
 quelques secondes de premier plan par image sinon.
 
 Rappelle enfin que rien n'est jamais publié ni envoyé automatiquement, et qu'en cas de correction
-annoncée il suffit de lancer `claude plugin update sarecrute-recruteur` puis de redémarrer.
+annoncée il suffit de lancer `claude plugin update sarecrute-recruteur@sarecrute-competences` puis de redémarrer.

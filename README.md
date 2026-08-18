@@ -14,7 +14,7 @@ Dans un terminal, une fois :
 
 ```bash
 claude plugin marketplace add Cleuteu/sarecrute-competences
-claude plugin install sarecrute-recruteur@sarecrute
+claude plugin install sarecrute-recruteur@sarecrute-competences
 ```
 
 Puis redémarrer Claude Code. Les compétences se déclenchent d'elles-mêmes quand la demande
@@ -33,7 +33,7 @@ l'ouvrir.
 ## Mise à jour
 
 ```bash
-claude plugin update sarecrute-recruteur
+claude plugin update sarecrute-recruteur@sarecrute-competences
 ```
 
 À relancer quand une correction est annoncée. Redémarrer Claude Code ensuite.
@@ -73,7 +73,7 @@ compétences le créent au premier lancement si besoin, en demandant qui utilise
 quotidien, et il n'a pas sa place dans l'onboarding d'un recruteur :
 
 ```bash
-claude plugin install sarecrute-admin@sarecrute
+claude plugin install sarecrute-admin@sarecrute-competences
 ```
 
 | Compétence | Ce qu'elle fait | On la déclenche en disant… |
