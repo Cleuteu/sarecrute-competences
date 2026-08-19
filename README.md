@@ -6,7 +6,7 @@ plugins indépendants** : on n'installe que celui dont on a besoin.
 | Plugin | Pour qui | Compétences |
 |---|---|---|
 | `sarecrute-recruteur` | les recruteurs, au quotidien | `creer-clinique-offre`, `creer-brouillons-facebook` |
-| `sarecrute-admin` | le poste d'administration | `scrape-veto` |
+| `sarecrute-admin` | le poste d'administration | `scrape-veto`, `maj-offres` |
 
 ## Installation — recruteurs
 
@@ -79,8 +79,15 @@ claude plugin install sarecrute-admin@sarecrute-competences
 | Compétence | Ce qu'elle fait | On la déclenche en disant… |
 |---|---|---|
 | `scrape-veto` | parcourt le groupe Facebook vétérinaire sur une fenêtre de temps (6 h par défaut), en tire les posts et les commentaires utiles, et les pousse dans la table « Posts scrappés » sans créer de doublon | « scrape les posts véto », « scrape veto 48h », « les posts d'aujourd'hui » |
+| `maj-offres` | synchronise les offres publiées sur le site vitrine (page des offres + carousel de l'accueil) avec l'Airtable de prod : retire les offres archivées ou dont la clinique n'est plus « Signé », ajoute les nouvelles, rédige leurs descriptions **anonymisées** et pose le tag « Nouvelle offre » | « mets à jour les offres », « maj offres », « il y a une nouvelle offre » |
 
-Elle ne publie ni n'envoie rien sur Facebook : elle lit le groupe et écrit dans Airtable. Ses
+`maj-offres` écrit dans les fichiers du site, jamais dans Airtable, et **ne déploie qu'avec un accord
+explicite**. Elle se lance depuis le dossier du site (ou avec `SARECRUTE_SITE` pointant dessus) et
+travaille dans `~/.sarecrute/maj-offres/work/` : rien n'est écrit dans le dossier du plugin, qui est
+réécrit à chaque mise à jour. Un garde-fou bloquant refuse toute description contenant un nom de
+clinique, de ville ou de personne — la localisation publiée s'arrête au département.
+
+`scrape-veto` ne publie ni n'envoie rien sur Facebook : elle lit le groupe et écrit dans Airtable. Ses
 exigences sont plus techniques que celles du plugin recruteur :
 
 - **Claude in Chrome** obligatoire — elle travaille dans le Chrome réel, où la session Facebook est

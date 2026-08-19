@@ -1,0 +1,69 @@
+{
+ "_doc": "Source unique de vérité pour les libellés d'offres. fetch_offres.py s'en sert pour composer les titres et canoniser les pratiques ; apply_offres.py y injecte PRATIQUE_LABELS et EXPERIENCE_LABELS dans offres.html. Modifier ce fichier suffit, ne pas éditer les tables à la main dans le HTML.",
+
+ "_regles_titre": [
+  "spécialité REQUISE → remplace la pratique : Urgences → « Vétérinaire Urgentiste »",
+  "sinon pratique(s) canonisées et dédupliquées : « Vétérinaire canin/rural »",
+  "« Internat » dans les statuts contractuels ajoute « en Clinicat » et conserve la pratique",
+  "les spécialités OPTIONNELLES sont ignorées : elles décrivent un plus apprécié, pas la nature du poste"
+ ],
+
+ "_filtre_pratiques": "Le menu « Pratiques » de offres.html est construit à l'exécution depuis les données : pratiques présentes puis spécialités requises présentes. Il ne contient donc jamais que des valeurs réellement utilisées. Les libellés affichés viennent de pratiques_filtre ci-dessous ; les spécialités s'affichent sous leur nom Airtable.",
+
+ "pratiques_canon": {
+  "Rurale": "Bovins",
+  "volailles": "Volailles",
+  "Vollaile": "Volailles"
+ },
+
+ "pratiques_titre": {
+  "Canine": "canin",
+  "Bovins": "rural",
+  "Allaitant": "rural",
+  "Laitier": "rural",
+  "Ovin": "rural",
+  "Caprin": "rural",
+  "Porcin": "rural",
+  "Volailles": "rural",
+  "Oiseaux": "rural",
+  "Equine": "équin",
+  "NAC": "NAC",
+  "Mixte": "mixte"
+ },
+
+ "pratiques_filtre": {
+  "Canine": "Canin",
+  "Bovins": "Rural",
+  "Allaitant": "Bovin allaitant",
+  "Laitier": "Bovin laitier",
+  "Ovin": "Ovin",
+  "Caprin": "Caprin",
+  "Porcin": "Porcin",
+  "Volailles": "Volailles",
+  "Oiseaux": "Oiseaux",
+  "Equine": "Équin",
+  "NAC": "NAC",
+  "Mixte": "Mixte"
+ },
+
+ "specialites": {
+  "Urgences": "Urgentiste",
+  "Chirurgie": "Chirurgien",
+  "Cardiologie": "Cardiologue",
+  "Neurologie": "Neurologue",
+  "Oncologie": "Oncologue",
+  "Ophtalmologie": "Ophtalmologiste",
+  "Orthopédie": "Orthopédiste",
+  "Ostéopathie": "Ostéopathe",
+  "Echographie": "Échographiste",
+  "Anatomie Pathologique": "Anatomopathologiste",
+  "Médecine interne": "médecine interne",
+  "Management": "en management",
+  "Reproduction": "en reproduction",
+  "Laboratoire": "de laboratoire"
+ },
+
+ "experience": {
+  "1 à 2 ans": "Semi-autonome"
+ }
+}

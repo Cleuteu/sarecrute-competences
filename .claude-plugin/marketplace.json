@@ -26,18 +26,20 @@
     {
       "name": "sarecrute-admin",
       "source": "./plugins/sarecrute-admin",
-      "description": "Compétences d'administration SaRecrute, hors poste de recrutement : collecte des posts des groupes Facebook vétérinaires cochés dans « Canaux de diffusion » vers Airtable. Exige une clé d'API Airtable dans l'environnement et le Chrome réel de la machine.",
-      "version": "0.7.0",
+      "description": "Compétences d'administration SaRecrute, hors poste de recrutement : collecte des posts des groupes Facebook vétérinaires cochés dans « Canaux de diffusion » vers Airtable, et mise à jour des offres publiées sur le site depuis l'Airtable de prod. Exige une clé d'API Airtable dans l'environnement ; le scrape exige en plus le Chrome réel de la machine.",
+      "version": "0.8.0",
       "author": {
         "name": "SaRecrute"
       },
       "keywords": [
-        "sarecrute",
-        "veterinaire",
+        "administration",
         "airtable",
         "facebook",
+        "offres",
+        "sarecrute",
         "scraping",
-        "administration"
+        "site",
+        "veterinaire"
       ]
     }
   ]
