@@ -142,11 +142,32 @@ Contrôle utile aussi : `python3 <skill>/scripts/check_anonymat.py --state` repa
 
 ### 6. Déployer — seulement sur accord explicite
 
+**Avant de lancer le script**, si tu as écrit quelque chose dans Airtable pendant cette session (une pratique ajoutée, une spécialité corrigée), **relis la valeur maintenant** — pas au moment de l'écriture. Un `fetch` a pu passer entre les deux, et surtout la valeur a pu être défaite dans la base (voir Pièges connus) :
+
+```bash
+python3 -c "import json,os; a=json.load(open(os.path.expanduser('~/.sarecrute/maj-offres/work/airtable.json'))); o=[x for x in a if x['ref']=='REF'][0]; print(o['titre'], o['pratiques'], o['specialite'])"
+```
+
 ```bash
 ./deploy.sh
 ```
 
 **Ne déploie jamais sans que l'utilisateur l'ait demandé.** Présente d'abord le récapitulatif (ajouts, retraits, descriptions modifiées, offres taguées) et attends son feu vert.
+
+### 7. Contrôler la mise en ligne
+
+Le déploiement pousse un commit ; **le build GitHub Pages est asynchrone** (~40 s, parfois plusieurs minutes). Tant qu'il n'est pas passé, `sarecrute.com` renvoie l'ancien contenu **avec `age: 0`** — ce n'est pas un cache, c'est l'origine qui sert encore l'ancien build. Ne conclus donc jamais « c'est en ligne » sur la seule réussite de `deploy.sh`.
+
+```bash
+# le contenu réellement poussé, hors CDN
+curl -s https://raw.githubusercontent.com/Cleuteu/sarecrute/main/offres.html | grep -o '"ref":"REF","titre":"[^"]*"'
+# l'état du build
+gh api repos/Cleuteu/sarecrute/pages/builds --jq '.[0] | "\(.status) \(.commit[0:7])"'
+# puis attendre la version servie — chaîne PROPRE AU RECORD, jamais un libellé partagé
+until curl -s https://sarecrute.com/offres.html | grep -q '"ref":"REF","titre":"LE TITRE ATTENDU"'; do sleep 15; done
+```
+
+⚠️ Le motif d'attente doit contenir la **ref**. Greper un titre seul (« Vétérinaire rural/canin ») matche d'autres offres qui le portent déjà : la boucle sort immédiatement et ne prouve rien.
 
 ## Pièges connus
 
@@ -157,4 +178,5 @@ Contrôle utile aussi : `python3 <skill>/scripts/check_anonymat.py --state` repa
 - **Spécialités requises vs optionnelles** : ne jamais basculer sur les optionnelles pour les titres (cf. section Titres). Le champ requis est `fldfxUJuNO2kkstGq`.
 - **Whitelist de publication** : `apply_offres.py` ne recopie dans le HTML que les champs de `PUBLIC_FIELDS`. Ne l'élargis pas sans réfléchir — le champ `Rémunération` d'Airtable, par exemple, contient des notes internes brutes (« PAS DE COLLAB ») et n'a rien à faire dans la page.
 - **Les refs Airtable peuvent commencer par un chiffre** (`45LCzL`, `02xA70`) : les clés de `OFFRES_TEASER` sont donc **écrites entre guillemets** par `apply_offres.py`. Sans ça le bloc `<script>` de l'accueil — traductions incluses — ne parse plus du tout, et la page d'accueil casse en silence. Corrigé le 19 août 2026 ; contrôle systématique à l'étape 5.
+- **Une valeur écrite dans Airtable n'est pas une valeur acquise** : l'historique d'annulation est **partagé à l'échelle de la base**, donc le Cmd+Z d'un autre collaborateur peut défaire une écriture faite par API quelques minutes plus tôt. Vécu le 19 août 2026 : une pratique ajoutée à une offre a été annulée pendant qu'un recruteur archivait des fiches, le `fetch` suivant a relu l'ancienne valeur, et le site est parti avec l'ancien titre. Aucune automation n'était en cause (aucune ne surveille `Pratiques requises`) — vérifiable avec `list_automations` avant d'accuser un script. D'où le contrôle de dernière minute à l'étape 6. Si une valeur revient une seconde fois à son état d'origine, ce n'est plus un accident : demande à l'utilisateur avant de la réécrire, un humain la veut peut-être ainsi.
 - **Le tag est une donnée, pas une date en dur** : `offres.html` lit `o.isNew`. Ne réintroduis pas de seuil de date codé dans le HTML, il devient faux au fil du temps.
