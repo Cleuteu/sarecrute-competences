@@ -6,12 +6,21 @@ n'est installé chez les recruteurs). Ils épinglent des bugs de `scrape-veto` q
 
 ```bash
 node tests/troncature.test.mjs                      # aucune dépendance
+python3 tests/fusion_commentaires.test.py           # aucune dépendance
 npm i --no-save jsdom@22 && node tests/attribution_commentaires.test.js
 ```
 
 (jsdom 22 et non la dernière : les versions récentes ne se chargent pas en CommonJS sous Node 20.)
 
 ## Ce que chacun protège
+
+**`fusion_commentaires.test.py`** — un commentaire fusionnait « entre lui-même » par personne mais
+jamais avec le **post** de cette personne : Sabine Marcillaud avait 3 enregistrements pour 1 seule
+offre (son annonce + deux relances posées sous des posts de candidates). Le test épingle les quatre
+pièges du nouveau régime : la cible de fusion est le **post** et pas le dernier commentaire, un
+commentaire **comble** les champs vides de l'annonce sans écraser les siens, la section commentée
+reste identifiable (`💬 COMMENTAIRE de X sous le post de Y`), et sa signature ignore ce marqueur —
+sinon chaque re-scrape d'un commentaire d'avant le 20/08/2026 empilerait une section en double.
 
 **`troncature.test.mjs`** — `__truncated()` ne regarde que les **posts**. Un commentaire figé sur
 « Bonjour,… Voir plus » passait donc l'export sans aucun signal. Le test vérifie que

@@ -49,10 +49,22 @@ de fusion) si : nom vide / "Membre anonyme" / pseudo FB auto-généré (contient
 chiffres) / tout en capitales / > 6 mots (un titre d'annonce capté à la place de
 l'auteur).
 
-Les COMMENTAIRES fusionnent entre eux par personne, mais JAMAIS avec le post de la
-même personne (espace de clés séparé) : le plus récent des deux imposerait son
-"Type d'entrée" et on ne saurait plus si la personne a publié une annonce ou
-seulement réagi sous celle d'un autre.
+Les COMMENTAIRES rejoignent l'enregistrement de la personne, POST COMPRIS (20 août
+2026). Une personne = un enregistrement, et une relance en commentaire ENRICHIT son
+annonce au lieu d'en fabriquer une copie : Sabine Marcillaud avait 3 enregistrements
+pour 1 seule offre (son annonce du 15/08 + deux « Aveyron si ça t'intéresse ! » posés
+sous deux posts de candidates à 2 jours d'écart).
+
+Ce qui protège de la confusion que l'ancien espace de clés séparé évitait :
+  • la CIBLE de fusion est le POST de la personne quand elle en a un (cf. target_rank),
+    jamais son commentaire le plus récent ;
+  • "Type d'entrée" reste « Post » dès qu'une section est un post — un commentaire
+    plus récent ne le retourne plus en « Commentaire » ;
+  • chaque section de commentaire porte une ligne « 💬 COMMENTAIRE de X sous le post
+    de Y » (cf. mark_comment), pour que le recruteur ne lise pas le post recopié
+    comme s'il était de la personne ;
+  • les scalaires d'un commentaire ne COMPLÈTENT que les champs vides de l'annonce,
+    ils ne l'écrasent pas (cf. merged_scalars).
 """
 import json, os, sys, re, unicodedata, urllib.request, urllib.parse, urllib.error
 
@@ -219,8 +231,34 @@ def exact_key(f):
                      norm(f.get("Prénom")), norm(f.get("Nom")), body])
 
 
+COMMENT_MARK = "💬 COMMENTAIRE"
+# ⚠️ Le marqueur est retiré AVANT de signer une section (cf. sec_sig) : les sections
+# de commentaire écrites avant le 20 août 2026 n'en portent pas, et sans ce nettoyage
+# le même commentaire re-scrapé produirait une signature différente — donc une section
+# en double à chaque passage.
+COMMENT_MARK_RE = re.compile(r"^\s*" + COMMENT_MARK + r"[^\n]*\n+")
+
+
+def mark_comment(content, f):
+    """Préfixe le contenu d'un COMMENTAIRE d'une ligne qui dit ce que c'est.
+
+    Sans elle, une section de commentaire empilée dans l'enregistrement d'une clinique
+    se lit comme une seconde annonce — alors que le gros du texte y est le post d'un
+    TIERS (le bloc « ━━━ Post commenté ━━━ »). Le recruteur qui lit la description doit
+    voir d'un coup d'œil ce qui est de la personne et ce qui ne l'est pas."""
+    body = COMMENT_MARK_RE.sub("", (content or "").lstrip())
+    who = " ".join(x for x in [(f.get("Prénom") or "").strip(), (f.get("Nom") or "").strip()] if x)
+    who = who or "cette personne"
+    src = (f.get("Post source") or "").split(" - ")[0].strip()
+    head = "%s de %s" % (COMMENT_MARK, who)
+    if src:
+        head += " sous le post de %s" % src
+    return head + " — ce qui suit « Post commenté » n'est pas de %s.\n" % who + body
+
+
 def sec_sig(s):
-    return (s["date"], re.sub(r"\s+", " ", s["body"]).strip().lower()[:80])
+    body = COMMENT_MARK_RE.sub("", s["body"] or "")
+    return (s["date"], re.sub(r"\s+", " ", body).strip().lower()[:80])
 
 
 def parse_sections(content, fb_date, fb_link, fb_canal=""):
@@ -275,10 +313,51 @@ def render_sections(secs):
     return SEP.join(blocks)
 
 
-def scalars_from_newest(field_dicts):
-    """Champs scalaires du post le plus récent (Date du post max)."""
-    newest = max(field_dicts, key=lambda f: f.get("Date du post", ""))
-    return {k: newest.get(k) for k in SCALAR_FIELDS if newest.get(k) is not None}
+def merged_scalars(field_dicts):
+    """Scalaires de l'enregistrement fusionné : le POST le plus récent d'abord, puis
+    les commentaires en COMPLÉMENT — premier qui renseigne un champ, gagne.
+
+    Deux écarts assumés avec l'ancien « le plus récent écrase tout » :
+      • un COMMENTAIRE ne remplace jamais une valeur de l'annonce, il ne remplit que
+        les trous. C'est ce qu'on veut d'une relance : l'annonce de Sabine Marcillaud
+        ne dit rien de l'expérience attendue, ses commentaires sous des posts de
+        débutantes le disent — le champ se remplit sans que le reste bouge.
+      • une valeur VIDE ne chasse plus une valeur pleine, même venue d'un post plus
+        récent : une annonce republiée en version courte ne doit pas effacer les
+        Pratiques/Spécialités déjà extraites de sa version longue.
+
+    "Date du post" fait exception et prend l'activité la plus récente, commentaire
+    compris : c'est l'indicateur de fraîcheur en prospection (une offre relancée
+    avant-hier n'est pas une offre de la semaine dernière)."""
+    is_com = lambda f: f.get("Type d'entrée") == "Commentaire"
+    by_date = lambda l: sorted(l, key=lambda f: f.get("Date du post") or "", reverse=True)
+    posts = [f for f in field_dicts if not is_com(f)]
+    out = {}
+    for f in by_date(posts) + by_date([f for f in field_dicts if is_com(f)]):
+        for k in SCALAR_FIELDS:
+            v = f.get(k)
+            if k in out or v is None or v == "" or v == []:
+                continue
+            out[k] = v
+    if posts:
+        # La personne a publié une annonce : l'enregistrement est un Post, et il n'a
+        # pas de "Post source" (ce champ ne décrit que le parent d'un commentaire).
+        out["Type d'entrée"] = "Post"
+        out["Post source"] = ""
+    dates = [f.get("Date du post") for f in field_dicts if f.get("Date du post")]
+    if dates:
+        out["Date du post"] = max(dates)
+    return out
+
+
+def target_rank(f):
+    """Préférence d'un enregistrement existant comme CIBLE de fusion.
+
+    Un POST l'emporte toujours sur un commentaire, puis le plus récent gagne : les
+    relances doivent rejoindre l'ANNONCE, pas s'accumuler sur le dernier commentaire.
+    Sans ce classement, la fusion par personne ferait dériver l'offre vers un
+    enregistrement dont le contenu principal est le post de quelqu'un d'autre."""
+    return (0 if f.get("Type d'entrée") == "Commentaire" else 1, f.get("Date du post") or "")
 
 
 def union_links(field_dicts):
@@ -350,27 +429,18 @@ def main():
     groups, singles = {}, []
     for r in records:
         f = sanitize_selects(dict(r["fields"]))
-        # Les commentaires fusionnent ENTRE EUX par personne, dans un espace de clés
-        # séparé ("com:") — jamais avec le post de la même personne.
-        #
-        # ⚠️ Avant le 16 août 2026 ils ne fusionnaient pas du tout (« une réaction n'est
-        # pas un profil candidat »). Vrai pour un candidat qui réagit, faux pour un
-        # RECRUTEUR qui démarche : il répète la même offre sous chaque post candidat, et
-        # chaque commentaire créait un enregistrement. Constaté sur 17 personnes / 44
-        # enregistrements, dont 15 recruteurs (Christelle Duchemin : 4 fois la même
-        # offre à Chilly-Mazarin).
-        # L'espace séparé, lui, reste nécessaire : fusionner un commentaire avec le post
-        # de la même personne laisserait le plus récent des deux imposer son
-        # "Type d'entrée", et on ne saurait plus si elle a publié une annonce ou
-        # seulement réagi sous celle d'un autre.
-        is_comment = f.get("Type d'entrée") == "Commentaire"
+        # UNE personne = UN enregistrement, commentaires compris (20 août 2026 —
+        # l'espace de clés séparé "com:" a été retiré, cf. docstring du module).
+        # Chaque section de commentaire est marquée pour rester reconnaissable dans la
+        # description ; le marquage se fait ICI, avant tout découpage en sections.
+        if f.get("Type d'entrée") == "Commentaire":
+            f["Contenu complet"] = mark_comment(f.get("Contenu complet"), f)
         # effective_key et pas auteur_key : records.json n'est pas censé renseigner la
         # clé, mais s'il porte une clé figée ("…#suffixe") c'est un choix délibéré de
         # viser l'enregistrement figé — on le respecte.
         k = effective_key(f)
         f["auteur_key"] = k
-        gk = ("com:" + k) if (k and is_comment) else k
-        (groups.setdefault(gk, []).append(f) if gk else singles.append(f))
+        (groups.setdefault(k, []).append(f) if k else singles.append(f))
 
     # 2) Index de l'existant. On recalcule la clé depuis le nom (les records
     #    legacy ont auteur_key vide) → l'upsert marche même sans backfill.
@@ -392,12 +462,11 @@ def main():
                     f.get("Lien du post"), canal_of(f, canaux)))
         k = effective_key(f)   # respecte une clé figée à la main ("…#suffixe")
         if k:
-            # Même espace de clés séparé qu'à l'étape 1 : un commentaire existant n'est
-            # une cible de fusion que pour un autre commentaire de la même personne.
-            gk = ("com:" + k) if f.get("Type d'entrée") == "Commentaire" else k
-            cur = by_key.get(gk)
-            if not cur or f.get("Date du post", "") > cur["fields"].get("Date du post", ""):
-                by_key[gk] = r
+            # Cible = le POST de la personne s'il existe, sinon son commentaire le plus
+            # récent (cf. target_rank). Une relance rejoint ainsi l'annonce elle-même.
+            cur = by_key.get(k)
+            if not cur or target_rank(f) > target_rank(cur["fields"]):
+                by_key[k] = r
 
     to_create, to_patch, to_link, skipped = [], [], [], 0
 
@@ -422,10 +491,7 @@ def main():
         return False
 
     # 3) Personnes fiables → upsert.
-    for gk, flist in groups.items():
-        # gk peut porter le préfixe interne "com:" (groupe de commentaires) ; le champ
-        # auteur_key, lui, ne stocke jamais le préfixe.
-        k = gk[4:] if gk.startswith("com:") else gk
+    for k, flist in groups.items():
         in_secs = dedup_sections([s for f in flist for s in parse_sections(
             f.get("Contenu complet"), f.get("Date du post"), f.get("Lien du post"),
             canal_of(f, canaux))])
@@ -435,7 +501,7 @@ def main():
         # ouvert, et le même texte se retrouvait en base deux fois.
         already = sigs_by_person.get(k.split(PIN)[0], set())
         in_secs = [s for s in in_secs if sec_sig(s) not in already]
-        target = by_key.get(gk)
+        target = by_key.get(k)
         if not in_secs:                    # rien de neuf nulle part chez cet auteur
             if target:
                 add_canaux(target, flist)  # …mais peut-être une origine nouvelle
@@ -450,7 +516,7 @@ def main():
                 add_canaux(target, flist)                    # …mais peut-être un canal
                 skipped += len(flist)
                 continue
-            fields = scalars_from_newest(flist + [tf])
+            fields = merged_scalars(flist + [tf])
             fields["auteur_key"] = k
             # Union des canaux : la fusion ajoute une origine, elle n'en remplace pas.
             # (in_secs d'abord dans le dédup → un en-tête legacy sans canal se voit
@@ -461,7 +527,7 @@ def main():
             fields["Contenu complet"] = render_sections(dedup_sections(in_secs + t_secs))
             to_patch.append((target["id"], fields, tf))
         else:
-            fields = scalars_from_newest(flist)
+            fields = merged_scalars(flist)
             fields["auteur_key"] = k
             union = union_links(flist)
             if union:
