@@ -4,7 +4,10 @@ const fs = require('fs');
 const { JSDOM } = require('jsdom');   // npm i --no-save jsdom@22
 const SRC = fs.readFileSync(require('path').join(__dirname, '..', 'plugins/sarecrute-admin/skills/scrape-veto/scripts/scrape_helpers.js'), 'utf8');
 
-const ts = (txt) => `<a href="/x?__cft__=1"><span class="flexbox">${txt.split('').map(c => `<i>${c}</i>`).join('')}</span></a>`;
+// href : la forme réelle des ancres de timestamp de post sur le fil. __isTsAnchor
+// exige `?__cft__`, `/posts/` ou `story_fbid=` — un href quelconque portant
+// « __cft__ » ne suffit pas (le fixture l'ignorait, et AUCUNE ancre n'était captée).
+const ts = (txt) => `<a href="?__cft__[0]=AZW1"><span class="flexbox">${txt.split('').map(c => `<i>${c}</i>`).join('')}</span></a>`;
 
 function build(postBAvecAncre) {
   const dom = new JSDOM(`<body><div id="feed">
@@ -63,6 +66,121 @@ dom = build(true); posts = dom.window.__harvestAll();
 t('racine : les auteurs restent distincts', posts.map(p => p.author).sort(), ['Fatou Unvt', 'SparklyTulip723']);
 t('racine : le corps de A ne contient pas le texte de B',
   /fiches de revision/.test(posts.find(p => p.author === 'Fatou Unvt').body), false);
+
+
+// ---------------------------------------------------------------------------
+// Groupe qui ne rend AUCUN div[role="article"] autour de ses posts (constaté le
+// 23 août 2026 dans « WE NEED YOU!!! » : 22 commentaires orphelins, 0 rattaché).
+// Le rattachement doit alors passer par la remontée « premier ancêtre qui englobe
+// EXACTEMENT une ancre de post », et abandonner dès que c'est ambigu.
+function buildNoArticle(comAmbigu) {
+  const dom = new JSDOM(`<body><div id="feed">
+    <div id="wrapA">
+      <h2><a href="/groups/123/user/111/">Fatou Unvt</a></h2>
+      ${ts('Le 7 aout a 15:31')}
+      <div dir="auto">Notre clinique recherche un veterinaire canin ou mixte au Lude (72).</div>
+      <div role="article" aria-label="Commentaire de Mveto Pro il y a 21 heures"><div dir="auto">Bonjour.</div><div dir="auto">Je vous ai envoye un message sur Messenger</div></div>
+    </div>
+    <div id="wrapB">
+      <h2><a href="/groups/123/user/222/">SparklyTulip723</a></h2>
+      ${ts('Le 7 aout a 15:13')}
+      <div dir="auto">Je cherche un poste en canine dans le 72.</div>
+      <div role="article" aria-label="Commentaire de Virginie Stv il y a 2 jours"><div dir="auto">On recrute a Sable-sur-Sarthe, MP</div></div>
+    </div>
+    ${comAmbigu ? '<div role="article" aria-label="Commentaire de Perdu Dansleflux il y a 1 heure"><div dir="auto">commentaire sans post identifiable</div></div>' : ''}
+  </div></body>`, { url: 'https://www.facebook.com/groups/123/?sorting_setting=CHRONOLOGICAL', runScripts: 'outside-only', pretendToBeVisual: true });
+  const w = dom.window;
+  Object.defineProperty(w.Element.prototype, 'innerText', {
+    configurable: true, get() { return this.textContent; }
+  });
+  w.Element.prototype.getBoundingClientRect = function () {
+    const isFlex = this.classList && this.classList.contains('flexbox');
+    return isFlex ? { left: 0, right: 1000, top: 0, bottom: 10, width: 1000 }
+                  : { left: 0, right: 10, top: 0, bottom: 10, width: 10 };
+  };
+  const cs = w.getComputedStyle.bind(w);
+  w.getComputedStyle = (el) => (el.classList && el.classList.contains('flexbox'))
+    ? { display: 'flex' } : cs(el);
+  w.eval(SRC);
+  return dom;
+}
+
+// cas 4 — pas de div[role=article] parent : le repli par containment strict rattache
+dom = buildNoArticle(false); posts = dom.window.__harvestAll(); map = {};
+posts.forEach(p => map[p.author] = p.comments.map(c => c.name).sort());
+t('sans role=article : 2 posts captés', posts.length, 2);
+t('sans role=article : Fatou garde SON commentaire', map['Fatou Unvt'], ['Mveto Pro']);
+t('sans role=article : Sparkly garde SON commentaire', map['SparklyTulip723'], ['Virginie Stv']);
+t('sans role=article : aucun orphelin', dom.window.__orphanComments, 0);
+
+// le texte du commentaire est INTÉGRAL (tous ses paragraphes, pas seulement le 1er)
+const mveto = posts.find(p => p.author === 'Fatou Unvt').comments[0];
+t('commentaire multi-paragraphes : texte complet',
+  mveto.text, 'Bonjour.\nJe vous ai envoye un message sur Messenger');
+t('__commentFull ne laisse pas le fragment passer pour non tronqué',
+  dom.window.__isTrunc(mveto.text), false);
+
+// cas 5 — commentaire dont le 1er ancêtre englobe DEUX posts : ambigu, donc abandonné
+dom = buildNoArticle(true); posts = dom.window.__harvestAll();
+const tous = posts.flatMap(p => p.comments.map(c => c.name));
+t('ambigu : le commentaire perdu n\'est attribué à personne',
+  tous.includes('Perdu Dansleflux'), false);
+t('ambigu : les deux autres restent bien rattachés', tous.sort(), ['Mveto Pro', 'Virginie Stv']);
+t('ambigu : compté comme orphelin', dom.window.__orphanComments, 1);
+
+// ---------------------------------------------------------------------------
+// __decodeTSSvg doit suivre la CHAÎNE d'indirections use -> svg -> use -> text
+// (Facebook a intercalé un maillon le 23 août 2026 : sans ça, 2 posts sur 11).
+function buildSvgChain(chaine) {
+  const inner = chaine
+    ? `<svg id="SvgA"><use xlink:href="#SvgB"></use></svg>
+       <svg id="SvgB"><use xlink:href="#SvgC"></use></svg>
+       <text id="SvgC">18 h</text>`
+    : `<text id="SvgB">18 h</text><svg id="SvgA"><use xlink:href="#SvgB"></use></svg>`;
+  const dom = new JSDOM(`<body><div id="feed">
+    <div role="article">
+      <h2><a href="/groups/123/user/111/">Clinique Test</a></h2>
+      <a href="?__cft__[0]=AZW1"><svg><use xlink:href="#SvgA"></use></svg></a>
+      <div dir="auto">Nous recrutons un veterinaire canin.</div>
+    </div>
+    ${inner}
+  </div></body>`, { url: 'https://www.facebook.com/groups/123/?sorting_setting=CHRONOLOGICAL', runScripts: 'outside-only', pretendToBeVisual: true });
+  const w = dom.window;
+  Object.defineProperty(w.Element.prototype, 'innerText', {
+    configurable: true, get() { return this.textContent; }
+  });
+  w.eval(SRC);
+  return dom;
+}
+
+dom = buildSvgChain(false);
+t('SVG à un seul niveau : post capté', dom.window.__harvestAll().length, 1);
+dom = buildSvgChain(true);
+posts = dom.window.__harvestAll();
+t('SVG en chaîne (use -> svg -> use -> text) : post capté', posts.length, 1);
+t('SVG en chaîne : timestamp décodé', posts.length ? posts[0].decoded : null, '18 h');
+
+// ---------------------------------------------------------------------------
+// __purgeStubs : un doublon tronqué non dépliable ne doit pas bloquer l'export
+dom = buildNoArticle(false);
+{
+  const w = dom.window;
+  w.__store = {
+    'Clinique X|Offredemploi-VeterinaireMixteE': { author: 'Clinique X', iso: '2026-08-20',
+      body: "Offre d'emploi – Veterinaire Mixte\nE… En voir plus", comments: {} },
+    'Clinique X|Offredemploi-VeterinaireMixteEntresole': { author: 'Clinique X', iso: '2026-08-20',
+      body: "Offre d'emploi – Veterinaire Mixte\nEntre soleil et montagne, la clinique recrute.", comments: {} },
+    'Clinique Y|Vraietroncature': { author: 'Clinique Y', iso: '2026-08-20',
+      body: 'Vraie troncature jamais depliee ici… En voir plus', comments: {} }
+  };
+  t('__exportBlocked bloque avant purge', w.__exportBlocked('2026-08-20') !== '', true);
+  const removed = w.__purgeStubs();
+  t('__purgeStubs retire le seul doublon parasite', removed.map(r => r.author), ['Clinique X']);
+  t('__purgeStubs garde la version complète',
+    Object.values(w.__store).filter(p => p.author === 'Clinique X').length, 1);
+  t('__purgeStubs ne touche PAS une vraie troncature',
+    /Clinique Y/.test(w.__exportBlocked('2026-08-20')), true);
+}
 
 console.log(`\n${ok} ok, ${ko} échec(s)`);
 process.exit(ko ? 1 : 0);

@@ -36,4 +36,25 @@ exact et exige que le commentaire soit **abandonné** (compté dans `__orphanCom
 mal attribué. Il couvre aussi la racine du post, qui pouvait engloutir l'en-tête du voisin et
 donner deux posts au même auteur.
 
-Lancés contre la version d'avant le 10 août 2026, ils échouent respectivement sur 1 et 6 cas.
+Depuis le 23 août 2026 il couvre aussi trois pièges découverts en production :
+
+- **Posts sans `div[role="article"]` ancêtre** (le cas de « WE NEED YOU!!! », dont tout le vivier
+  candidat était concerné) : le rattachement doit passer par le containment strict — premier
+  ancêtre englobant **exactement une** ancre de post — et **abandonner** dès que l'ancêtre en
+  englobe plusieurs, là où l'ancienne heuristique de proximité attribuait au voisin.
+- **Timestamps SVG chaînés** `use → svg → use → text` : Facebook a intercalé un maillon, et un
+  décodage limité à un seul niveau ne datait plus les posts — donc ne les captait plus du tout.
+- **`__purgeStubs`** : un doublon tronqué non dépliable ne doit plus bloquer `__exportBlocked`,
+  sans pour autant masquer une vraie troncature.
+
+Plus le texte **intégral** d'un commentaire : `__commentFull` joint tous ses paragraphes, là où la
+lecture du seul premier `div[dir="auto"]` amputait silencieusement les candidatures — sans même
+déclencher `__truncatedComments`, puisque le fragment retenu ne finit pas par « Voir plus ».
+
+⚠️ Le fixture portait un `href="/x?__cft__=1"` qui ne passe pas `__isTsAnchor` (lequel exige
+`?__cft__`, `/posts/` ou `story_fbid=`) : **aucune** ancre n'était captée et le fichier plantait
+avant la fin. Corrigé le 23 août 2026 — si ce test se met à échouer en bloc, vérifier d'abord que
+le fixture reflète toujours la forme réelle des ancres.
+
+Lancés contre la version d'avant le 10 août 2026, les deux premiers échouent respectivement sur 1
+et 6 cas ; contre celle d'avant le 23 août 2026, `attribution_commentaires` échoue sur 7 cas.

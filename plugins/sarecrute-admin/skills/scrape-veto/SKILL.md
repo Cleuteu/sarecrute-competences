@@ -27,9 +27,10 @@ Scraper les posts des **groupes Facebook vétérinaires** (tri chronologique) su
 
 ## Ressources bundlées
 
-- **`scripts/scrape_helpers.js`** — Read ce fichier, injecte tout son contenu via `javascript_tool`. Fournit `__decodeTS`, `__parseTS`, `__harvestAll`, `__store`/`__merge`, `__expandPostText`, `__expandCommentText`, `__truncated`, `__truncatedComments`, `__exportBlocked` (garde unique avant export), `__profileUrl`, `__gid` (id du groupe courant, jamais codé en dur), `__alive`, `__chrono` (contrôle du tri), `__orphanComments` (compteur). **Ré-injecte après toute navigation** (le window est vidé).
+- **`scripts/scrape_helpers.js`** — Read ce fichier, injecte tout son contenu via `javascript_tool`. Fournit `__decodeTS`, `__parseTS`, `__harvestAll`, `__store`/`__merge`, `__expandPostText`, `__expandCommentText`, `__expandVisible` (expansion bornée au viewport, **obligatoire sur les fils longs**), `__commentFull`, `__truncated`, `__truncatedComments`, `__purgeStubs`, `__exportBlocked` (garde unique avant export), `__profileUrl`, `__gid` (id du groupe courant, jamais codé en dur), `__alive`, `__chrono` (contrôle du tri), `__orphanComments` (compteur). **Ré-injecte après toute navigation** (le window est vidé).
 - **`scripts/airtable_push.py`** — pousse un `records.json` en upsert-merge. Voir §5.
 - **`scripts/focus_chrome.sh`** (macOS) / **`scripts/focus_chrome.ps1`** (Windows) — ramènent l'onglet du scrape au premier plan pour réveiller le rendu. Voir §1 bis.
+- **`scripts/keep_awake.sh`** (macOS) — empêche l'écran de s'éteindre pendant la collecte. À lancer **en préventif** dès §0 et à arrêter en §6. Voir §0.
 - **`references/matching_vocab.json`** — valeurs select valides (Zones/Statuts/Temps) + mapping `macro_regions` → départements. Source de vérité pour remplir les champs de matching (cf. §3). Régénérable depuis la base si le vocab change.
 - **`references/auteurs_exclus.json`** — **trois** listes : `auteurs` (personnes, pages, intermédiaires) et `groupes_exclus` (groupes de cliniques refusés) s'excluent de la même façon ; `groupes_acceptes` recense les groupes qu'Alex a **arbitrés et acceptés** — ne les exclus pas, et ne les signale plus. Voir §3 Exclure. Si tu identifies un nouvel auteur à bannir durablement, ajoute-le **dans le dépôt source** (`Cleuteu/sarecrute-competences`) et non dans le dossier installé : celui-ci est réécrit à chaque `claude plugin update`, l'ajout serait perdu. Signale-le à l'utilisateur au lieu de modifier la copie locale.
 
@@ -54,6 +55,13 @@ Tu obtiens `recId`, id de groupe et nom pour chaque source. L'`Url` du canal n'e
 - Si un argument nomme un groupe, filtre sur son `Name` (insensible à la casse, sous-chaîne) ; si rien ne matche, dis-le et arrête plutôt que de tout scraper.
 - Si la liste est vide, arrête et explique qu'aucun canal n'est coché.
 - Annonce à l'utilisateur les groupes retenus **avant** de commencer (Chrome va passer devant, cf. §1 bis).
+- **Puis empêche l'écran de s'éteindre, avant d'ouvrir Chrome** (macOS) :
+
+```bash
+bash <dossier_skill>/scripts/keep_awake.sh start 90
+```
+
+  L'écran éteint suspend le rendu de Facebook aussi sûrement qu'une fenêtre masquée, et le délai d'extinction est souvent de quelques minutes : sans ça, le fil se fige dès que l'utilisateur quitte son clavier (cf. §1 bis). Le script borne sa durée, donc un scrape interrompu ne laisse pas la machine éveillée. **Arrête-le en §6**, et signale-le à l'utilisateur dans la même ligne que l'avertissement sur Chrome. Sous Windows il n'y a pas d'équivalent bundlé : ne rien lancer, et ne traiter le cas que s'il se présente.
 
 Puis déroule §1 → §4 **pour chaque groupe, l'un après l'autre**, et pousse à la fin (un `records.json` par groupe, ou un seul fichier si chaque ligne porte son `Canaux`).
 
@@ -83,7 +91,8 @@ bash <dossier_skill>/scripts/focus_chrome.sh                      # macOS
 
   Puis **re-teste `__alive()`**. Le rendu repart en général dès que l'onglet est visible, sans rechargement.
   - Si `frozen: false` mais que le fil est resté bloqué (`articles` ≤ 3, `heightDelta` nul après un scroll d'essai) → recharge la page (`location.reload()`), attends ~2,5 s, **ré-injecte les helpers** (le window est vidé) et re-teste.
-  - Si `frozen: true` **après** le passage au premier plan → là seulement, dis à l'utilisateur ce qui bloque (fenêtre Chrome minimisée sur un autre bureau/espace, session verrouillée, écran de veille) et ce qu'il doit faire.
+  - Si `frozen: true` **avec `focused: true`** → ce n'est pas Chrome, c'est **l'écran du Mac qui est éteint** : la fenêtre est au premier plan et détient le focus, mais rien n'est peint, donc `requestAnimationFrame` reste suspendu et `focus_chrome.sh` n'y peut rien. Confirme avec `pmset -g log | grep "Display is turned"`, puis relance `scripts/keep_awake.sh start` (il rallume l'écran) et re-teste. Ça ne devrait pas arriver si tu l'as lancé en §0.
+  - Si `frozen: true` **après** le passage au premier plan et avec `focused: false` → là seulement, dis à l'utilisateur ce qui bloque (fenêtre Chrome minimisée sur un autre bureau/espace, session verrouillée) et ce qu'il doit faire.
   - Sous Windows, le script ne peut pas sélectionner l'onglet (limite de la plateforme) : s'il répond que l'onglet du scrape n'est pas l'onglet actif, demande à l'utilisateur de cliquer dessus.
 
 ⚠️ Ne laisse pas Chrome repasser en arrière-plan pendant la collecte : chaque `focus_chrome.sh` interrompt ce que l'utilisateur est en train de faire. Préviens-le en une ligne au début que la fenêtre Chrome va rester devant, et regroupe les réveils plutôt que de les répéter.
@@ -122,6 +131,10 @@ await (async function(){
 })();
 ```
 
+⚡ **Passé ~50 000 px de fil déroulé, remplace `__expandPostText()` par `__expandVisible(1400)`** dans la boucle : le balayage de tous les boutons du document devient le poste de coût dominant et fait dépasser le timeout CDP de 45 s. Garde `pad` >= la moitié du pas de scroll pour ne manquer aucun « Voir plus ».
+
+⚡ **Adapte le pas de scroll à la virtualisation.** Certains groupes ne gardent que 2 posts montés à la fois : un pas de 2 600 px y saute des posts entiers, qui n'entrent jamais dans le store. Si un lot fait grimper `y` sans faire grimper `stored`, redescends à 800-1 400 px plutôt que d'en conclure une fin de fil.
+
 **Un lot qui n'ajoute rien = suspicion de gel, pas une fin de fil.** Si `stored` n'a pas bougé et que la queue n'a pas avancé, appelle `await window.__alive()` **avant** de conclure quoi que ce soit :
 - `frozen: true` → réveille la page (§1 bis) puis **reprends les cycles** ; le travail déjà en `window.__store` est intact.
 - `frozen: false` → c'est un vrai plateau : applique le critère d'arrêt ci-dessous.
@@ -141,7 +154,7 @@ JSON.stringify({stop: window.__exportBlocked('<borne YYYY-MM-DD>'),
                 posts: window.__truncated(), coms: window.__truncatedComments()});
 ```
 - `stop` **vide** → OK, passe à l'export.
-- `stop` **non vide** : ces entrées (souvent les plus récentes, en haut du fil) ont été captées avant dépliage. Remonte jusqu'à elles (`window.scrollTo(0,0)` puis re-descends par petits pas de ~650 px), en refaisant `__expandPostText()` **et `__expandCommentText()`** → attendre **≥1,5 s** → `__merge()` à chaque pas, puis **re-vérifie**. Répète jusqu'à `stop` vide. Ne jamais exporter tant que ce n'est pas le cas.
+- `stop` **non vide** : appelle d'abord `window.__purgeStubs()` — une partie de ces entrées sont des **doublons parasites** d'un post déjà complet dans le store (captés pendant un rendu partiel, non dépliables puisque l'exemplaire affiché est déjà déplié) et bloqueraient l'export indéfiniment. Re-teste ensuite. Ce qui reste a bien été capté avant dépliage (souvent les posts les plus récents, en haut du fil). Remonte jusqu'à elles (`window.scrollTo(0,0)` puis re-descends par petits pas de ~650 px), en refaisant `__expandPostText()` **et `__expandCommentText()`** → attendre **≥1,5 s** → `__merge()` à chaque pas, puis **re-vérifie**. Répète jusqu'à `stop` vide. Ne jamais exporter tant que ce n'est pas le cas.
 
 ⚠️ `__truncated()` seul ne suffit pas : il ne regarde que les **posts**. Un commentaire figé sur « Bonjour,… Voir plus » passait donc en base sans aucun signal (constaté le 10 août 2026). Utilise `__exportBlocked(borne)`, qui contrôle les deux — et qui filtre sur la fenêtre, pour ne pas te bloquer sur un vieux post hors périmètre qui ne sera pas exporté.
 
@@ -471,6 +484,13 @@ de recrutement, désormais exclus à la source. La clé reste la bonne pour de v
 ⚠️ **Le script s'arrête si `references/matching_vocab.json` est introuvable** et que `records.json` porte un champ select protégé (`Zones de recherche`, `Statuts contractuels`, `Type de temps de travail`) : sans vocabulaire, une valeur mal orthographiée créerait une option Airtable. Ne « répare » jamais ça en retirant le contrôle — corrige le chemin. (Avant le 10 août 2026 un `except` silencieux désactivait le garde-fou sans le dire.)
 
 ### 6. Résumé final
+
+**Avant de rédiger** : rends la main à la gestion d'énergie et ferme l'onglet du scrape.
+
+```bash
+bash <dossier_skill>/scripts/keep_awake.sh stop
+```
+
 
 - Fenêtre couverte (avec heures).
 - **Un décompte par groupe** (et les canaux cochés qui n'ont pas pu être scrapés, avec la raison).

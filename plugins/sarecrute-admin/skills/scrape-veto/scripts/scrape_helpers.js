@@ -18,6 +18,11 @@
  *   __expandPostText()   -> n  : clique les "Voir plus" des posts
  *   __expandCommentText()-> n  : idem DANS les commentaires (jamais "Voir plus de
  *                          commentaires", qui navigue et viderait le store)
+ *   __expandVisible(pad) -> n  : idem __expandPostText mais borné au viewport
+ *                          (obligatoire sur les fils longs : sinon timeout CDP)
+ *   __commentFull(art)   -> string : texte INTÉGRAL d'un commentaire (tous ses
+ *                          paragraphes, pas seulement le premier)
+ *   __purgeStubs()       -> [..] : retire les doublons tronqués non dépliables
  *   __truncated()        -> [{author,iso,len}] : posts encore tronqués
  *   __truncatedComments()-> [{post,iso,name,len}] : commentaires encore tronqués
  *   __exportBlocked(borne)-> '' ou raison : garde UNIQUE à appeler avant l'export
@@ -52,15 +57,33 @@ window.__decodeTSGeom = function (tsA) {
   return vis.map(v => v.t).join('').trim();
 };
 
-/* Régime SVG : suivre <use href="#SvgTn"> jusqu'au <text> qui porte le libellé. */
+/* Régime SVG : suivre la CHAÎNE de <use href="#SvgTn"> jusqu'au <text> qui porte
+ * le libellé.
+ * ⚠️ Ne PAS se contenter d'un seul niveau : depuis le 23 août 2026 Facebook
+ * intercale un maillon, `use -> <svg id> -> use -> <text>`. Le premier saut tombe
+ * alors sur un <svg> vide, `textContent` ressort '' et le post n'est pas daté donc
+ * pas capté du tout — constaté ce jour-là : 2 posts captés sur 11 dans « Emploi
+ * vétérinaire et ASV », le reste du fil invisible. On parcourt donc les `use` en
+ * largeur sur quelques niveaux, en mémorisant les ids déjà vus (le graphe peut
+ * boucler), et on retient le premier texte que __parseTS sait dater. */
 window.__decodeTSSvg = function (a) {
-  for (const u of a.querySelectorAll('use')) {
-    const h = u.getAttribute('xlink:href') || u.getAttribute('href') || '';
-    if (!h.startsWith('#')) continue;
-    const t = document.getElementById(h.slice(1));
-    if (!t) continue;
-    const s = (t.textContent || '').replace(/[͏​-‍⁠﻿­]/g, '').replace(/\s+/g, ' ').trim();
-    if (s && window.__parseTS(s).iso) return s;
+  const seen = new Set();
+  let queue = Array.from(a.querySelectorAll('use'));
+  for (let depth = 0; depth < 8 && queue.length; depth++) {
+    const next = [];
+    for (const u of queue) {
+      const h = u.getAttribute('xlink:href') || u.getAttribute('href') || '';
+      if (!h.startsWith('#')) continue;
+      const id = h.slice(1);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const t = document.getElementById(id);
+      if (!t) continue;
+      const s = (t.textContent || '').replace(/[͏​-‍⁠﻿­]/g, '').replace(/\s+/g, ' ').trim();
+      if (s && window.__parseTS(s).iso) return s;
+      for (const cu of t.querySelectorAll('use')) next.push(cu);
+    }
+    queue = next;
   }
   return null;
 };
@@ -144,6 +167,18 @@ window.__profileUrl = function (a) {
   return uid ? 'https://www.facebook.com/' + uid : '';
 };
 
+/* --- Texte INTÉGRAL d'un commentaire ---------------------------------------
+ * ⚠️ Ne PAS lire seulement le premier `div[dir="auto"]` : un commentaire de
+ * plusieurs paragraphes est alors amputé silencieusement — et pire, sans que
+ * __truncatedComments ne le signale, puisque le fragment retenu ne finit pas par
+ * « Voir plus ». Constaté le 23 août 2026 : « Bonjour. » au lieu de « Bonjour.
+ * Je vous ai envoyé un message sur Messenger », soit une candidature illisible.
+ * On joint donc TOUS les blocs de texte de l'article du commentaire. */
+window.__commentFull = function (art) {
+  return Array.from(art.querySelectorAll('div[dir="auto"]'))
+    .map(d => (d.innerText || '').trim()).filter(t => t).join('\n');
+};
+
 /* --- Récolte complète : posts + commentaires rattachés par CONTAINMENT ----- */
 window.__harvestAll = function () {
   // Anchors de timestamp de post (cf. __isTsAnchor : les 3 régimes de rendu,
@@ -216,29 +251,39 @@ window.__harvestAll = function () {
       if (own.length) parent = postByAnchor.get(own[0]);
       else { window.__orphanComments++; continue; }
     } else {
-      // Repli (structure FB inattendue) : ancienne heuristique de proximité.
+      // Repli — certains groupes ne rendent AUCUN div[role="article"] autour de
+      // leurs posts : la recherche d'ownerArticle échoue alors pour 100 % des
+      // commentaires (constaté le 23 août 2026 dans « WE NEED YOU!!! », dont tout
+      // le vivier candidat passait donc par ce repli). C'est exactement la
+      // situation où l'ancienne heuristique de proximité était la plus risquée :
+      // elle « marchait » sans rien garantir, et c'est elle qui avait recopié des
+      // commentaires sur le mauvais post le 10 août 2026.
+      //
+      // On remonte donc les parents du commentaire et on s'arrête au PREMIER
+      // ancêtre qui englobe des ancres de timestamp de post :
+      //   - exactement UNE  -> c'est le conteneur de son post, rattachement certain ;
+      //   - PLUSIEURS       -> ambigu, on abandonne (le commentaire repassera).
+      // Cette règle reste du containment strict. ⚠️ Ne JAMAIS la remplacer par
+      // « le plus proche timestamp qui précède » (l'ancienne heuristique de
+      // proximité, retirée ici) : le 10 août 2026 elle avait recopié le jeu de
+      // commentaires de deux posts sur un post voisin qui ne les portait pas.
       let e = a.parentElement;
       while (e) {
         const contained = tsAnchors.filter(tsA => e.contains(tsA));
-        if (contained.length) {
-          const before = contained.filter(tsA => tsA.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_FOLLOWING);
-          const pick = (before.length ? before : contained);
-          pick.sort((x, y) => (x.compareDocumentPosition(y) & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1);
-          parent = postByAnchor.get(pick[pick.length - 1]); break;
-        }
+        if (contained.length === 1) { parent = postByAnchor.get(contained[0]); break; }
+        if (contained.length > 1) break;   // ambigu : on préfère l'oubli au faux rattachement
         e = e.parentElement;
       }
     }
     if (!parent) { window.__orphanComments++; continue; }
     const m = a.getAttribute('aria-label').match(/^Commentaire de (.+?)(?: il y a (.+))?$/i);
-    const da = a.querySelector('div[dir="auto"]');
     const name = m ? m[1].trim() : '';
     // Profil du commentateur : on privilégie l'ancre dont le texte EST le nom du
     // commentaire (une réponse imbriquée pourrait sinon fournir la 1re ancre) ;
     // à défaut, la première ancre de profil de l'article.
     const cAnchors = Array.from(a.querySelectorAll('a[href*="/user/"],a[href*="profile.php?id="]'));
     const cA = cAnchors.find(x => (x.innerText || '').trim() === name) || cAnchors[0];
-    parent.comments.push({ name, profileUrl: window.__profileUrl(cA), time: m && m[2] ? m[2].trim() : '', text: da ? (da.innerText || '').trim() : '' });
+    parent.comments.push({ name, profileUrl: window.__profileUrl(cA), time: m && m[2] ? m[2].trim() : '', text: window.__commentFull(a) });
   }
   return Array.from(postByAnchor.values());
 };
@@ -330,6 +375,28 @@ window.__expandCommentText = function () {
   return n;
 };
 
+/* --- Expansion bornée au viewport (fils longs) ------------------------------
+ * __expandPostText parcourt TOUS les boutons du document. Passé ~50 000 px de fil
+ * déroulé ça devient le poste de coût dominant d'un cycle et le lot entier finit
+ * par dépasser le timeout CDP de 45 s (constaté le 23 août 2026). Même travail,
+ * mais restreint à ce qui est proche de l'écran — donc au seul endroit où un
+ * « Voir plus » a un intérêt, puisque le merge se fait sur ce qui est rendu.
+ * `pad` doit rester >= la moitié du pas de scroll pour ne rien laisser passer. */
+window.__expandVisible = function (pad) {
+  pad = pad || 1200;
+  let n = 0;
+  const vh = innerHeight;
+  for (const b of document.querySelectorAll('div[role="button"],span[role="button"]')) {
+    const tc = (b.textContent || '').trim();
+    if (tc.length > 18 || !window.__EXPAND_RX.test(tc)) continue;
+    if (b.closest('a')) continue;
+    const r = b.getBoundingClientRect();
+    if (r.bottom < -pad || r.top > vh + pad) continue;
+    try { b.click(); n++; } catch (e) {}
+  }
+  return n;
+};
+
 /* --- Anti-troncature : posts du store dont le corps est encore tronqué ------
  * À appeler AVANT l'export. S'il renvoie une liste non vide, il reste des
  * "Voir plus" non dépliés : re-scroller jusqu'à ces posts (ils sont classés du
@@ -355,6 +422,40 @@ window.__truncatedComments = function () {
     }
   }
   return out;
+};
+
+/* --- Purge des DOUBLONS parasites tronqués ----------------------------------
+ * Un post capté pendant un rendu partiel peut entrer dans le store avec un corps
+ * réduit à quelques dizaines de caractères (« Offre d'emploi – Vétérinaire Mixte
+ * E… En voir plus »). Sa clé diffère de celle de la version complète — les 40
+ * premiers caractères ne coïncident pas — donc __merge ne les réunit pas et le
+ * store garde DEUX entrées pour un seul post. La tronquée n'est pas dépliable
+ * (l'exemplaire affiché, lui, est déjà déplié : il ne reste plus de bouton à
+ * cliquer), et elle bloque donc __exportBlocked indéfiniment.
+ * On supprime une entrée tronquée dès qu'une autre entrée du MÊME auteur, non
+ * tronquée, commence par le même texte : c'est le même post, en mieux.
+ * À appeler avant le contrôle d'export. Renvoie la liste des entrées retirées. */
+window.__purgeStubs = function () {
+  const norm = x => (x || '').replace(/\s*(?:…\s*)?(?:En )?[Vv]oir plus\s*$/, '').replace(/\s+/g, ' ').trim();
+  const byAuthor = {};
+  for (const [k, p] of Object.entries(window.__store)) {
+    (byAuthor[p.author || ''] = byAuthor[p.author || ''] || []).push([k, p]);
+  }
+  const removed = [];
+  for (const list of Object.values(byAuthor)) {
+    for (const [k, p] of list) {
+      if (!window.__isTrunc(p.body)) continue;
+      const pre = norm(p.body);
+      if (pre.length < 12) continue;          // trop court pour identifier quoi que ce soit
+      const covered = list.some(([k2, p2]) => k2 !== k && !window.__isTrunc(p2.body) &&
+        norm(p2.body).startsWith(pre.slice(0, Math.min(pre.length, 30))));
+      if (covered) {
+        delete window.__store[k];
+        removed.push({ author: p.author || '(anon)', iso: p.iso, len: (p.body || '').length });
+      }
+    }
+  }
+  return removed;
 };
 
 /* --- Garde unique à appeler AVANT l'export ----------------------------------
