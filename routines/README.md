@@ -10,7 +10,7 @@ pousse. Le formulaire web ne contient qu'un pointeur vers le fichier.
 
 | Fichier | Routine | Déclencheur |
 | --- | --- | --- |
-| `profil-ia-candidat.md` | Génération du Profil IA d'un candidat (base `appP0W2ISytaNyAhG`, table `Candidats`) | API (`/fire`), `text` = `recordId:recXXXXXXXXXXXXXX` |
+| `profil-ia-candidat.md` | Enrichissement d'un candidat : champs structurés, Profil IA, et grille de compétences par acte (base `appP0W2ISytaNyAhG`, tables `Candidats`, `Actes`, `Compétences`) | API (`/fire`), `text` = `recordId:recXXXXXXXXXXXXXX` |
 
 ## Convention
 
