@@ -27,7 +27,7 @@ Scraper les posts des **groupes Facebook vétérinaires** (tri chronologique) su
 
 ## Ressources bundlées
 
-- **`scripts/scrape_helpers.js`** — Read ce fichier, injecte tout son contenu via `javascript_tool`. Fournit `__decodeTS`, `__parseTS`, `__harvestAll`, `__store`/`__merge`, `__expandPostText`, `__expandCommentText`, `__expandVisible` (expansion bornée au viewport, **obligatoire sur les fils longs**), `__commentFull`, `__truncated`, `__truncatedComments`, `__purgeStubs`, `__exportBlocked` (garde unique avant export), `__profileUrl`, `__gid` (id du groupe courant, jamais codé en dur), `__alive`, `__chrono` (contrôle du tri), `__orphanComments` (compteur). **Ré-injecte après toute navigation** (le window est vidé).
+- **`scripts/scrape_helpers.js`** — Read ce fichier, injecte tout son contenu via `javascript_tool`. Fournit `__decodeTS`, `__parseTS`, `__harvestAll`, `__store`/`__merge`, `__expandPostText`, `__expandCommentText`, `__expandVisible` (expansion bornée au viewport, **obligatoire sur les fils longs**), `__commentFull`, `__truncated`, `__truncatedComments`, `__purgeStubs` / `__purgeCommentStubs` (appelés par `__exportBlocked`, pas à appeler soi-même), `__storyToken` (jeton `__cft__` = identité du post d'une ancre), `__exportBlocked` (garde unique avant export), `__profileUrl`, `__gid` (id du groupe courant, jamais codé en dur), `__alive`, `__chrono` (contrôle du tri), `__orphanComments` (compteur). **Ré-injecte après toute navigation** (le window est vidé).
 - **`scripts/airtable_push.py`** — pousse un `records.json` en upsert-merge. Voir §5.
 - **`scripts/focus_chrome.sh`** (macOS) / **`scripts/focus_chrome.ps1`** (Windows) — ramènent l'onglet du scrape au premier plan pour réveiller le rendu. Voir §1 bis.
 - **`scripts/keep_awake.sh`** (macOS) — empêche l'écran de s'éteindre pendant la collecte. À lancer **en préventif** dès §0 et à arrêter en §6. Voir §0.
@@ -154,9 +154,23 @@ JSON.stringify({stop: window.__exportBlocked('<borne YYYY-MM-DD>'),
                 posts: window.__truncated(), coms: window.__truncatedComments()});
 ```
 - `stop` **vide** → OK, passe à l'export.
-- `stop` **non vide** : appelle d'abord `window.__purgeStubs()` — une partie de ces entrées sont des **doublons parasites** d'un post déjà complet dans le store (captés pendant un rendu partiel, non dépliables puisque l'exemplaire affiché est déjà déplié) et bloqueraient l'export indéfiniment. Re-teste ensuite. Ce qui reste a bien été capté avant dépliage (souvent les posts les plus récents, en haut du fil). Remonte jusqu'à elles (`window.scrollTo(0,0)` puis re-descends par petits pas de ~650 px), en refaisant `__expandPostText()` **et `__expandCommentText()`** → attendre **≥1,5 s** → `__merge()` à chaque pas, puis **re-vérifie**. Répète jusqu'à `stop` vide. Ne jamais exporter tant que ce n'est pas le cas.
+- `stop` **non vide** : depuis la 0.9.2, `__exportBlocked` a **déjà** purgé les **doublons parasites** (posts ET commentaires) — des entrées tronquées dont la version complète est déjà dans le store, non dépliables puisque l'exemplaire affiché est déjà déplié, et qui bloquaient l'export indéfiniment. Inutile d'appeler `__purgeStubs()` toi-même. Ce qui reste a donc bien été capté avant dépliage (souvent les posts les plus récents, en haut du fil). Remonte jusqu'à elles (`window.scrollTo(0,0)` puis re-descends par petits pas de ~650 px), en refaisant `__expandPostText()` **et `__expandCommentText()`** → attendre **≥1,5 s** → `__merge()` à chaque pas, puis **re-vérifie**. Répète jusqu'à `stop` vide. Ne jamais exporter tant que ce n'est pas le cas.
+
+⚠️ Un `stop` qui ne bouge pas d'un lot à l'autre n'est plus un dépliage qui échoue : c'était la signature du doublon parasite, désormais purgé automatiquement. S'il persiste, c'est une vraie troncature — remonte jusqu'à elle.
 
 ⚠️ `__truncated()` seul ne suffit pas : il ne regarde que les **posts**. Un commentaire figé sur « Bonjour,… Voir plus » passait donc en base sans aucun signal (constaté le 10 août 2026). Utilise `__exportBlocked(borne)`, qui contrôle les deux — et qui filtre sur la fenêtre, pour ne pas te bloquer sur un vieux post hors périmètre qui ne sera pas exporté.
+
+> **Posts PARTAGÉS.** Quand une publication de page est repartagée dans le groupe, son texte vit
+> dans une carte imbriquée qui porte **ses propres ancres** `__cft__` (5 sur le cas observé, toutes
+> du même jeton). Jusqu'à la 0.9.2 la racine du post s'arrêtait au-dessus de cette carte : `body`
+> ressortait **vide**, sans aucun signal — ni `__truncated` ni `__exportBlocked` ne voient un corps
+> vide, donc l'entrée partait vide ou était jetée à la relecture (une offre de 1 677 caractères y est
+> passée le 24 août 2026). C'est corrigé : la racine peut désormais traverser les ancres du **même**
+> jeton de story, jamais celles d'un autre. Effet de bord bienvenu : le permalink du post partagé se
+> résout, l'ancre du groupe étant maintenant dans la racine.
+>
+> ⚠️ Si tu vois malgré tout un `body` vide à la relecture, ne pousse pas l'entrée : va lire le post
+> dans la page. Un corps vide reste le seul défaut de capture qu'aucun garde-fou ne signale.
 
 > **Permalinks — limite connue.** Sur le fil, FB n'injecte l'id du post (donc le permalink reconstructible via `p.permalink`) que pour **~40 % des posts**. Testé et **écarté** pour débloquer le reste : le `.click()` JS sur la date ne navigue **que** pour les posts déjà résolus (n'apporte rien) ; le **hover** ne résout rien (`isTrusted=false`) ; l'attente/dwell non plus ; le fiber React n'expose pas de props lisibles. Donc ~60 % retombent sur l'URL de recherche (repli prévu). Seule piste restante non testée : le menu « … » → « Copier le lien » par post.
 >

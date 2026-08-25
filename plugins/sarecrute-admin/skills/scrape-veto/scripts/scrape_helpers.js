@@ -23,9 +23,12 @@
  *   __commentFull(art)   -> string : texte INTÉGRAL d'un commentaire (tous ses
  *                          paragraphes, pas seulement le premier)
  *   __purgeStubs()       -> [..] : retire les doublons tronqués non dépliables
+ *   __purgeCommentStubs()-> [..] : idem pour les commentaires
+ *   __storyToken(anchor) -> string : jeton __cft__ = identité du POST d'une ancre
  *   __truncated()        -> [{author,iso,len}] : posts encore tronqués
  *   __truncatedComments()-> [{post,iso,name,len}] : commentaires encore tronqués
  *   __exportBlocked(borne)-> '' ou raison : garde UNIQUE à appeler avant l'export
+ *                          (purge les souches elle-même, cf. sa doc)
  *   __orphanComments     : nb de commentaires non rattachés au dernier harvest (leur
  *                          post n'était pas rendu — ils repasseront)
  *   __cleanBody(str)     -> string : corps nettoyé des marqueurs FB pour l'export
@@ -179,20 +182,73 @@ window.__commentFull = function (art) {
     .map(d => (d.innerText || '').trim()).filter(t => t).join('\n');
 };
 
+/* --- Jeton de story : à quel POST appartient une ancre ? --------------------
+ * Toutes les ancres d'un même post portent le MÊME `__cft__[0]=<jeton>` dans leur
+ * href ; deux posts distincts ont deux jetons distincts (vérifié en live le
+ * 25 août 2026 : 9 ancres du fil → 5 jetons → exactement les 5 posts affichés).
+ * C'est ce qui permet de distinguer « une autre ancre du MÊME post » de « l'ancre
+ * du post VOISIN » — distinction que le simple `x !== tsA` ne fait pas.
+ * Renvoie '' si le href n'en porte pas (on retombe alors sur l'ancien test). */
+window.__storyToken = function (a) {
+  const h = a ? (a.getAttribute('href') || '') : '';
+  return (h.match(/__cft__(?:\[\d+\])?=([^&]+)/) || [])[1] || '';
+};
+
 /* --- Récolte complète : posts + commentaires rattachés par CONTAINMENT ----- */
 window.__harvestAll = function () {
   // Anchors de timestamp de post (cf. __isTsAnchor : les 3 régimes de rendu,
   // commentaires exclus)
-  const tsAnchors = Array.from(document.querySelectorAll('a')).filter(window.__isTsAnchor);
+  const allTs = Array.from(document.querySelectorAll('a')).filter(window.__isTsAnchor);
+  // Jetons calculés UNE fois : la garde ci-dessous les relit dans une boucle
+  // imbriquée, à chaque __merge, donc à chaque pas de scroll. Un regex par
+  // comparaison sur un fil déroulé coûterait cher pour rien (cf. le timeout CDP
+  // de 45 s qui a déjà mordu sur __expandPostText le 16 août 2026).
+  const tokOf = new Map();
+  for (const a of allTs) tokOf.set(a, window.__storyToken(a));
+  // ⚠️ Un post PARTAGÉ (publication d'une page repartagée dans le groupe) porte
+  // PLUSIEURS ancres — 5 sur le cas observé — car la carte imbriquée du post
+  // d'origine a les siennes. Sans dédup par jeton, le même post produirait
+  // autant d'entrées que d'ancres. On garde la première de chaque jeton.
+  const tsAnchors = [];
+  const vus = new Set();
+  for (const a of allTs) {
+    const t = tokOf.get(a);
+    if (t && vus.has(t)) continue;
+    if (t) vus.add(t);
+    tsAnchors.push(a);
+  }
   const postByAnchor = new Map();
   for (const tsA of tsAnchors) {
+    const tok = tokOf.get(tsA);
+    // Plafond dur : le div[role="article"] du post, quand il existe. La racine ne
+    // doit JAMAIS en sortir — c'est le garde-fou qui reste valable même si deux
+    // posts partageaient un jeton de story. (Dans « We need you » les posts n'ont
+    // pas d'article ancêtre : le plafond ne s'applique pas, et c'est la garde par
+    // jeton ci-dessous qui protège.)
+    const art = (function (el) {
+      let e = el.parentElement;
+      while (e) {
+        if (e.matches && e.matches('div[role="article"]') &&
+            !/^Commentaire de/i.test(e.getAttribute('aria-label') || '')) return e;
+        e = e.parentElement;
+      }
+      return null;
+    })(tsA);
     let root = tsA;
     for (let i = 0; i < 14; i++) {
       const next = root.parentElement;
       if (!next) break;
+      if (art && !art.contains(next)) break;
       // ⚠️ Ne JAMAIS laisser la racine d'un post engloutir le timestamp d'un AUTRE post :
       // sinon l'auteur et le corps peuvent être lus chez le voisin. (10 août 2026)
-      if (tsAnchors.some(x => x !== tsA && next.contains(x))) break;
+      // ⚠️ Mais s'arrêter sur une ancre du MÊME post (cas du post partagé) laissait
+      // la racine au-dessus de la carte imbriquée : `body` ressortait VIDE, sans
+      // aucun signal — ni __truncated ni __exportBlocked ne voient un corps vide.
+      // (25 août 2026 : une offre de 1 677 caractères passait à la trappe.)
+      // On ne coupe donc que sur une ancre d'un AUTRE jeton de story.
+      const etrangere = allTs.some(x => x !== tsA && next.contains(x) &&
+        (tok && tokOf.get(x) ? tokOf.get(x) !== tok : true));
+      if (etrangere) break;
       root = next;
       if ((root.innerText || '').length > 500) break;
     }
@@ -458,11 +514,55 @@ window.__purgeStubs = function () {
   return removed;
 };
 
+/* --- Idem pour les COMMENTAIRES ---------------------------------------------
+ * Même mécanique, et elle manquait : la clé d'un commentaire est
+ * `nom|texte[:40]`, donc la version TRONQUÉE et la version DÉPLIÉE tombent sur
+ * deux clés différentes et coexistent dans `p.comments`. __exportBlocked reste
+ * alors bloqué sur la souche alors que le texte complet est déjà dans le store —
+ * et re-déplier ne débloque jamais rien, le message d'erreur ne bougeant pas
+ * d'un lot à l'autre. Ça ressemble à un dépliage qui échoue ; c'est un doublon.
+ * (Constaté le 25 août 2026 sur un « Bonjour,… Voir plus ».)
+ * On supprime une entrée tronquée dès qu'une autre entrée du MÊME commentateur,
+ * sous le MÊME post et non tronquée, commence par le même texte. */
+window.__purgeCommentStubs = function () {
+  const norm = x => (x || '').replace(/\s*(?:…\s*)?(?:En )?[Vv]oir plus\s*$/, '').replace(/\s+/g, ' ').trim();
+  const removed = [];
+  for (const p of Object.values(window.__store)) {
+    const ents = Object.entries(p.comments || {});
+    for (const [k, c] of ents) {
+      if (!window.__isTrunc(c.text)) continue;
+      const pre = norm(c.text);
+      // ⚠️ Seuil BEAUCOUP plus bas que pour les posts : un commentaire tronqué se
+      // réduit souvent à un mot (« Bonjour,… Voir plus » → « Bonjour, », 8 car.),
+      // là où le seuil de 12 des posts le laisserait passer et bloquerait l'export.
+      // Le risque est nul en pratique : il faut le MÊME commentateur, sous le MÊME
+      // post, avec une version non tronquée qui commence pareil — et une souche
+      // retirée à tort serait simplement re-captée au cycle suivant.
+      if (pre.length < 4) continue;
+      const covered = ents.some(([k2, c2]) => k2 !== k && (c2.name || '') === (c.name || '') &&
+        !window.__isTrunc(c2.text) &&
+        norm(c2.text).startsWith(pre.slice(0, Math.min(pre.length, 25))));
+      if (covered) {
+        delete p.comments[k];
+        removed.push({ post: p.author || '(anon)', iso: p.iso, name: c.name, len: (c.text || '').length });
+      }
+    }
+  }
+  return removed;
+};
+
 /* --- Garde unique à appeler AVANT l'export ----------------------------------
  * Renvoie '' si l'export peut se faire, sinon la raison. Regroupe les deux
  * contrôles pour qu'on ne puisse plus en oublier un.
+ * ⚠️ Purge d'abord les souches (posts ET commentaires) : ce sont des doublons
+ * d'entrées déjà complètes dans le store, jamais dépliables, qui bloqueraient
+ * l'export indéfiniment. La purge est faite ICI plutôt que laissée à l'appelant
+ * pour qu'on ne puisse pas l'oublier — c'est de l'auto-réparation, au même titre
+ * que le « garde le corps le plus long » de __merge.
  * Usage : const stop = window.__exportBlocked('2026-08-07'); if (stop) return stop; */
 window.__exportBlocked = function (borne) {
+  window.__purgeStubs();
+  window.__purgeCommentStubs();
   const inWin = p => !borne || (p.iso && p.iso >= borne);
   const tp = window.__truncated().filter(inWin);
   const tc = window.__truncatedComments().filter(inWin);

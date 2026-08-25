@@ -7,19 +7,23 @@ const SRC = fs.readFileSync(require('path').join(__dirname, '..', 'plugins/sarec
 // href : la forme réelle des ancres de timestamp de post sur le fil. __isTsAnchor
 // exige `?__cft__`, `/posts/` ou `story_fbid=` — un href quelconque portant
 // « __cft__ » ne suffit pas (le fixture l'ignorait, et AUCUNE ancre n'était captée).
-const ts = (txt) => `<a href="?__cft__[0]=AZW1"><span class="flexbox">${txt.split('').map(c => `<i>${c}</i>`).join('')}</span></a>`;
+// ⚠️ Le jeton `__cft__` identifie le POST : deux posts distincts en ont deux
+// différents, et TOUTES les ancres d'un même post partagent le leur (vérifié en
+// live le 25/08/2026). Le fixture réutilisait un jeton unique pour tout le fil —
+// irréaliste, et ça masquait le cas du post partagé. `tok` est donc un paramètre.
+const ts = (txt, tok = 'AZW1') => `<a href="?__cft__[0]=${tok}"><span class="flexbox">${txt.split('').map(c => `<i>${c}</i>`).join('')}</span></a>`;
 
 function build(postBAvecAncre) {
   const dom = new JSDOM(`<body><div id="feed">
     <div role="article" id="postA">
       <h2><a href="/groups/123/user/111/">Fatou Unvt</a></h2>
-      ${ts('Le 7 aout a 15:31')}
+      ${ts('Le 7 aout a 15:31', 'AZpostA')}
       <div dir="auto">VETERINAIRE CANIN OU MIXTE - LE LUDE (72). Notre clinique recherche un veterinaire canin ou mixte pour renforcer son equipe en CDD de septembre 2026 a fevrier 2027.</div>
       <div role="article" aria-label="Commentaire de Mveto Pro il y a 21 heures"><div dir="auto">bonjour, possible d avoir plus de details ? merci</div></div>
     </div>
     <div role="article" id="postB">
       <h2><a href="/groups/123/user/222/">SparklyTulip723</a></h2>
-      ${postBAvecAncre ? ts('Le 7 aout a 15:13') : '<!-- timestamp virtualise -->'}
+      ${postBAvecAncre ? ts('Le 7 aout a 15:13', 'AZpostB') : '<!-- timestamp virtualise -->'}
       <div dir="auto">Je cherche des fiches de revision et supports de cours recents pour me remettre dans le bain apres une periode d absence de la pratique clinique.</div>
       <div role="article" aria-label="Commentaire de Virginie Stv il y a 2 jours"><div dir="auto">J ai laisse toutes mes fiches en libre acces sur Quizlet, identifiant Virg_VT</div></div>
     </div>
@@ -77,13 +81,13 @@ function buildNoArticle(comAmbigu) {
   const dom = new JSDOM(`<body><div id="feed">
     <div id="wrapA">
       <h2><a href="/groups/123/user/111/">Fatou Unvt</a></h2>
-      ${ts('Le 7 aout a 15:31')}
+      ${ts('Le 7 aout a 15:31', 'AZpostA')}
       <div dir="auto">Notre clinique recherche un veterinaire canin ou mixte au Lude (72).</div>
       <div role="article" aria-label="Commentaire de Mveto Pro il y a 21 heures"><div dir="auto">Bonjour.</div><div dir="auto">Je vous ai envoye un message sur Messenger</div></div>
     </div>
     <div id="wrapB">
       <h2><a href="/groups/123/user/222/">SparklyTulip723</a></h2>
-      ${ts('Le 7 aout a 15:13')}
+      ${ts('Le 7 aout a 15:13', 'AZpostB')}
       <div dir="auto">Je cherche un poste en canine dans le 72.</div>
       <div role="article" aria-label="Commentaire de Virginie Stv il y a 2 jours"><div dir="auto">On recrute a Sable-sur-Sarthe, MP</div></div>
     </div>
@@ -173,13 +177,94 @@ dom = buildNoArticle(false);
     'Clinique Y|Vraietroncature': { author: 'Clinique Y', iso: '2026-08-20',
       body: 'Vraie troncature jamais depliee ici… En voir plus', comments: {} }
   };
-  t('__exportBlocked bloque avant purge', w.__exportBlocked('2026-08-20') !== '', true);
-  const removed = w.__purgeStubs();
-  t('__purgeStubs retire le seul doublon parasite', removed.map(r => r.author), ['Clinique X']);
-  t('__purgeStubs garde la version complète',
+  // __exportBlocked purge LUI-MÊME les souches depuis la 0.9.2 : l'appelant ne
+  // peut plus oublier de le faire. Il bloque donc encore, mais uniquement sur la
+  // vraie troncature — plus sur le doublon parasite.
+  const stop = w.__exportBlocked('2026-08-20');
+  t('__exportBlocked bloque encore sur la VRAIE troncature', /Clinique Y/.test(stop), true);
+  t('__exportBlocked ne bloque plus sur le doublon parasite', /Clinique X/.test(stop), false);
+  t('la souche a été retirée du store',
     Object.values(w.__store).filter(p => p.author === 'Clinique X').length, 1);
-  t('__purgeStubs ne touche PAS une vraie troncature',
-    /Clinique Y/.test(w.__exportBlocked('2026-08-20')), true);
+  t('la version complète est celle qui reste',
+    w.__isTrunc(Object.values(w.__store).find(p => p.author === 'Clinique X').body), false);
+}
+
+// ---------------------------------------------------------------------------
+// __purgeCommentStubs : même mécanique, pour les COMMENTAIRES (25/08/2026).
+// La clé d'un commentaire est `nom|texte[:40]` : version tronquée et version
+// dépliée tombent sur deux clés distinctes et coexistent. Sans purge,
+// __exportBlocked reste bloqué alors que le texte complet est déjà là.
+dom = buildNoArticle(false);
+{
+  const w = dom.window;
+  w.__store = {
+    p1: { author: 'Laurine Vibert', iso: '2026-08-24', body: 'Annonce complète.', comments: {
+      'Miek Vossn|Bonjour,': { name: 'Miek Vossn', text: 'Bonjour,… Voir plus' },
+      'Miek Vossn|Bonjour,MPenvoyé,Bonnejournée': { name: 'Miek Vossn', text: 'Bonjour, MP envoyé, Bonne journée' }
+    } },
+    p2: { author: 'Autre post', iso: '2026-08-24', body: 'Annonce nette.', comments: {
+      'Zoé Dubois|Bonjour,': { name: 'Zoé Dubois', text: 'Bonjour,… Voir plus' }
+    } }
+  };
+  const removed = w.__purgeCommentStubs();
+  t('__purgeCommentStubs retire la souche couverte', removed.map(r => r.name), ['Miek Vossn']);
+  t('la version complète du commentaire est conservée',
+    Object.keys(w.__store.p1.comments).length, 1);
+  t('__purgeCommentStubs ne touche PAS une vraie troncature',
+    Object.keys(w.__store.p2.comments).length, 1);
+  t('__exportBlocked bloque sur la vraie troncature seule',
+    /Zoé Dubois/.test(w.__exportBlocked('2026-08-20')), true);
+}
+
+// ---------------------------------------------------------------------------
+// POST PARTAGÉ (25/08/2026) : quand une publication de page est repartagée dans
+// le groupe, la carte imbriquée porte SES PROPRES ancres __cft__ — 5 au total sur
+// le cas réel observé, toutes du même jeton. L'ancienne garde « le parent contient
+// une AUTRE ancre ⇒ stop » coupait donc la racine au-dessus de la carte : `body`
+// ressortait VIDE, sans aucun signal (ni __truncated ni __exportBlocked ne voient
+// un corps vide). Une offre de 1 677 caractères passait à la trappe.
+{
+  const dom2 = new JSDOM(`<body><div id="feed">
+    <div class="wrapper">
+      <h2><a href="/groups/123/user/333/">Cabinet des 5 Calanques</a></h2>
+      ${ts('Le 24 aout a 10:00', 'AZshare')}
+      <div class="carte-partagee">
+        ${ts('Le 20 aout a 09:00', 'AZshare')}
+        <a href="?__cft__[0]=AZshare">lien interne</a>
+        <div dir="auto">Le Cabinet Veterinaire des 5 Calanques recherche un veterinaire canin pour completer son activite. Temps partiel, statut au choix, a partir de janvier 2027.</div>
+      </div>
+    </div>
+    <div class="wrapper">
+      <h2><a href="/groups/123/user/444/">Voisin Duflux</a></h2>
+      ${ts('Le 24 aout a 08:00', 'AZvoisin')}
+      <div dir="auto">Annonce du post voisin, qui ne doit surtout pas etre aspiree par le post partage.</div>
+    </div>
+  </div></body>`, { url: 'https://www.facebook.com/groups/123/?sorting_setting=CHRONOLOGICAL', runScripts: 'outside-only', pretendToBeVisual: true });
+  const w = dom2.window;
+  Object.defineProperty(w.Element.prototype, 'innerText', {
+    configurable: true, get() { return this.textContent; } });
+  w.Element.prototype.getBoundingClientRect = function () {
+    const isFlex = this.classList && this.classList.contains('flexbox');
+    return isFlex ? { left: 0, right: 1000, top: 0, bottom: 10, width: 1000 }
+                  : { left: 0, right: 10, top: 0, bottom: 10, width: 10 };
+  };
+  const cs2 = w.getComputedStyle.bind(w);
+  w.getComputedStyle = (el) => (el.classList && el.classList.contains('flexbox'))
+    ? { display: 'flex' } : cs2(el);
+  w.eval(SRC);
+
+  const posts = w.__harvestAll();
+  t('post partagé : une seule entrée malgré 3 ancres du même jeton', posts.length, 2);
+  const part = posts.find(p => /Calanques/.test(p.author || ''));
+  t('post partagé : le corps N\'est plus vide', (part && part.body || '').length > 100, true);
+  t('post partagé : c\'est bien le texte de la carte imbriquée',
+    /5 Calanques recherche un veterinaire canin/.test(part && part.body || ''), true);
+  const voisin = posts.find(p => /Voisin/.test(p.author || ''));
+  t('post voisin : son corps reste le sien',
+    /post voisin/.test(voisin && voisin.body || ''), true);
+  t('post partagé : n\'a pas aspiré le voisin',
+    /post voisin/.test(part && part.body || ''), false);
+  t('__storyToken lit le jeton', w.__storyToken({ getAttribute: () => '?__cft__[0]=AZx&y=1' }), 'AZx');
 }
 
 console.log(`\n${ok} ok, ${ko} échec(s)`);
