@@ -32,7 +32,7 @@ Scraper les posts des **groupes Facebook vétérinaires** (tri chronologique) su
 - **`scripts/focus_chrome.sh`** (macOS) / **`scripts/focus_chrome.ps1`** (Windows) — ramènent l'onglet du scrape au premier plan pour réveiller le rendu. Voir §1 bis.
 - **`scripts/keep_awake.sh`** (macOS) — empêche l'écran de s'éteindre pendant la collecte. À lancer **en préventif** dès §0 et à arrêter en §6. Voir §0.
 - **`references/matching_vocab.json`** — valeurs select valides (Zones/Statuts/Temps) + mapping `macro_regions` → départements. Source de vérité pour remplir les champs de matching (cf. §3). Régénérable depuis la base si le vocab change.
-- **`references/auteurs_exclus.json`** — **trois** listes : `auteurs` (personnes, pages, intermédiaires) et `groupes_exclus` (groupes de cliniques refusés) s'excluent de la même façon ; `groupes_acceptes` recense les groupes qu'Alex a **arbitrés et acceptés** — ne les exclus pas, et ne les signale plus. Voir §3 Exclure. Si tu identifies un nouvel auteur à bannir durablement, ajoute-le **dans le dépôt source** (`Cleuteu/sarecrute-competences`) et non dans le dossier installé : celui-ci est réécrit à chaque `claude plugin update`, l'ajout serait perdu. Signale-le à l'utilisateur au lieu de modifier la copie locale.
+> ⚠️ **La blacklist n'est plus bundlée.** Depuis la 0.10.0 elle vit dans la table Airtable **« Auteurs posts exclus »** (`tblGBn2uKw7FmRJm8`), lue en §0 comme les canaux — Alex l'édite lui-même, sans republier le plugin. `references/auteurs_exclus.json` a été supprimé : ne le recrée pas, et ne rétablis pas de copie de secours (cf. §0).
 
 ## Étapes
 
@@ -55,6 +55,33 @@ Tu obtiens `recId`, id de groupe et nom pour chaque source. L'`Url` du canal n'e
 - Si un argument nomme un groupe, filtre sur son `Name` (insensible à la casse, sous-chaîne) ; si rien ne matche, dis-le et arrête plutôt que de tout scraper.
 - Si la liste est vide, arrête et explique qu'aucun canal n'est coché.
 - Annonce à l'utilisateur les groupes retenus **avant** de commencer (Chrome va passer devant, cf. §1 bis).
+
+**Puis, dans la foulée, charge la blacklist** — même base, même clé, même étape :
+
+```bash
+curl -s -H "Authorization: Bearer $AIRTABLE_API_KEY" \
+  "https://api.airtable.com/v0/appP0W2ISytaNyAhG/tblGBn2uKw7FmRJm8?pageSize=100" \
+  | python3 -c 'import json,sys
+for r in json.load(sys.stdin)["records"]:
+    f=r["fields"]; v=(f.get("Valeur") or "").strip()
+    if f.get("Actif") and len(v) >= 4:
+        print(f.get("Type"), v, sep="\t")'
+```
+
+Trois types : **`Auteur`** (personnes, pages, intermédiaires) et **`Groupe exclu`** excluent de la même
+façon ; **`Groupe accepté`** n'exclut rien — il mémorise qu'un arbitrage a eu lieu, pour ne plus
+re-signaler ce groupe (cf. §3 Exclure). Règles de lecture :
+- **`Actif` décoché ⇒ l'entrée est ignorée**, sans être supprimée : c'est ainsi qu'on lève un
+  bannissement sans perdre la trace de l'arbitrage.
+- **`trim()` systématique, et toute `Valeur` de moins de 4 caractères est ignorée** — la table est
+  éditée à la main et le test se fait en sous-chaîne : une entrée trop courte ou trop générique
+  (« Vet ») viderait le fil sans prévenir. Signale-la au lieu de l'appliquer.
+- **Si la lecture échoue, ARRÊTE le scrape.** Ne continue jamais avec une blacklist vide ou partielle,
+  et ne te rabats sur aucune copie locale : une blacklist périmée laisse silencieusement repasser un
+  intermédiaire déjà arbitré, et rien ne le signalerait. La requête n'ajoute aucun risque nouveau —
+  sans Airtable, le scrape ne peut de toute façon pas lire ses canaux ci-dessus.
+- Reprends la liste des entrées appliquées dans le résumé final (§6), pour qu'elle reste visible.
+
 - **Puis empêche l'écran de s'éteindre, avant d'ouvrir Chrome** (macOS) :
 
 ```bash
@@ -201,11 +228,11 @@ Puis copie/lis le fichier localement : `cp ~/Downloads/veto_<gid>.json <scratchp
 Filtre la fenêtre sur `iso` (ou `ageH`) et classe depuis ce fichier local.
 
 #### Exclure (ne PAS compter comme offre) :
-- **Auteur blacklisté** : Read `references/auteurs_exclus.json` (bundlé) en début de classification. Si `p.author` (ou la signature/coordonnées en fin de post) matche une entrée de **`auteurs` ou `groupes_exclus`** (insensible à la casse, substring) → exclu d'office, **sans lire le contenu pour juger de la pertinence**. Une entrée de `groupes_acceptes` n'exclut rien.
+- **Auteur blacklisté** : utilise la blacklist chargée en §0 depuis « Auteurs posts exclus ». Si `p.author` (ou la signature/coordonnées en fin de post) matche une entrée de type **`Auteur` ou `Groupe exclu`** (insensible à la casse, substring) → exclu d'office, **sans lire le contenu pour juger de la pertinence**. Une entrée `Groupe accepté` n'exclut rien.
 - Pas une annonce d'emploi vétérinaire (ni « cherche poste », ni « cherche vétérinaire »).
 - Question générale, partage d'article, sondage, RH sans annonce, formation, appel à thèse/sondage, **offre ASV** sans lien vétérinaire.
 - **Intermédiaire de recrutement** : cabinet de recrutement ou chasseur de têtes. Toujours exclu — il ne donne pas accès à la clinique et pollue la géographie. Voir le §Détecter un intermédiaire ci-dessous.
-- **Groupe de cliniques figurant dans `groupes_exclus`** : exclu, **y compris quand c'est une de ses cliniques qui recrute pour elle-même** (l'appartenance suffit). Mais ⚠️ **l'exclusion des groupes n'est pas automatique** : elle est arbitrée groupe par groupe par Alex. Un groupe de `groupes_acceptes` est à traiter normalement, un groupe **absent des deux listes** est à **signaler, pas à exclure**.
+- **Groupe de cliniques figurant dans `Groupe exclu`** : exclu, **y compris quand c'est une de ses cliniques qui recrute pour elle-même** (l'appartenance suffit). Mais ⚠️ **l'exclusion des groupes n'est pas automatique** : elle est arbitrée groupe par groupe par Alex. Un groupe de `Groupe accepté` est à traiter normalement, un groupe **absent des deux listes** est à **signaler, pas à exclure**.
 - Si exclu pour **non-pertinence** (les motifs ci-dessus, hors blacklist) → ignorer aussi ses commentaires.
 - ⚠️ **La blacklist, elle, s'applique à l'auteur — jamais au post en tant que contenant.** Elle se teste **entrée par entrée**, sur `p.author` comme sur chaque `c.author` :
   - **Post d'un auteur blacklisté** → pas d'entrée pour le post…
@@ -233,10 +260,11 @@ seul un intermédiaire recrute à Béziers, Ferney-Voltaire et La Souterraine le
 **Que faire** : ne pousse pas ses annonces, et **préviens l'utilisateur dans le résumé final** —
 auteur, nombre d'annonces, départements constatés, extrait — pour qu'il tranche.
 
-⛔ **N'ajoute JAMAIS personne à `auteurs_exclus.json` sans son accord explicite, demandé au
+⛔ **N'ajoute JAMAIS personne à « Auteurs posts exclus » sans son accord explicite, demandé au
 préalable.** Détecter, c'est ton travail ; bannir, c'est le sien. Tu présentes les éléments, il
-répond, et seulement ensuite tu écris dans le fichier — dans le **dépôt source**, jamais dans la
-copie installée (cf. §Ressources bundlées). Vaut aussi pour la suppression de ses entrées déjà
+répond, et seulement ensuite tu crées l'enregistrement — en renseignant le **`Motif`** (pour un
+intermédiaire : les départements constatés) et la **`Date d'arbitrage`**, sans quoi personne ne
+saura dans six mois pourquoi l'entrée existe. Vaut aussi pour la suppression de ses entrées déjà
 en base : proposer, pas exécuter.
 
 Un même groupe peut employer **plusieurs** recruteurs qui postent pour les mêmes cliniques :
@@ -245,16 +273,16 @@ signale le rapprochement quand tu le vois, il y a plusieurs entrées à proposer
 #### Groupes de cliniques : un arbitrage par groupe, jamais une déduction
 
 **Appartenir à un groupe n'exclut pas en soi.** Alex choisit **groupe par groupe** : certains sont
-refusés (`groupes_exclus`), d'autres acceptés (`groupes_acceptes`). Ta tâche est de **reconnaître le
+refusés (`Groupe exclu`), d'autres acceptés (`Groupe accepté`). Ta tâche est de **reconnaître le
 groupe**, pas d'en déduire un verdict.
 
-- Groupe dans `groupes_exclus` → exclu, y compris quand c'est une de ses cliniques qui recrute pour
+- Groupe dans `Groupe exclu` → exclu, y compris quand c'est une de ses cliniques qui recrute pour
   elle-même. Une entrée d'enseigne couvre d'un coup tous ses recruteurs, présents et futurs.
-- Groupe dans `groupes_acceptes` → **traite l'annonce normalement**, et ne la signale plus : la
+- Groupe dans `Groupe accepté` → **traite l'annonce normalement**, et ne la signale plus : la
   question a déjà été tranchée, la reposer à chaque scrape est du bruit.
 - Groupe **dans aucune des deux listes** → pousse l'annonce **ou** retiens-la, mais dans tous les cas
   **signale le groupe dans le résumé final** avec le marqueur qui l'a révélé, et demande l'arbitrage.
-  N'écris jamais dans `groupes_exclus` sans réponse.
+  N'écris jamais dans `Groupe exclu` sans réponse.
 
 Reconnaître le groupe :
 - Le marqueur le plus fiable est le **domaine mail ou le site carrière** en signature
@@ -515,10 +543,10 @@ bash <dossier_skill>/scripts/keep_awake.sh stop
 - **Intermédiaires de recrutement suspectés** (§Détecter un intermédiaire) : un bloc à part, jamais
   noyé dans le décompte des exclusions. Pour chacun : auteur, nombre d'annonces, **départements
   constatés**, un extrait, et le rapprochement s'il partage des cliniques avec un autre auteur.
-  Termine par la question explicite : faut-il l'ajouter à `auteurs_exclus.json` et supprimer ses
+  Termine par la question explicite : faut-il l'ajouter à « Auteurs posts exclus » et supprimer ses
   entrées existantes ? C'est une décision de l'utilisateur, pas la tienne.
-- **Groupes de cliniques non arbitrés** rencontrés dans la fenêtre (absents de `groupes_exclus` **et**
-  de `groupes_acceptes`) : un bloc à part également, avec pour chacun le marqueur qui l'a révélé
+- **Groupes de cliniques non arbitrés** rencontrés dans la fenêtre (absents de `Groupe exclu` **et**
+  de `Groupe accepté`) : un bloc à part également, avec pour chacun le marqueur qui l'a révélé
   (domaine mail, site carrière, mention « membre du groupe ») et le nombre d'annonces concernées.
   Demande l'arbitrage : exclure ou accepter. Ne re-signale pas les groupes déjà arbitrés.
 - Mentionne si la couverture commentaires est partielle (défaut) ou exhaustive.
