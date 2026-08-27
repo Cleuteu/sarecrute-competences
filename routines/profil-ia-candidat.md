@@ -42,6 +42,12 @@ Lis le record du candidat. Les champs utiles sont :
 - Tous les champs structurés
 - "CV text" : texte extrait du CV PDF
 - "Transcripts" : transcripts des entretiens concaténés
+- **"Post"** : le verbatim du ou des posts Facebook écrits par le candidat, recopié tel quel au moment de la conversion depuis « Posts scrappés », suivi de « Lien du post : … ». Pour un candidat sourcé sur Facebook, c'est souvent la SEULE source disponible — ni CV, ni entretien. Lis-le comme un CV écrit à la première personne, mais **découpe-le avant de t'en servir** :
+  - les sections sont séparées par une ligne `──────────` : un même auteur peut avoir posté plusieurs fois, à des mois d'intervalle ;
+  - une section commence souvent (pas toujours) par un en-tête `[2026-08-18] <url du post> · <nom du groupe>`. C'est de la métadonnée de scrape, pas du texte du candidat — mais la date te donne l'ancienneté de l'information ;
+  - une section peut être un **commentaire**, annoncé par `💬 COMMENTAIRE de X sous le post de Y — ce qui suit « Post commenté » n'est pas de X.` Dans ce cas, seul le texte situé AVANT la ligne `━━━ Post commenté — … ━━━` est du candidat ; tout ce qui suit est l'annonce d'un tiers.
+
+  ⚠️ **Ne cote et n'extrais jamais rien à partir d'un texte qui n'est pas du candidat.** Les annonces de cliniques qui traînent dans ce champ décrivent un poste à pourvoir, pas son parcours : c'est exactement le piège du « plateau technique » de l'ÉTAPE 3 §C, sous une autre forme.
 - "Compétences candidat" : le lien vers les lignes de compétence DÉJÀ enregistrées pour ce candidat. Le lien seul ne suffit pas : **va lire ces enregistrements dans la table `Compétences`** pour récupérer, pour chacun, son recordId et ses champs `Acte`, `Niveau`, `Source`, `Commentaire` et **`Cotation gelée`**. L'ÉTAPE 3 en a besoin pour ne pas créer de doublon, ne pas écraser une correction humaine, et pouvoir mettre à jour la bonne ligne. Si le champ est vide, le candidat n'a encore aucune ligne — c'est le cas le plus fréquent.
 
 ## ÉTAPE 3 — Grille de compétences par acte
@@ -92,6 +98,13 @@ Le champ "Transcripts" n'est pas un compte rendu rédigé : c'est de la transcri
 
 ⚠️ **Un mot reconnu n'est pas un acte reconnu.** Une mammite soignée en médecine n'est pas l'acte « Problèmes de mamelles (obstruction, déchirure) », qui est de la chirurgie des tissus mous — même si « mammite » figure dans ses `Synonymes`. Vérifie toujours la cohérence avec la `Famille` de l'acte avant de coter : c'est elle qui dit de quel geste on parle.
 
+### C-ter) Le post Facebook est une source, avec ses limites
+
+- **C'est une annonce écrite pour se vendre.** Le candidat y met ce qui l'avantage : cote ce qu'il dit de sa propre pratique, sans arrondir vers le haut. « Je suis globalement autonome en consultations canines généralistes et en urgence » cote « Autonome » ; « de plus en plus en chirurgie de convenance, bien que je sois encore en cours d'apprentissage » cote « En apprentissage », pas « Ponctuel ».
+- **Un post est court.** Il donne rarement plus de deux à cinq actes, souvent aucun. La règle du §B tient : le silence n'est pas une information, et un post de dix lignes ne peut pas produire une grille de vingt lignes.
+- **L'espèce est rarement dite explicitement** — elle se déduit du reste du post (« recherche un poste en canine », « en rurale »). Si elle reste indéterminable, aucune ligne (§A).
+- Dans le `Commentaire` de la ligne, cite le verbatim et donne l'origine avec la date de l'en-tête : `« autonome en consultations canines généralistes » (post Facebook du 18/08/26)`.
+
 ### D) Remplir la ligne
 
 Pour chaque acte coté, une ligne dans `Compétences` avec :
@@ -125,7 +138,7 @@ La routine est rejouée à chaque nouvel entretien : elle doit converger, pas em
 ⚠️ **En cas de doute, c'est gelé.** Si `Cotation gelée` est vide, illisible, renvoie `#ERROR!` ou une valeur que tu ne reconnais pas, considère la ligne comme gelée et signale-le dans le message final. Ne devine jamais dans le sens qui t'autorise à écrire.
 
 - **Ne supprime jamais une ligne.** Si ton extraction ne retrouve pas un acte coté lors d'un run précédent, laisse la ligne en place : ne pas retrouver n'est pas infirmer.
-- **Jamais deux lignes pour le même couple**, même à des niveaux différents. Si le CV et le transcript se contredisent, **le transcript gagne** (c'est de la parole, plus récente et interrogeable) et la contradiction va dans le Commentaire.
+- **Jamais deux lignes pour le même couple**, même à des niveaux différents. Si deux sources se contredisent, l'ordre est **transcript > CV > post** — la parole est plus récente et interrogeable, le post est le plus promotionnel des trois — et la contradiction va dans le Commentaire.
 
 Écris les lignes en lot (un `create` pour les nouvelles, un `update` pour celles à corriger) plutôt qu'une par une.
 
@@ -142,10 +155,10 @@ La grille est un complément ; le Profil IA et les champs du candidat sont le li
 
 ## ÉTAPE 4 — Générer le profil et remplir les champs
 
-À partir de TOUTES les données collectées (schéma + champs candidat + CV text + Transcripts), génère :
+À partir de TOUTES les données collectées (schéma + champs candidat + CV text + Transcripts + Post), génère :
 
-### A) Les champs de contact — depuis le CV text si vides
-Ces champs sont souvent présents en en-tête du CV. Ne les remplis QUE si le champ est actuellement vide dans Airtable :
+### A) Les champs de contact — depuis le CV text ou le post, si vides
+Ces champs sont souvent présents en en-tête du CV, et parfois en fin de post (« n'hésitez pas à me contacter au … », « mon mail : … »). Ne les remplis QUE si le champ est actuellement vide dans Airtable :
 - Prénom
 - Nom
 - Email
@@ -153,7 +166,12 @@ Ces champs sont souvent présents en en-tête du CV. Ne les remplis QUE si le ch
 - Ville
 - CP (code postal)
 
-Si la valeur est introuvable dans le CV, laisse le champ vide.
+Si la valeur est introuvable, laisse le champ vide.
+
+⚠️ Trois pièges, mesurés sur les posts réels. Un mail ou un téléphone faux coûte beaucoup plus cher qu'un champ vide : dans le doute, n'écris rien.
+- **N'extrais jamais un numéro depuis une URL.** L'identifiant d'un post Facebook (`…/posts/2430186394176501/`) a exactement la forme d'un 06 XX XX XX XX. Sur 100 posts, une lecture naïve trouve 18 « téléphones » dont 11 sortent des liens. Ignore tout ce qui se trouve à l'intérieur d'une URL.
+- **Le contact doit être celui du candidat.** Les adresses de cliniques qui répondent (`contact@…`, « contactez-nous par mail : … ») vivent dans les blocs `━━━ Post commenté ━━━` et dans les annonces recopiées : elles ne sont pas à lui.
+- **Ville et CP ne se déduisent pas d'une zone de recherche.** « Je cherche sur la Côte d'Azur » ne dit pas où la personne habite ; « j'habite à Nice » le dit. Ces deux champs déclenchent le géocodage, donc une ville fausse déplace le candidat sur la carte et fausse toutes ses distances.
 
 ### B) Les champs structurés
 Pour chaque champ singleSelect ou multipleSelect, utilise UNIQUEMENT les valeurs récupérées depuis le schéma à l'étape 1. Les champs texte libre sont :
@@ -166,9 +184,11 @@ Pour chaque champ singleSelect ou multipleSelect, utilise UNIQUEMENT les valeurs
 - Mobilité
 - Diplôme supplémentaire
 
-### B-bis) Règles déterministes — prioritaires sur l'analyse du CV et des transcripts
+⚠️ **« Années d'expérience » compte double** : c'est ce champ, et non le texte du profil, qui pilote la compatibilité avec les offres (la formule « Expérience » en découle). Une phrase comme « vétérinaire depuis un peu plus de 2 ans » ou « diplômée en juillet 2026 » suffit à le renseigner — laissé vide, le candidat est traité comme débutant et disparaît des offres qui demandent « 1 à 2 ans » ou « Autonome ». Si le post ne donne qu'un ordre de grandeur, prends la valeur basse de ce qu'il affirme.
 
-Applique ces règles APRÈS avoir rempli les champs structurés. Elles écrasent toute valeur que tu aurais déduite du CV ou des transcripts.
+### B-bis) Règles déterministes — prioritaires sur l'analyse du CV, des transcripts et du post
+
+Applique ces règles APRÈS avoir rempli les champs structurés. Elles écrasent toute valeur que tu aurais déduite du CV, des transcripts ou du post.
 
 **Diplômé·e de l'année hors France** — Détermine d'abord l'année civile en cours (la date à laquelle tu exécutes cette routine). Si "Année de sortie" est EXACTEMENT égale à cette année ET que l'école véto n'est PAS une école française, alors :
 - Internat = "Non"
@@ -207,6 +227,8 @@ Structure obligatoire :
 
 Style : direct, professionnel, chaleureux. Prose fluide sauf pour les compétences techniques où des tirets sont acceptés. Pas de langue de bois. Longueur : 200 à 400 mots.
 
+⚠️ **Quand le post Facebook est la seule source** (ni CV ni transcript), la matière tient en quelques lignes : écris un profil **court, 80 à 150 mots**, et arrête-toi là — la fourchette de 200 à 400 mots ne vaut que pour un dossier complet. Ne comble aucun trou : pas d'école, pas d'année de sortie, pas de parcours reconstitués. Dis platement ce qu'on ignore (« l'école et l'année de diplôme ne sont pas connues ») et remplace la phrase de synthèse par ce qu'il faudrait aller vérifier au premier appel. Un profil court et vrai s'utilise ; un profil étoffé et faux fait perdre un rendez-vous.
+
 Exemple de bon profil :
 "Réhane Chiron Gonnon est vétérinaire diplômée de Nantes en 2023. Elle a exercé dans l'Yonne pendant 9 mois avant de réaliser un CDD de 6 mois en rurale pure dans le Maine-et-Loire. Elle est actuellement en mixte en Loire-Atlantique mais la part de rurale se réduit. Elle est autonome en consultation courante rurale et en obstétrique. Elle a pratiqué en laitier et allaitant ainsi qu'en petits ruminants dont elle fait aussi les césariennes. Elle souhaite se former au parage. Elle recherche un CDI en 100% rurale pour juillet, à environ 200 jours/an, convention collective majorée (échelon 3). C'est un profil sérieux, bien formé, avec une vraie conviction pour la rurale."
 
@@ -214,7 +236,7 @@ Exemple de bon profil :
 
 Mets à jour le record du candidat avec TOUS les champs générés via le MCP Airtable.
 Pour les multipleSelects : tableau de valeurs. Pour les singleSelect : string. Pour "Profil IA" : texte brut.
-Ne touche PAS aux champs "Profil", "CV text" et "Transcripts".
+Ne touche PAS aux champs "Profil", "CV text", "Transcripts" et "Post" — ce dernier est le verbatim Facebook, il ne se réécrit ni ne se résume.
 
 Les lignes de la table `Compétences` ont déjà été écrites à l'ÉTAPE 3 : n'y reviens pas, et n'écris pas le champ de lien "Compétences candidat" du record candidat — il se remplit tout seul depuis les lignes créées.
 
@@ -229,7 +251,7 @@ Le champ "Statut IA" a exactement trois options : "En cours", "Exécuté", "Erre
 La valeur "En cours" est posée par la couche appelante avant l'envoi du webhook — ne l'écris JAMAIS toi-même.
 
 - **Succès** : "Statut IA" = "Exécuté", écrit dans l'appel de l'étape 5.
-- **Échec** : si quelque chose échoue à n'importe quelle étape (record introuvable, schéma illisible, CV et transcripts tous deux vides et inexploitables, refus d'écriture Airtable, valeur select impossible à résoudre sur un champ obligatoire), fais un dernier appel de mise à jour minimal avec "Statut IA" = "Erreur" et rien d'autre.
+- **Échec** : si quelque chose échoue à n'importe quelle étape (record introuvable, schéma illisible, CV, transcripts et post tous vides et inexploitables, refus d'écriture Airtable, valeur select impossible à résoudre sur un champ obligatoire), fais un dernier appel de mise à jour minimal avec "Statut IA" = "Erreur" et rien d'autre.
 - **Exception, rappelée depuis l'ÉTAPE 3 §G** : un échec limité à la grille de compétences ne fait pas passer le statut à "Erreur". Le run reste "Exécuté" et le problème est décrit dans le message final.
 
 Le record ne doit JAMAIS rester en "En cours" à la sortie de la routine : tout chemin de sortie se termine soit par "Exécuté", soit par "Erreur".
