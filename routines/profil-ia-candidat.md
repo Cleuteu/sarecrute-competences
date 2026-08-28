@@ -190,7 +190,6 @@ Pour chaque champ singleSelect ou multipleSelect, utilise UNIQUEMENT les valeurs
 - **`Expérience`** est une **sélection unique** — Etudiant / Débutant / 1 à 2 ans / Autonome / Spécialiste. C'est ce champ, et lui seul, que le matching compare à l'« Expérience requise » des offres. Laissé vide, le candidat est traité comme « Débutant » et disparaît des offres qui demandent mieux : ne le laisse pas vide si le texte permet de trancher. « Vétérinaire depuis un peu plus de 2 ans » donne « 1 à 2 ans » ; « autonome en consultation courante » donne « Autonome » ; « je termine ma dernière année » donne « Etudiant ». Entre deux paliers, prends le plus bas — ce champ décide de ce qu'une clinique verra.
 - **`Années d'expérience`** est un **entier**, et il ne sert pas au matching : il pilote l'échelon et la rémunération convention collective. Ne le renseigne que si le texte donne une durée réelle d'exercice.
 - ⚠️ **Ne calcule jamais l'un depuis l'autre, ni depuis l'année de sortie.** « Spécialiste » n'est pas un nombre d'années, et un diplôme de 2018 obtenu à l'étranger avec une équivalence récente peut ne représenter que quelques mois d'exercice — le cas existe tel quel dans la base. L'année de sortie donne l'ancienneté du diplôme, pas l'expérience.
-- Si le candidat est étudiant, **coche aussi `Etudiant`** : cette case ne pilote plus « Expérience » depuis que celui-ci est une sélection, mais elle pilote toujours l'échelon.
 
 ### B-bis) Règles déterministes — prioritaires sur l'analyse du CV, des transcripts et du post
 
