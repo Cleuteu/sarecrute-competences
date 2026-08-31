@@ -9,7 +9,9 @@ Scraper les posts des **groupes Facebook vétérinaires** (tri chronologique) su
 
 **Sources** : elles ne sont **pas** dans ce fichier. Ce sont les enregistrements de la table **« Canaux de diffusion »** (`tbluH5M2sogAN85dl`, base `appP0W2ISytaNyAhG`) dont la case **`Scraper les posts`** est cochée **et** dont l'`Url` contient `/groups/<id>`. On peut donc ajouter une source sans republier le plugin. Un argument nommant un groupe (« scrape veto emploi véto 48h ») restreint à celui-là.
 
-**Fenêtre** : lue depuis les arguments (ex. `aujourd'hui`, `48h`, `2 derniers jours`, `6h`). Défaut = **6 dernières heures**. L'horloge de référence est celle du **navigateur** (`new Date()` dans la page), pas la date système — vérifie-la au début.
+**Fenêtre** : par défaut, **depuis le dernier post déjà scrappé** — la borne se calcule en §0 depuis la base, canal par canal, on ne la demande pas à l'utilisateur. Un argument explicite la remplace (`aujourd'hui`, `48h`, `2 derniers jours`, `6h`). L'horloge de référence est celle du **navigateur** (`new Date()` dans la page), pas la date système — vérifie-la au début.
+
+⚠️ **La borne de date ne suffit pas à s'arrêter.** Facebook n'affiche pas l'heure de publication : « 3 j » couvre 24 h entières, donc la borne oblige à redérouler tout le dernier jour déjà en base. Le critère d'arrêt réel est **« on a rejoint les posts déjà en base »**, reconnus à leur texte ; la date ne sert plus que de garde-fou si ces posts ont été supprimés. Voir §2.
 
 **Navigateur — OBLIGATOIRE** : utilise le **Chrome réel de l'utilisateur** via les outils `mcp__claude-in-chrome__*` (session Facebook déjà connectée). **N'utilise PAS** le navigateur in-app (`mcp__Claude_Browser__*` / `preview_start`) : il n'a pas de session FB → page déconnectée, scrape impossible. Au départ : `list_connected_browsers` → `select_browser` → `tabs_create_mcp` (nouvel onglet dédié) → `navigate`.
 
@@ -27,7 +29,7 @@ Scraper les posts des **groupes Facebook vétérinaires** (tri chronologique) su
 
 ## Ressources bundlées
 
-- **`scripts/scrape_helpers.js`** — Read ce fichier, injecte tout son contenu via `javascript_tool`. Fournit `__decodeTS`, `__parseTS`, `__harvestAll`, `__store`/`__merge`, `__expandPostText`, `__expandCommentText`, `__expandVisible` (expansion bornée au viewport, **obligatoire sur les fils longs**), `__commentFull`, `__truncated`, `__truncatedComments`, `__purgeStubs` / `__purgeCommentStubs` (appelés par `__exportBlocked`, pas à appeler soi-même), `__storyToken` (jeton `__cft__` = identité du post d'une ancre), `__exportBlocked` (garde unique avant export), `__profileUrl`, `__gid` (id du groupe courant, jamais codé en dur), `__alive`, `__chrono` (contrôle du tri), `__orphanComments` (compteur). **Ré-injecte après toute navigation** (le window est vidé).
+- **`scripts/scrape_helpers.js`** — Read ce fichier, injecte tout son contenu via `javascript_tool`. Fournit `__decodeTS`, `__parseTS`, `__harvestAll`, `__store`/`__merge`, `__expandPostText`, `__expandCommentText`, `__expandVisible` (expansion bornée au viewport, **obligatoire sur les fils longs**), `__commentFull`, `__truncated`, `__truncatedComments`, `__purgeStubs` / `__purgeCommentStubs` (appelés par `__exportBlocked`, pas à appeler soi-même), `__storyToken` (jeton `__cft__` = identité du post d'une ancre), `__isCommentArticle` / `__inComment` (frontière post ↔ commentaire, cf. §4), `__emptyBodies` (posts au corps vide), `__seenInit` / `__tailKnown` / `__unseen` (arrêt sur le déjà-scrappé, cf. §0 et §2), `__exportBlocked` (garde unique avant export), `__profileUrl`, `__gid` (id du groupe courant, jamais codé en dur), `__alive`, `__chrono` (contrôle du tri), `__orphanComments` (compteur). **Ré-injecte après toute navigation** (le window est vidé).
 - **`scripts/airtable_push.py`** — pousse un `records.json` en upsert-merge. Voir §5.
 - **`scripts/focus_chrome.sh`** (macOS) / **`scripts/focus_chrome.ps1`** (Windows) — ramènent l'onglet du scrape au premier plan pour réveiller le rendu. Voir §1 bis.
 - **`scripts/keep_awake.sh`** (macOS) — empêche l'écran de s'éteindre pendant la collecte. À lancer **en préventif** dès §0 et à arrêter en §6. Voir §0.
@@ -82,6 +84,67 @@ re-signaler ce groupe (cf. §3 Exclure). Règles de lecture :
   sans Airtable, le scrape ne peut de toute façon pas lire ses canaux ci-dessus.
 - Reprends la liste des entrées appliquées dans le résumé final (§6), pour qu'elle reste visible.
 
+**Puis charge la borne ET les empreintes des posts déjà en base**, canal par canal. C'est ce qui
+fixe la fenêtre par défaut *et* ce qui permettra de s'arrêter dès qu'on rejoint le déjà-scrappé
+(§2) :
+
+```bash
+python3 - <<'EOF'
+import json, os, re, urllib.request, urllib.parse, datetime
+SIG = 48                     # ⚠️ doit valoir window.__SIG_LEN des helpers
+key = os.environ["AIRTABLE_API_KEY"]
+base = "https://api.airtable.com/v0/appP0W2ISytaNyAhG/tblE8XF5PjgUd7PdP"
+off, rows = None, []
+while True:
+    q = urllib.parse.urlencode([("pageSize", "100")] + ([("offset", off)] if off else []))
+    r = urllib.request.Request(base + "?" + q, headers={"Authorization": "Bearer " + key})
+    d = json.load(urllib.request.urlopen(r)); rows += d["records"]; off = d.get("offset")
+    if not off: break
+
+def clean(b):                # même normalisation que window.__cleanBody
+    b = re.sub(r"\s+", " ", b or "")
+    return re.sub(r"\s*(?:…\s*)?(?:En )?[Vv]oir (?:plus|moins)\s*$", "", b).strip()
+
+bornes = {}                  # dernier post scrappé, par canal
+for rec in rows:
+    f = rec["fields"]
+    for c in f.get("Canaux") or []:
+        d0 = f.get("Date du post") or ""
+        if d0 > bornes.get(c, ""): bornes[c] = d0
+
+sigs = {c: set() for c in bornes}
+for rec in rows:
+    f = rec["fields"]
+    for chunk in re.split(r"\n*─{5,}\n*", f.get("Contenu complet") or ""):
+        chunk = chunk.strip()
+        m = re.match(r"^\[(\d{4}-\d{2}-\d{2})\]", chunk)
+        dt = m.group(1) if m else (f.get("Date du post") or "")
+        # on ne garde que le corps : ni l'en-tête "[date] lien · canal", ni le
+        # marqueur 💬 des commentaires, ni le post parent recopié
+        body = "\n".join(l for l in chunk.split("\n")
+                         if not l.startswith("[") and not l.startswith("💬"))
+        body = clean(body.split("━━━ Post commenté")[0])
+        if len(body) < 25: continue
+        for c in f.get("Canaux") or []:
+            lim = (datetime.date.fromisoformat(bornes[c]) - datetime.timedelta(days=7)).isoformat()
+            if dt >= lim: sigs[c].add(body.lower()[:SIG])
+
+for c in bornes:
+    json.dump(sorted(sigs[c]), open("/tmp/veto_sigs_%s.json" % c, "w"), ensure_ascii=False)
+    print(c, "| borne:", bornes[c], "|", len(sigs[c]), "empreintes")
+EOF
+```
+
+- **`bornes[recId]`** = date du dernier post scrappé de ce canal → c'est la **borne par défaut**
+  (inclusive : on repart de ce jour-là, la dédup du push fera le reste).
+- **`/tmp/veto_sigs_<recId>.json`** = les empreintes de CE canal, à injecter en §1 (`__seenInit`).
+  Elles ne couvrent que **borne − 7 jours** : au-delà, le critère de date (§2 b) a déjà arrêté le
+  scrape, donc les charger ne servirait qu'à gonfler l'injection. Compter ~8 Ko sur un groupe actif,
+  soit un seul appel `javascript_tool`.
+- Si un canal n'a **aucune** entrée en base, il n'a ni borne ni empreintes : prends alors les
+  **6 dernières heures** et dis-le, plutôt que de dérouler le groupe entier.
+- Annonce la fenêtre retenue par canal avant de commencer.
+
 - **Puis empêche l'écran de s'éteindre, avant d'ouvrir Chrome** (macOS) :
 
 ```bash
@@ -99,6 +162,14 @@ Navigue vers `https://www.facebook.com/groups/<id du groupe>/?sorting_setting=CH
 ⚠️ **N'ouvre JAMAIS l'`Url` du canal telle quelle.** Ce champ sert à la publication : il pointe l'accueil du groupe, donc un fil trié **par pertinence**, où les posts récents ne sont pas en haut. On n'en garde que l'id, et on reconstruit l'URL avec le tri chronologique. Même règle si l'`Url` contient déjà des paramètres : on les jette.
 1 screenshot pour vérifier (tri chronologique, pas de captcha) **au premier groupe seulement** ; pour les suivants, `__alive()` suffit à confirmer que la page a chargé.
 Attends ~2,5 s, puis Read `scripts/scrape_helpers.js` (relatif au dossier de la compétence) et injecte son contenu. Vérifie l'heure du navigateur (`new Date().toString()` peut être bloqué à l'affichage — concatène-le à une string courte si besoin) et calcule la borne de la fenêtre.
+
+**Puis charge les empreintes de §0** (elles seules permettent l'arrêt anticipé du §2) :
+
+```javascript
+window.__seenInit(<contenu de /tmp/veto_sigs_{recId du canal courant}.json>);   // -> nombre d'empreintes
+```
+
+Une injection volumineuse peut être tronquée : contrôle le nombre renvoyé. Si tu ne charges pas les empreintes, `__tailKnown()` renverra toujours `false` et le scrape retombera sans dommage sur le seul critère de date — c'est plus lent, jamais faux.
 
 ### 1 bis. Vérifier que le rendu tourne — et réveiller la page tout seul
 
@@ -166,10 +237,35 @@ await (async function(){
 - `frozen: true` → réveille la page (§1 bis) puis **reprends les cycles** ; le travail déjà en `window.__store` est intact.
 - `frozen: false` → c'est un vrai plateau : applique le critère d'arrêt ci-dessous.
 
-**Critère d'arrêt** : continuer tant que la queue (`tail`) n'a pas franchi la borne.
-- ✅ S'arrêter quand **2-3 posts consécutifs** sont clairement hors fenêtre (`iso`/`ageH` au-delà de la borne) **ET** que `stored` ne croît plus entre deux lots **ET** que `__alive()` confirme que le rendu tourne (`frozen: false`).
+**Critère d'arrêt — deux voies, la première suffit.**
+
+**(a) On a rejoint le déjà-scrappé.** C'est le critère normal, et de loin le plus rapide. Ajoute à
+chaque lot :
+
+```javascript
+window.__tailKnown(3, '<borne YYYY-MM-DD>')   // true = les 3 derniers posts sont déjà en base
+```
+
+- ✅ S'arrêter dès que `__tailKnown(3, borne)` est `true` **ET** que `__alive()` confirme
+  `frozen: false`. Trois posts consécutifs déjà en base, tous à la borne ou avant : on a rejoint le
+  fil connu, tout ce qui suit est plus ancien.
+- ⚠️ **Trois, jamais un.** Une republication au texte inchangé revient régulièrement en tête de fil
+  (constaté : 4 sur une fenêtre de 3 jours) ; s'arrêter au premier post connu couperait le scrape
+  dès la première ligne. La condition de date écarte ce cas — une republication du jour est
+  au-dessus de la borne, donc ne compte pas comme « connue ».
+- Ce critère dispense du minimum de 15 cycles : on s'arrête sur une preuve, pas sur un quota.
+
+**(b) Repli par la date**, quand (a) ne se déclenche jamais — dernier post scrappé **supprimé**,
+empreintes non chargées, ou premier scrape d'un canal :
+- ✅ S'arrêter quand **2-3 posts consécutifs** sont clairement hors fenêtre (`iso`/`ageH` au-delà de
+  la borne) **ET** que `stored` ne croît plus entre deux lots **ET** que `__alive()` confirme que le
+  rendu tourne (`frozen: false`).
 - ✅ Au moins ~15 cycles cumulés sur un groupe actif avant de conclure.
 - ⚠️ Ne jamais s'arrêter sur un seul timestamp ambigu.
+
+⚠️ **Garde toujours (b) armé** : c'est lui qui borne le scrape si (a) ne se déclenche pas. Ne
+remplace jamais (b) par (a), et ne descends jamais sous la borne de date au motif qu'on n'a pas
+encore rencontré de post connu — un post supprimé ne reviendra jamais.
 
 Note : `__parseTS` met midi par défaut pour les dates sans heure ; quand l'heure est présente (« Le 20 juin à 19:41 ») elle est exacte. Pour une borne fine (« aujourd'hui », 48h), filtre sur `iso`/`ageH` calculé.
 
@@ -178,12 +274,15 @@ Note : `__parseTS` met midi par défaut pour les dates sans heure ; quand l'heur
 Le merge est auto-réparant (il garde le corps le plus long), mais un post jamais déplié reste tronqué. **Avant d'exporter**, contrôle qu'il ne reste aucun « Voir plus » non déplié — **posts ET commentaires** :
 ```javascript
 JSON.stringify({stop: window.__exportBlocked('<borne YYYY-MM-DD>'),
+                vides: window.__emptyBodies('<borne YYYY-MM-DD>'),
                 posts: window.__truncated(), coms: window.__truncatedComments()});
 ```
 - `stop` **vide** → OK, passe à l'export.
 - `stop` **non vide** : depuis la 0.9.2, `__exportBlocked` a **déjà** purgé les **doublons parasites** (posts ET commentaires) — des entrées tronquées dont la version complète est déjà dans le store, non dépliables puisque l'exemplaire affiché est déjà déplié, et qui bloquaient l'export indéfiniment. Inutile d'appeler `__purgeStubs()` toi-même. Ce qui reste a donc bien été capté avant dépliage (souvent les posts les plus récents, en haut du fil). Remonte jusqu'à elles (`window.scrollTo(0,0)` puis re-descends par petits pas de ~650 px), en refaisant `__expandPostText()` **et `__expandCommentText()`** → attendre **≥1,5 s** → `__merge()` à chaque pas, puis **re-vérifie**. Répète jusqu'à `stop` vide. Ne jamais exporter tant que ce n'est pas le cas.
 
 ⚠️ Un `stop` qui ne bouge pas d'un lot à l'autre n'est plus un dépliage qui échoue : c'était la signature du doublon parasite, désormais purgé automatiquement. S'il persiste, c'est une vraie troncature — remonte jusqu'à elle.
+
+- `vides` **non vide** → des posts au **corps vide**. `__emptyBodies` ne bloque **pas** l'export (un post sans texte — photo, lien, affiche — existe pour de vrai et bloquerait indéfiniment), mais **aucune de ces entrées ne doit partir en base**. Pour chacune : ouvre son `permalink` et lis le post. Soit il est réellement sans texte exploitable → écarte-le ; soit son corps n'avait pas été rendu → reprends-le à la main. Depuis la 0.10.1 ce cas est **plus fréquent et c'est voulu** : là où le texte d'un commentaire prenait silencieusement la place du post (cf. §4), on obtient désormais une chaîne vide, franche et signalée.
 
 ⚠️ `__truncated()` seul ne suffit pas : il ne regarde que les **posts**. Un commentaire figé sur « Bonjour,… Voir plus » passait donc en base sans aucun signal (constaté le 10 août 2026). Utilise `__exportBlocked(borne)`, qui contrôle les deux — et qui filtre sur la fenêtre, pour ne pas te bloquer sur un vieux post hors périmètre qui ne sera pas exporté.
 
@@ -197,7 +296,7 @@ JSON.stringify({stop: window.__exportBlocked('<borne YYYY-MM-DD>'),
 > résout, l'ancre du groupe étant maintenant dans la racine.
 >
 > ⚠️ Si tu vois malgré tout un `body` vide à la relecture, ne pousse pas l'entrée : va lire le post
-> dans la page. Un corps vide reste le seul défaut de capture qu'aucun garde-fou ne signale.
+> dans la page. `__emptyBodies(borne)` les liste depuis la 0.10.1 (cf. §2 bis) ; avant, un corps vide était le seul défaut de capture que rien ne signalait.
 
 > **Permalinks — limite connue.** Sur le fil, FB n'injecte l'id du post (donc le permalink reconstructible via `p.permalink`) que pour **~40 % des posts**. Testé et **écarté** pour débloquer le reste : le `.click()` JS sur la date ne navigue **que** pour les posts déjà résolus (n'apporte rien) ; le **hover** ne résout rien (`isTrusted=false`) ; l'attente/dwell non plus ; le fiber React n'expose pas de props lisibles. Donc ~60 % retombent sur l'URL de recherche (repli prévu). Seule piste restante non testée : le menu « … » → « Copier le lien » par post.
 >
@@ -395,10 +494,22 @@ Pièges vérifiés sur les annonces réelles (août 2026) :
 - Sous « Clinique cherche vétérinaire » → **candidat** (profil, dispo, zone, compétences) — y compris « MP envoyé » → contenu = `Candidature en MP`.
 - Sous « Vétérinaire cherche poste » → **clinique/recruteur** (propose poste/zone/contrat) — y compris « je t'envoie un MP » → contenu = `Proposition en MP`.
 - **Ignorer** : encouragements (« Bravo », « Courage », « Ne pas hésiter »), tags d'un tiers sans info, questions/critiques sans recrutement, et **les commentaires de l'auteur sur son propre post**.
-- Champs : **Canaux** = celui du post parent (un commentaire vient forcément du même groupe) ; Prénom/Nom du commentateur ; **Profil Facebook** = `c.profileUrl` (celui du **commentateur**, jamais celui du post parent ; vide si absent) ; Date = date du commentaire (sinon du post) ; Lien = même que le parent ; Zone (du commentaire, sinon du parent) ; Contenu (texte, ou « Candidature/Proposition en MP ») ; **Type de post inversé** vs parent ; Pratiques/Spécialités déduites (sinon du parent) ; **Type d'entrée** = `Commentaire` ; **Post source** = `{Auteur du post} - {résumé court}` ; Expérience ; Nom de la clinique si recruteur.
+- Champs : **Canaux** = celui du post parent (un commentaire vient forcément du même groupe) ; Prénom/Nom du commentateur ; **Profil Facebook** = `c.profileUrl` (celui du **commentateur**, jamais celui du post parent ; vide si absent) ; Date = date du commentaire (sinon du post) ; Lien = même que le parent ; Zone (du commentaire, sinon du parent) ; Contenu (texte, ou « Candidature/Proposition en MP ») ; **Type de post inversé** vs parent — *par défaut, pas par principe* : c'est le **sens du commentaire** qui tranche (cf. ⚠️ ci-dessous) ; Pratiques/Spécialités déduites (sinon du parent) ; **Type d'entrée** = `Commentaire` ; **Post source** = `{Auteur du post} - {résumé court}` ; Expérience ; Nom de la clinique si recruteur.
 - **Le commentaire d'une personne DÉJÀ en base enrichit son enregistrement — il n'en crée pas un second.** Le push s'en charge (cf. §5) : tu émets la ligne normalement, il la fusionne. Ce qui reste ton travail, c'est de **remplir les champs que l'annonce de base laissait vides**, en te servant de ce que le commentaire révèle.
   - Le signal le plus utile est **le profil des posts sous lesquels la personne commente**. L'annonce de Sabine Marcillaud (Villeneuve d'Aveyron) ne dit rien de l'expérience attendue ; elle relance deux **jeunes diplômées** → `Expérience` = `Débutant`. Une clinique qui ne démarche que des internes dirait autre chose.
   - ⚠️ N'hérite pas à l'envers : les `Statuts contractuels`, `Zones` ou `Date de disponibilité` du post commenté décrivent **la candidate**, pas l'offre de la personne qui commente. Le push refuse d'écraser une valeur existante de l'annonce avec elles, mais il ne peut pas deviner qu'une valeur *absente* de l'annonce serait fausse : dans le doute, **laisse vide**.
+- ⚠️ **L'inversion du type est un défaut, pas une loi — et elle se retourne quand le commentateur
+  EST le sujet du post.** Un intermédiaire qui publie *pour* un vétérinaire (« ENVN, +20,
+  expérimentée, cherche remplacements ponctuels dans le 94 ») produit un post `Vétérinaire cherche
+  poste` ; les recruteurs y commentent (donc `Clinique cherche vétérinaire`, inversion normale),
+  mais **la vétérinaire elle-même y répond** (« j'ai envoyé un MP ») et reste, elle,
+  `Vétérinaire cherche poste` — même type que le parent. Le signal est net : elle répond **à
+  plusieurs commentateurs** au lieu de s'adresser à l'auteur du post. Appliquer l'inversion
+  mécaniquement en fait une fausse clinique, à qui on attribue en prime l'offre du recruteur
+  d'à côté (constaté le 31 août 2026).
+  Le contexte à recopier dans `Contenu complet` reste le post parent : c'est lui qui décrit son
+  profil, sa zone et ses dates.
+
 - **Tout commentaire conservé — inclure l'INTÉGRALITÉ du post parent** : le `Contenu complet` du commentaire = le **texte du commentaire** (ou « Candidature/Proposition en MP ») **suivi de l'intégralité du post parent**. Le post parent est l'entrée de `__store`/export qui **porte** ce commentaire (son `body`) — jamais à re-scrapper séparément. Format :
   ```
   {texte du commentaire}
@@ -457,7 +568,7 @@ monter. Même logique que `Contrat court`, qu'on laisse à `false` dans le doute
 
 ### 4. Commentaires — capture
 
-Les commentaires sont déjà récoltés par `__harvestAll`/`__merge` (champ `comments` de chaque post), via `div[role="article"][aria-label="Commentaire de {Nom} il y a {temps}"]`.
+Les commentaires sont déjà récoltés par `__harvestAll`/`__merge` (champ `comments` de chaque post), via `div[role="article"][aria-label]` dont le libellé commence par **« Commentaire de {Nom} »** ou **« Réponse de {Nom} au commentaire de {Autre} »** — les deux, depuis la 0.10.1 : un recruteur répond souvent dans le fil plutôt qu'en commentaire de premier niveau, et sa proposition a la même valeur. Le nom retenu est toujours celui de l'auteur du message, jamais celui à qui il répond.
 
 **Couverture par défaut (sûre)** : `__merge()` n'attrape que les commentaires affichés (« plus pertinents ») au fil du scroll. **NE PAS cliquer « Voir plus de commentaires »** ni le compteur de commentaires : ça navigue vers le permalink et vide le window. (`__expandCommentText()` est sûr : il ne clique que l'expander de texte *à l'intérieur* d'un commentaire, dont le libellé exact ne matche jamais « Voir plus de commentaires ».)
 
@@ -466,6 +577,35 @@ Les commentaires sont déjà récoltés par `__harvestAll`/`__merge` (champ `com
 ⚠️ Ne rétablis jamais un repli « plus proche timestamp qui précède » comme mécanisme principal : le 10 août 2026 il a recopié le jeu de commentaires de deux posts sur un post voisin qui ne les portait pas. Un commentaire mal rattaché est **pire** qu'un commentaire manquant — il fabrique un faux candidat sous une annonce qui n'est pas la sienne, et le `Post source` comme le post parent recopié dans `Contenu complet` deviennent faux. En cas de doute à la relecture, vérifie la cohérence du contenu (un commentaire sur des fiches de révision n'appartient pas à une annonce d'emploi) et écarte.
 
 **Couverture exhaustive (optionnelle, plus lente)** : pour les posts à fort engagement, ouvrir le **permalink** du post dans l'onglet (`…/posts/{pid}/`) où **tous** les commentaires sont visibles sans virtualisation, ré-injecter `scripts/scrape_helpers.js`, `__merge()`, puis revenir au feed. Ne le faire que si l'utilisateur veut la couverture complète.
+
+⚠️ **Sur un permalink, l'AUTEUR du post n'est pas capté de façon fiable** : l'en-tête `h2/h3` porte
+le nom du **groupe**, pas celui de l'auteur, et le repli sur les ancres de profil attrape
+l'indicateur de statut (testé le 31 août 2026 — n'essaie pas de le « réparer » par heuristique).
+Lis-le toi-même : la **première ancre `a[href*="/user/{uid}"]` de la page** est l'auteur du post.
+C'est un contrôle à faire systématiquement quand tu ouvres un permalink, parce qu'il décide de
+tout — dans le cas observé, l'auteur réel était **blacklisté**, ce que le nom capté ne disait pas.
+
+#### La frontière post ↔ commentaire (corrigé en 0.10.1)
+
+La racine d'un post englobe sa zone de commentaires. `author`, `authorUrl` et `body` étaient donc
+tous lus **chez un commentateur** dès que le rendu s'y prêtait, et `body` retenant le bloc le plus
+long, un commentaire un peu bavard devenait le corps du post. **Aucun garde-fou ne le voyait** : le
+texte capté est complet, il n'est simplement pas celui du post.
+
+Constaté le 31 août 2026, 2 cas sur 98 posts. Le pire fabriquait un faux post attribué à une
+commentatrice alors que l'auteur réel était un **intermédiaire blacklisté** : son annonce entrait
+en base par la porte de côté, et le vrai commentaire perdait son `Post source`. Trois corrections,
+qui vont ensemble :
+
+- `__inComment(el)` borne les **trois** lectures (auteur, profil, corps), pas seulement le corps ;
+- `__isCommentArticle` reconnaît aussi les **« Réponse de … »**, qui passaient jusque-là pour des
+  conteneurs de post — c'est ce qui rendait le premier bug possible ;
+- `__commentFull` ne récolte plus le texte des **réponses imbriquées** dans le commentaire parent
+  (il était recopié et attribué au mauvais auteur).
+
+⚠️ À la relecture, reste méfiant devant un corps qui **s'adresse à quelqu'un** (« Bonjour X, notre
+clinique… ») ou qui répond à une annonce : c'est la signature de ce défaut. Ouvre le permalink et
+vérifie l'auteur réel avant de pousser.
 
 ### 5. Pousser dans Airtable (Bash + curl, déduplication)
 
@@ -534,7 +674,10 @@ bash <dossier_skill>/scripts/keep_awake.sh stop
 ```
 
 
-- Fenêtre couverte (avec heures).
+- Fenêtre couverte (avec heures) et **comment le scrape s'est arrêté** sur chaque groupe :
+  « rejoint le déjà-scrappé » (§2 a) ou « borne de date » (§2 b). Le second sur un canal qui
+  avait pourtant des empreintes veut dire que le dernier post scrappé n'a pas été retrouvé —
+  supprimé, ou tri cassé : dis-le, c'est le signal qu'il faut regarder.
 - **Un décompte par groupe** (et les canaux cochés qui n'ont pas pu être scrapés, avec la raison).
 - Posts scrappés / retenus / exclus (avec raisons).
 - Commentaires pertinents (candidats / cliniques).

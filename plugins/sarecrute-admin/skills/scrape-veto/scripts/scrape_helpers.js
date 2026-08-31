@@ -25,8 +25,12 @@
  *   __purgeStubs()       -> [..] : retire les doublons tronqués non dépliables
  *   __purgeCommentStubs()-> [..] : idem pour les commentaires
  *   __storyToken(anchor) -> string : jeton __cft__ = identité du POST d'une ancre
+ *   __inComment(el)      -> bool    : cet élément est-il DANS un commentaire ?
+ *                          (borne les lectures author/authorUrl/body du post)
  *   __truncated()        -> [{author,iso,len}] : posts encore tronqués
  *   __truncatedComments()-> [{post,iso,name,len}] : commentaires encore tronqués
+ *   __emptyBodies(borne) -> [{author,iso,permalink}] : posts au corps VIDE
+ *                          (à contrôler avant l'export ; non bloquant)
  *   __exportBlocked(borne)-> '' ou raison : garde UNIQUE à appeler avant l'export
  *                          (purge les souches elle-même, cf. sa doc)
  *   __orphanComments     : nb de commentaires non rattachés au dernier harvest (leur
@@ -124,7 +128,7 @@ window.__isTsAnchor = function (a) {
   if (!h.includes('__cft__')) return false;
   if (!(h.startsWith('?__cft__') || /\/(posts|permalink)\//.test(h) || /story_fbid=/.test(h))) return false;
   const art = a.closest('div[role="article"][aria-label]');
-  if (art && /^Commentaire de/i.test(art.getAttribute('aria-label') || '')) return false;
+  if (window.__isCommentArticle(art)) return false;
   const d = window.__decodeTS(a);
   return !!(d && window.__parseTS(d).iso);
 };
@@ -140,10 +144,17 @@ window.__parseTS = function (s) {
   s = (s || '').replace(/[͏​-‍⁠﻿­]/g, '').trim();
   const now = new Date();
   let m;
-  if (/^\d+\s*(s|sec)/i.test(s)) return { iso: isoOf(now), ageH: 0 };
+  // ⚠️ Les unités relatives COLLISIONNENT avec les noms de mois, qui commencent
+  // eux aussi par un chiffre puis la même lettre :
+  //   « 5 septembre » matchait `^\d+\s*s`   -> 5 secondes -> daté d'aujourd'hui ;
+  //   « 20 juin »     matchait `^(\d+)\s*j` -> 20 jours   -> daté 20 jours avant.
+  // Les deux passaient SILENCIEUSEMENT (l'iso ressortait valide, donc __isTsAnchor
+  // acceptait l'ancre) et suffisaient à fausser la fenêtre entière. Les lookaheads
+  // ci-dessous rejettent les mois sans gêner « 5 s », « 20 j », « 20 jours ».
+  if (/^\d+\s*(?:s|sec)(?!ept)/i.test(s)) return { iso: isoOf(now), ageH: 0 };
   if (/^\d+\s*min/i.test(s)) return { iso: isoOf(now), ageH: 0.2 };
   if ((m = s.match(/^(\d+)\s*h/i))) { const h = +m[1]; return { iso: isoOf(new Date(now - h * 3600e3)), ageH: h }; }
-  if ((m = s.match(/^(\d+)\s*j/i))) { const j = +m[1]; return { iso: isoOf(new Date(now - j * 86400e3)), ageH: j * 24 }; }
+  if ((m = s.match(/^(\d+)\s*j(?!anv|uin|uil)/i))) { const j = +m[1]; return { iso: isoOf(new Date(now - j * 86400e3)), ageH: j * 24 }; }
   let hh = 12, mm = 0; const tm = s.match(/(\d{1,2}):(\d{2})/); if (tm) { hh = +tm[1]; mm = +tm[2]; }
   if (/hier/i.test(s)) { const d = new Date(now); d.setDate(d.getDate() - 1); d.setHours(hh, mm, 0, 0); return { iso: isoOf(d), ageH: (now - d) / 3600e3 }; }
   if ((m = s.match(/(\d{1,2})\s+([a-zéûôàêè]+)(?:\s+(\d{4}))?/i))) {
@@ -176,9 +187,18 @@ window.__profileUrl = function (a) {
  * __truncatedComments ne le signale, puisque le fragment retenu ne finit pas par
  * « Voir plus ». Constaté le 23 août 2026 : « Bonjour. » au lieu de « Bonjour.
  * Je vous ai envoyé un message sur Messenger », soit une candidature illisible.
- * On joint donc TOUS les blocs de texte de l'article du commentaire. */
+ * On joint donc tous les blocs de texte PROPRES à l'article du commentaire.
+ *
+ * ⚠️ Et ne PAS aspirer le texte des RÉPONSES imbriquées : sur un permalink (et
+ * dès qu'un fil est déplié dans le feed), l'article d'un commentaire CONTIENT
+ * ceux de ses réponses. Sans ce filtre, la réponse d'un tiers était recopiée
+ * dans le commentaire parent et attribuée à son auteur — constaté le 31 août
+ * 2026, où l'offre d'une clinique se retrouvait au nom d'un compte blacklisté.
+ * On ne garde donc que les blocs dont l'article de commentaire le plus proche
+ * EST celui qu'on lit ; les réponses sont récoltées pour elles-mêmes. */
 window.__commentFull = function (art) {
   return Array.from(art.querySelectorAll('div[dir="auto"]'))
+    .filter(d => d.closest('div[role="article"][aria-label]') === art)
     .map(d => (d.innerText || '').trim()).filter(t => t).join('\n');
 };
 
@@ -192,6 +212,32 @@ window.__commentFull = function (art) {
 window.__storyToken = function (a) {
   const h = a ? (a.getAttribute('href') || '') : '';
   return (h.match(/__cft__(?:\[\d+\])?=([^&]+)/) || [])[1] || '';
+};
+
+/* --- Cet élément appartient-il à un COMMENTAIRE et non au post ? -------------
+ * La racine d'un post (cf. __harvestAll) englobe sa zone de commentaires : sans
+ * ce filtre, `author`, `authorUrl` et `body` peuvent tous être lus CHEZ UN
+ * COMMENTATEUR. `body` retient le bloc le plus long, donc un commentaire de
+ * 135 caractères l'emporte sur un post de 125 — et aucun garde-fou ne le voit
+ * (ni __truncated, ni __exportBlocked, ni les purges de souches : le texte
+ * capté est complet, simplement il n'est pas celui du post).
+ * Constaté le 31 août 2026, 2 cas sur 98 posts. Le pire fabriquait un faux post
+ * attribué à la commentatrice alors que le vrai auteur était BLACKLISTÉ : une
+ * annonce d'intermédiaire déjà arbitrée rentrait ainsi en base par la porte de
+ * côté, et le commentaire perdait son rattachement. L'autre créait un doublon
+ * du post d'un candidat, non dépliable donc bloquant à l'export.
+ * On borne donc les TROIS lectures, pas seulement le corps. */
+/* ⚠️ « Réponse de X au commentaire de Y » est un COMMENTAIRE, au même titre que
+ * « Commentaire de X ». Tester le seul préfixe « Commentaire de » — ce que faisait
+ * tout le fichier — laissait les articles de réponse passer pour des conteneurs de
+ * POST : ils devenaient le `ownerArticle` d'un commentaire, ou le plafond de la
+ * racine d'un post. D'où ce prédicat unique, à utiliser PARTOUT. */
+window.__isCommentArticle = function (art) {
+  return !!(art && /^(?:Commentaire|Réponse) de/i.test(art.getAttribute('aria-label') || ''));
+};
+window.__inComment = function (el) {
+  const art = el && el.closest ? el.closest('div[role="article"][aria-label]') : null;
+  return window.__isCommentArticle(art);
 };
 
 /* --- Récolte complète : posts + commentaires rattachés par CONTAINMENT ----- */
@@ -229,7 +275,7 @@ window.__harvestAll = function () {
       let e = el.parentElement;
       while (e) {
         if (e.matches && e.matches('div[role="article"]') &&
-            !/^Commentaire de/i.test(e.getAttribute('aria-label') || '')) return e;
+            !window.__isCommentArticle(e)) return e;
         e = e.parentElement;
       }
       return null;
@@ -253,7 +299,11 @@ window.__harvestAll = function () {
       if ((root.innerText || '').length > 500) break;
     }
     let author = '';
-    const strong = root.querySelector('h2 strong,h3 strong,h2 a,h3 a,strong');
+    // ⚠️ PAS root.querySelector : il renvoie le premier match en ordre DOM, qui
+    // peut être un nom de COMMENTATEUR quand l'en-tête du post n'expose pas de
+    // h2/h3 (cf. __inComment). On prend le premier match HORS commentaire.
+    const strong = Array.from(root.querySelectorAll('h2 strong,h3 strong,h2 a,h3 a,strong'))
+      .find(e => !window.__inComment(e));
     if (strong) author = (strong.innerText || '').trim().split('\n')[0];
     // NB: ne PAS retomber sur "Membre anonyme" via innerText (un commentateur
     // anonyme dans le conteneur fausserait l'auteur). On matche par corps.
@@ -263,7 +313,8 @@ window.__harvestAll = function () {
     // ⚠️ Si authorUrl est vide alors que `author` est non vide et non anonyme,
     // c'est que `author` vient du fallback `strong` (nom mal capté, souvent un
     // post sponsorisé) → signal de qualité sur le nom.
-    const authorUrl = window.__profileUrl(root.querySelector('h2 a[href],h3 a[href]'));
+    const authorUrl = window.__profileUrl(
+      Array.from(root.querySelectorAll('h2 a[href],h3 a[href]')).find(e => !window.__inComment(e)));
     // id du post : chiffres OU token pfbid…, depuis /posts/, /permalink/ ou story_fbid=
     // (le href de l'ancre de timestamp est vide sur les posts à timestamp obfusqué :
     //  on lit donc l'innerHTML du conteneur, où le permalink est toujours présent).
@@ -271,12 +322,19 @@ window.__harvestAll = function () {
              || (root.innerHTML.match(/story_fbid=(pfbid\w+|\d+)/) || [])[1] || '';
     const gid = window.__gid();
     const permalink = (gid && pid) ? `https://www.facebook.com/groups/${gid}/posts/${pid}/` : '';
-    const blocks = Array.from(root.querySelectorAll('div[dir="auto"]')).map(d => (d.innerText || '').trim()).filter(t => t.length > 2).sort((a, b) => b.length - a.length);
+    // Le corps est le bloc le plus LONG : les blocs des commentaires doivent donc
+    // être écartés AVANT le tri, sinon un commentaire un peu bavard devient le corps.
+    const blocks = Array.from(root.querySelectorAll('div[dir="auto"]'))
+      .filter(d => !window.__inComment(d))
+      .map(d => (d.innerText || '').trim()).filter(t => t.length > 2).sort((a, b) => b.length - a.length);
     const parsed = window.__parseTS(window.__decodeTS(tsA));
     postByAnchor.set(tsA, { author, authorUrl, decoded: window.__decodeTS(tsA), iso: parsed.iso, ageH: parsed.ageH, gid, pid, permalink, body: blocks[0] || '', comments: [] });
   }
   // Commentaires = div[role=article][aria-label="Commentaire de {Nom} il y a {temps}"]
-  const cArts = Array.from(document.querySelectorAll('div[role="article"][aria-label]')).filter(a => /^Commentaire de/i.test(a.getAttribute('aria-label') || ''));
+  // ET les réponses « Réponse de {Nom} au commentaire de {Autre} il y a {temps} » :
+  // un recruteur répond souvent DANS le fil plutôt qu'en commentaire de premier
+  // niveau, et sa proposition a exactement la même valeur.
+  const cArts = Array.from(document.querySelectorAll('div[role="article"][aria-label]')).filter(window.__isCommentArticle);
   window.__orphanComments = 0;
   for (const a of cArts) {
     // Rattachement par le CONTENEUR du post (son propre div[role="article"]), et non
@@ -294,7 +352,7 @@ window.__harvestAll = function () {
       let e = el.parentElement;
       while (e) {
         if (e.matches && e.matches('div[role="article"]') &&
-            !/^Commentaire de/i.test(e.getAttribute('aria-label') || '')) return e;
+            !window.__isCommentArticle(e)) return e;
         e = e.parentElement;
       }
       return null;
@@ -332,7 +390,10 @@ window.__harvestAll = function () {
       }
     }
     if (!parent) { window.__orphanComments++; continue; }
-    const m = a.getAttribute('aria-label').match(/^Commentaire de (.+?)(?: il y a (.+))?$/i);
+    // « Commentaire de X il y a T » et « Réponse de X au commentaire de Y il y a T » :
+    // on retient X (l'auteur du message), jamais Y (celui à qui il répond).
+    const m = a.getAttribute('aria-label')
+      .match(/^(?:Commentaire|Réponse) de (.+?)(?:\s+(?:au commentaire|à la réponse) de .+?)?(?:\s+il y a (.+))?$/i);
     const name = m ? m[1].trim() : '';
     // Profil du commentateur : on privilégie l'ancre dont le texte EST le nom du
     // commentaire (une réponse imbriquée pourrait sinon fournir la 1re ancre) ;
@@ -420,7 +481,7 @@ window.__expandPostText = function () {
 window.__expandCommentText = function () {
   let n = 0;
   for (const art of document.querySelectorAll('div[role="article"][aria-label]')) {
-    if (!/^Commentaire de/i.test(art.getAttribute('aria-label') || '')) continue;
+    if (!window.__isCommentArticle(art)) continue;
     for (const b of art.querySelectorAll('div[role="button"],span[role="button"]')) {
       const tc = (b.textContent || '').trim();   // textContent : cf. __expandPostText
       if (tc.length > 18 || !window.__EXPAND_RX.test(tc)) continue;
@@ -478,6 +539,22 @@ window.__truncatedComments = function () {
     }
   }
   return out;
+};
+
+/* --- Posts du store dont le CORPS EST VIDE ----------------------------------
+ * Un corps vide était le seul défaut de capture que rien ne signalait — et le
+ * filtre __inComment le rend plus VISIBLE qu'avant : là où le texte d'un
+ * commentaire prenait silencieusement la place du post, on obtient désormais
+ * une chaîne vide, ce qui est franc mais ne se voit toujours pas tout seul.
+ * ⚠️ Volontairement NON bloquant dans __exportBlocked : un post sans texte
+ * existe pour de vrai (photo, lien seul, affiche) et bloquerait l'export
+ * indéfiniment. C'est à la relecture de trancher : soit le post est vraiment
+ * sans texte et on l'écarte, soit son corps n'a pas été rendu et il faut
+ * remonter le lire dans la page — mais on ne pousse JAMAIS une entrée vide. */
+window.__emptyBodies = function (borne) {
+  return Object.values(window.__store)
+    .filter(p => (!borne || (p.iso && p.iso >= borne)) && !(p.body || '').trim())
+    .map(p => ({ author: p.author || '(anon)', iso: p.iso, permalink: p.permalink || '' }));
 };
 
 /* --- Purge des DOUBLONS parasites tronqués ----------------------------------
@@ -573,6 +650,43 @@ window.__exportBlocked = function (borne) {
 
 /* --- Nettoyage du corps pour l'export (retire les marqueurs FB finaux) ------ */
 window.__cleanBody = b => (b || '').replace(/\s+/g, ' ').replace(/\s*(?:…\s*)?(?:En )?[Vv]oir (?:plus|moins)\s*$/, '').trim();
+
+/* --- ARRÊT SUR LE DERNIER POST DÉJÀ SCRAPPÉ ---------------------------------
+ * Facebook ne donne PAS l'heure de publication : « 3 j » couvre 24 h entières.
+ * S'arrêter sur la seule date oblige donc à redérouler tout le dernier jour déjà
+ * en base — sur un groupe actif, la moitié du scrape pour zéro nouveauté.
+ * On reconnaît plutôt les posts DÉJÀ EN BASE à leur texte, exactement comme le
+ * fait `sec_sig()` d'airtable_push.py : mêmes 80 premiers caractères, même
+ * normalisation. `__seenInit` reçoit ces empreintes (chargées en §0 depuis
+ * Airtable), `__tailKnown` dit si la queue du fil est entièrement connue.
+ *
+ * ⚠️ Le critère est « K posts consécutifs connus », jamais un seul : une simple
+ * republication en tête de fil arrêterait sinon le scrape immédiatement. Et il
+ * reste doublé du critère de date (cf. SKILL.md §2), qui prend le relais si le
+ * dernier post scrappé a été supprimé et n'est donc plus jamais rencontré. */
+window.__seen = window.__seen || new Set();
+window.__seenInit = function (prefixes) {
+  window.__seen = new Set(prefixes || []);
+  return window.__seen.size;
+};
+/* 48 caractères : assez pour identifier un post sans ambiguïté, et 40 % plus
+ * court à injecter que les 80 de `sec_sig` (la charge utile passe de ~17 Ko à
+ * ~8,5 Ko sur un groupe actif, donc en un seul appel `javascript_tool` au lieu
+ * de deux). ⚠️ Le script du §0 DOIT tronquer à la même longueur. */
+window.__SIG_LEN = 48;
+window.__sig = b => window.__cleanBody(b).toLowerCase().slice(0, window.__SIG_LEN);
+window.__tailKnown = function (n, borne) {
+  n = n || 3;
+  const ps = window.__harvestAll().filter(p => p.iso && (p.body || '').trim()).slice(-n);
+  if (ps.length < n || !window.__seen.size) return false;
+  return ps.every(p => window.__seen.has(window.__sig(p.body)) && (!borne || p.iso <= borne));
+};
+/* Ce que la fenêtre courante apporte de NOUVEAU (pour le résumé §6). */
+window.__unseen = function (borne) {
+  return Object.values(window.__store)
+    .filter(p => p.iso && (!borne || p.iso >= borne) && !window.__seen.has(window.__sig(p.body)))
+    .length;
+};
 
 /* --- __alive : le rendu tourne-t-il vraiment ? -------------------------------
  * Chrome suspend requestAnimationFrame et bride les timers dès que sa fenêtre
