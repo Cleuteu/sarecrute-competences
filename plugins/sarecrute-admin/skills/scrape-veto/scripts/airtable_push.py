@@ -12,7 +12,8 @@ Usage :
 
 records.json = liste d'objets {"fields": {...}} au format Airtable.
   Champs utiles : Prénom, Nom, Profil Facebook, Date du post (YYYY-MM-DD), Lien du post,
-  Zone de recherche, Contenu complet, Type de post, Pratiques[], Spécialités[],
+  Zone de recherche, Contenu complet, Type de post, Pratiques requises[],
+  Pratiques optionnelles[], Spécialités[],
   Type d'entrée (Post|Commentaire), Post source, Expérience, Nom de la clinique.
   Archivé (ex "Non pertinent") : champ réservé au recruteur (usage manuel), le scrape
   ne doit JAMAIS l'écrire — un post jugé non pertinent est simplement omis de records.json.
@@ -34,7 +35,7 @@ Déduplication — deux régimes :
   • Nom FIABLE (auteur_key non vide) → UPSERT par personne, toutes dates
     confondues. Si la personne existe déjà, on MET À JOUR son enregistrement :
     le nouveau post est empilé en haut de "Contenu complet" (séparateur daté,
-    plus récent en premier), et les champs scalaires (Date, Zone, Pratiques…)
+    plus récent en premier), et les champs scalaires (Date, Zone, Pratiques requises…)
     prennent les valeurs du post le PLUS RÉCENT. Rien n'est perdu.
   • Nom ANONYME / non fiable → PAS de fusion. On crée, sauf si EXACTEMENT la
     même publication est déjà en base (garde d'idempotence Date|Type|Nom|Contenu[:60]).
@@ -84,7 +85,8 @@ CANAUX_TABLE = "tbluH5M2sogAN85dl"      # Canaux de diffusion (groupes FB, rése
 
 # Champs recopiés depuis le post le plus récent lors d'un merge (tout sauf le contenu).
 SCALAR_FIELDS = ["Prénom", "Nom", "Profil Facebook", "Date du post", "Lien du post", "Zone de recherche",
-                 "Type de post", "Pratiques", "Spécialités", "Type d'entrée",
+                 "Type de post", "Pratiques requises", "Pratiques optionnelles",
+                 "Spécialités", "Type d'entrée",
                  "Post source", "Expérience", "Nom de la clinique", "Archivé", "auteur_key",
                  "Zones de recherche", "Statuts contractuels", "Type de temps de travail",
                  "Date de disponibilité", "Rayon accepté (km)", "Contrat court"]
@@ -101,7 +103,8 @@ UNION_FIELDS = ["Canaux"]
 # laissait ALLOWED vide et sanitize_selects ne filtrait plus rien — le garde-fou était
 # désactivé sans que rien ne l'indique. Désormais l'absence de vocab est fatale dès qu'un
 # enregistrement porte un champ protégé (cf. check_vocab_loaded).
-GUARDED_FIELDS = ("Zones de recherche", "Statuts contractuels", "Type de temps de travail")
+GUARDED_FIELDS = ("Zones de recherche", "Statuts contractuels", "Type de temps de travail",
+                  "Pratiques requises", "Pratiques optionnelles")
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _VOCAB_PATHS = [os.path.join(_HERE, os.pardir, "references", "matching_vocab.json"),
                 os.path.join(_HERE, "matching_vocab.json")]
@@ -112,6 +115,13 @@ for _p in _VOCAB_PATHS:
         ALLOWED = {"Zones de recherche": set(_V["zones_de_recherche"]),
                    "Statuts contractuels": set(_V["statuts_contractuels"]),
                    "Type de temps de travail": set(_V["type_de_temps_de_travail"])}
+        # Les deux niveaux de pratiques partagent un seul vocabulaire. Sous .get() : une copie
+        # installée dont le vocab est antérieur au 31/08/2026 n'a pas la clé, et on préfère ne
+        # pas garder ces deux champs plutôt que faire échouer le chargement entier — sans quoi
+        # les trois autres champs perdraient leur garde-fou.
+        if _V.get("pratiques"):
+            ALLOWED["Pratiques requises"] = set(_V["pratiques"])
+            ALLOWED["Pratiques optionnelles"] = set(_V["pratiques"])
         VOCAB_ERROR = None
         break
     except Exception as e:
@@ -324,7 +334,7 @@ def merged_scalars(field_dicts):
         débutantes le disent — le champ se remplit sans que le reste bouge.
       • une valeur VIDE ne chasse plus une valeur pleine, même venue d'un post plus
         récent : une annonce republiée en version courte ne doit pas effacer les
-        Pratiques/Spécialités déjà extraites de sa version longue.
+        pratiques et spécialités déjà extraites de sa version longue.
 
     "Date du post" fait exception et prend l'activité la plus récente, commentaire
     compris : c'est l'indicateur de fraîcheur en prospection (une offre relancée

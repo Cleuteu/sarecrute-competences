@@ -411,12 +411,12 @@ Le `Type de post` conditionne tout. Décide sur le **sens du texte**, pas sur l'
 - **Date du post** : `iso` (YYYY-MM-DD).
 - **Lien du post** : utilise **`p.permalink`** tel quel (reconstruit à la capture depuis l'id du groupe courant et celui du post : `…/groups/{gid}/posts/{pid}/`) — c'est un vrai lien qui ouvre le post. **N'utilise une URL de recherche `…/search?q=<mots-clés url-encodés>` qu'en dernier recours**, si `p.permalink` ET `p.pid` sont vides. (Validé en live : le permalink se reconstruit depuis l'`innerHTML` du conteneur, y compris sur les posts à timestamp obfusqué où le href de l'ancre est vide.)
 - **Zone de recherche**, **Contenu complet** = le **texte INTÉGRAL du post** (jamais tronqué ni résumé — c'est pour ça qu'on passe par le download blob), **Type de post** (`Vétérinaire cherche poste` | `Clinique cherche vétérinaire`).
-- **Pratiques** ⊆ {Canine, Bovins, Equine, NAC, Allaitant, Laitier, Ovin/Caprin, Porcin, Loups, Volailles}.
+- **Pratiques requises** et **Pratiques optionnelles**, toutes deux ⊆ {Canine, Bovins, Equine, NAC, Allaitant, Laitier, Ovin/Caprin, Porcin, Loups, Volailles}. **Requises** = ce que le post pose en condition (post candidat : ce que le vétérinaire veut faire ; post clinique : ce que la clinique fait, donc ce que le poste impose). **Optionnelles** = ce qu'il accepte sans l'exiger — « appétence rurale appréciée », « ouvert au bovin », « un peu de NAC en plus ». Une pratique ne va **jamais dans les deux**. Dans le doute, l'optionnelle : elle élargit le rapprochement, elle n'exclut jamais. Laisse `Pratiques optionnelles` vide quand le texte ne dit rien de tel — c'est le cas courant.
 - **Spécialités** ⊆ {Chirurgie, Urgences, Echographie, Orthopédie, Ophtalmologie, Laboratoire, Ostéopathie, Management, Cardiologie, Reproduction, Oncologie, Neurologie, Médecine interne}.
 - **Type d'entrée** = `Post`. **Post source** vide. **Nom de la clinique** si type clinique.
 - **Expérience** (cf. règles ci-dessous).
 
-⚠️ **Ne jamais inventer de nouvelle valeur** de champ select (Pratiques/Spécialités/Type/Expérience). Si rien ne colle, laisse vide.
+⚠️ **Ne jamais inventer de nouvelle valeur** de champ select (Pratiques/Spécialités/Type/Expérience). Si rien ne colle, laisse vide. Le vocabulaire des pratiques est **partagé à l'identique** par les Posts scrappés, les Candidats et les Offres : le matching compare des chaînes brutes, donc une valeur qui diverge d'un seul côté écarte silencieusement l'offre ou le candidat de tout rapprochement. Sept offres et quatre candidats ont vécu des mois dans cet état (« Ovin » contre « Ovin/Caprin », « volailles » contre « Volailles »), corrigé le 31/08/2026.
 
 #### Champs de matching (post `Vétérinaire cherche poste`)
 Renseigne **uniquement** avec des valeurs de **`references/matching_vocab.json`** (bundlé). Laisse vide si non dit — ne devine pas. Le push ignore de toute façon toute valeur hors vocab.
@@ -474,8 +474,14 @@ Pièges vérifiés sur les annonces réelles (août 2026) :
 - **« 4 jours par semaine » est couramment un temps plein** en clinique : n'en déduis pas un temps
   partiel. Et **« 50 % canine / 50 % rurale » est une répartition d'activité**, pas un temps de
   travail.
-- **`Pratiques` : « mixte » sans espèce nommée = `Canine` + `Bovins`** (convention arrêtée). « rurale »
+- **`Pratiques requises` : « mixte » sans espèce nommée = `Canine` + `Bovins`** (convention arrêtée). « rurale »
   seule vaut aussi `Bovins` ; « allaitant »/« laitier » impliquent `Bovins`.
+- **Le partage requis / optionnel est une lecture du texte, et c'est ici qu'il se fait** — nulle part
+  ailleurs. Les deux conversions (post → Candidat, post → Clinique + Offre) recopient ces deux champs
+  tels quels dans les champs de même nom, et le matching les compare directement. Un exemple vécu :
+  un post « recherche poste en NAC à 100 % ou 50 % NAC/canin, un poste avec 5 % de NAC n'est pas
+  envisageable » donne `Pratiques requises = [NAC]` et `Pratiques optionnelles = [Canine]` — surtout
+  pas les deux en requises, ce qui reviendrait à exiger du canin.
 - **`Spécialités` ne se lit pas dans la liste de matériel.** « radio numérique, échographe neuf,
   analyseur, laser » décrit un plateau technique — ça ne fait pas de l'échographie une spécialité
   du poste. Ne retiens une spécialité que présentée comme **pratiquée ou attendue** :
@@ -521,7 +527,7 @@ Pièges vérifiés sur les annonces réelles (août 2026) :
 - **Un commentaire hérite des caractéristiques de son post parent**, dans **les deux sens** de type
   (candidat sous une annonce clinique, comme recruteur sous une annonce de candidat) :
   `Zones de recherche`, `Statuts contractuels`, `Type de temps de travail`, `Expérience`,
-  `Pratiques`, `Spécialités` — **jamais `Contrat court`** (cf. §Champs de matching) — avec les
+  `Pratiques requises`, `Pratiques optionnelles`, `Spécialités` — **jamais `Contrat court`** (cf. §Champs de matching) — avec les
   mêmes règles d'extraction et le même vocabulaire que pour un post, **et la sémantique du type du
   commentaire**, pas celle du parent (un commentaire de recruteur se remplit avec les règles
   `Clinique cherche vétérinaire` même si le parent est un post candidat).
