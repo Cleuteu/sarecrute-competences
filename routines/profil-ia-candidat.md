@@ -22,6 +22,8 @@ Champs à récupérer en priorité :
 - Spécialités maitrisées
 - Pratiques requises
 - Pratiques optionnelles
+- Spécialités requises
+- Spécialités optionnelles
 - Expérience
 - En poste ?
 - Internat
@@ -212,6 +214,40 @@ Cas limites :
 - Si l'année de sortie est différente de l'année civile en cours — qu'elle soit antérieure OU postérieure — n'applique pas la règle et laisse la déduction normale.
 - Si l'année de sortie ou l'école ne sont pas identifiables, n'applique pas la règle.
 - Les options attendues sont "Oui" / "Non" pour ces deux champs. Comme partout ailleurs, n'utilise que les options réellement présentes dans le schéma : si l'option "Non" est absente, laisse le champ vide plutôt que de créer une valeur.
+
+### B-ter) Spécialités — la barre est haute, et c'est délibéré
+
+**Une spécialité citée est une prétention, pas une compétence.** « Je fais des chirurgies de
+convenance » ne fait pas un chirurgien ; « à l'aise en écho » ne fait pas un échographiste ;
+« j'aime l'orthopédie » ne fait pas un orthopédiste. C'est le jugement sur lequel cette routine
+se trompait systématiquement, dans le sens optimiste, et que le recruteur **effaçait 9 fois sur
+10**. Une spécialité ne se coche que sur une **expérience réelle et démontrée** dans le domaine.
+
+Trois champs, trois barres différentes :
+
+- **`Spécialités maitrisées`** — ce que le candidat sait vraiment faire à un niveau de spécialiste.
+  Exige une preuve dans le texte : un titre ou un diplôme (CEAV, DIE, DESV, résidanat), une
+  pratique exclusive ou dominante revendiquée et datée (« je ne fais que de l'ophtalmo depuis six
+  ans »), un poste de référé occupé. Un acte pratiqué en routine dans une clinique généraliste
+  n'est PAS une spécialité maîtrisée — c'est le travail normal d'un vétérinaire, et c'est la
+  grille de compétences par acte de l'ÉTAPE 3 qui le porte, pas ce champ. Dans le doute, laisse
+  vide : la grille dit déjà ce que la personne sait faire, acte par acte, avec un niveau.
+- **`Spécialités requises`** — ce que le candidat EXIGE de retrouver dans son prochain poste.
+  Encore plus rare. Une spécialité requise **exclut** : le matching écarte le candidat de toute
+  offre qui ne la porte pas. Deux candidats sont restés invisibles des mois pour un
+  « Laboratoire » requis qu'aucune offre ne proposait. Ne remplis ce champ que si le candidat pose
+  la spécialité comme condition (« je cherche un poste 100 % chirurgie »), jamais parce qu'il la
+  pratique.
+- **`Spécialités optionnelles`** — ce qu'il apprécierait sans l'exiger. C'est la **cible par
+  défaut** de tout ce que tu lis sur les centres d'intérêt et les appétences. Ce champ n'exclut
+  jamais personne : il ne peut qu'élargir les rapprochements.
+
+⚠️ Ne recopie jamais une spécialité depuis une **liste de matériel** ni depuis le **plateau
+technique d'une clinique** trouvé dans le champ « Post » : « radio numérique, échographe, laser »
+décrit l'équipement d'un employeur, pas le parcours du candidat. Même piège que l'ÉTAPE 3 §C.
+
+⚠️ Ces champs partagent leur vocabulaire avec les Offres d'emploi, et le matching compare des
+chaînes brutes : n'utilise que les options du schéma, jamais une variante.
 
 ### C) Zones de recherche — CHAMP CRITIQUE
 Analyse attentivement le CV, les transcripts et tous les champs pour identifier les zones géographiques recherchées. Utilise les valeurs exactes du schéma. Règles :
