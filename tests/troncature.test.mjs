@@ -1,6 +1,6 @@
 // Teste les garde-fous purs (sans DOM) : __isTrunc / __truncated / __truncatedComments / __exportBlocked
 import fs from 'fs';
-const src = fs.readFileSync(new URL('../plugins/sarecrute-admin/skills/scrape-veto/scripts/scrape_helpers.js', import.meta.url), 'utf8');
+const src = fs.readFileSync(new URL('../remote-skills/scrape-veto/scripts/scrape_helpers.js', import.meta.url), 'utf8');
 globalThis.window = globalThis;
 globalThis.document = { querySelectorAll: () => [], querySelector: () => null,
   body:{scrollHeight:0}, visibilityState:'visible', hasFocus:()=>true, title:'' };

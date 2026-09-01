@@ -2,7 +2,7 @@
 // et la VIRTUALISATION PARTIELLE : commentaire encore rendu alors que l'ancre de timestamp de SON post ne l'est plus.
 const fs = require('fs');
 const { JSDOM } = require('jsdom');   // npm i --no-save jsdom@22
-const SRC = fs.readFileSync(require('path').join(__dirname, '..', 'plugins/sarecrute-admin/skills/scrape-veto/scripts/scrape_helpers.js'), 'utf8');
+const SRC = fs.readFileSync(require('path').join(__dirname, '..', 'remote-skills/scrape-veto/scripts/scrape_helpers.js'), 'utf8');
 
 // href : la forme réelle des ancres de timestamp de post sur le fil. __isTsAnchor
 // exige `?__cft__`, `/posts/` ou `story_fbid=` — un href quelconque portant

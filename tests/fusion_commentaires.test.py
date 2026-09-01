@@ -14,7 +14,7 @@ juste des données fausses (ou en double) en base.
 import importlib.util, os, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SCRIPT = os.path.join(HERE, os.pardir, "plugins", "sarecrute-admin", "skills",
+SCRIPT = os.path.join(HERE, os.pardir, "remote-skills",
                       "scrape-veto", "scripts", "airtable_push.py")
 spec = importlib.util.spec_from_file_location("airtable_push", SCRIPT)
 ap = importlib.util.module_from_spec(spec)

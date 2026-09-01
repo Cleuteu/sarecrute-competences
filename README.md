@@ -109,6 +109,26 @@ n'est pas l'onglet actif, elle demande de cliquer dessus.
 Ce dépôt est la **source de vérité** des compétences distribuées. Toute correction se fait ici,
 puis :
 
+### Compétences « distantes » : le cas `scrape-veto`
+
+`scrape-veto` n'embarque plus ses instructions dans le plugin : le `SKILL.md` installé est un
+**stub** qui télécharge à chaque exécution un snapshot de
+[`remote-skills/scrape-veto/`](remote-skills/scrape-veto/) (PROMPT.md + scripts + références)
+depuis la **branche `stable`** de ce dépôt. Conséquences :
+
+- **Corriger le prompt ou les scripts** : éditer `remote-skills/scrape-veto/` sur `main`, monter
+  la ligne de version en tête de `PROMPT.md`, puis déployer en avançant la branche :
+  `git push origin main:stable`. **Aucun bump de plugin, aucun `plugin update` chez personne** —
+  la prochaine exécution tire la nouvelle version toute seule (l'exécution l'annonce, c'est la
+  trace de ce qui a réellement tourné).
+- `stable` est le cran de sûreté : on peut pousser sur `main` sans déployer. Ne jamais faire
+  pointer le stub sur `main`.
+- En cas d'échec de téléchargement, le stub **s'arrête** — pas de repli sur une copie locale.
+  C'est voulu (même doctrine que la blacklist) : ne pas le « réparer ».
+- Le paragraphe sur les versions ci-dessous ne concerne plus `scrape-veto` que si l'on touche au
+  **stub lui-même** ou à son frontmatter (`description`, déclenchement) — là, bump + republish +
+  `plugin update` restent nécessaires.
+
 ```bash
 claude plugin validate .                       # manifeste marketplace
 claude plugin validate plugins/sarecrute-recruteur
