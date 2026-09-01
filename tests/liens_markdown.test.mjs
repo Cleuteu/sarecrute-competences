@@ -6,7 +6,8 @@
 // avec ses crochets et son `mailto:` en clair. Bug silencieux : le brouillon se crée, la
 // vérification `dup`/`img` passe, le gras est là — seul un humain qui relit voit la coquille.
 //
-// Le test lit les fonctions DANS le SKILL.md, pour qu'il casse si quelqu'un les y modifie.
+// Le test lit les fonctions DANS le PROMPT.md (corps distant de la compétence),
+// pour qu'il casse si quelqu'un les y modifie.
 //
 //   node tests/liens_markdown.test.mjs
 import { readFileSync } from 'node:fs';
@@ -15,10 +16,10 @@ import { dirname, join } from 'node:path';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const md = readFileSync(
-  join(root, 'plugins/sarecrute-recruteur/skills/creer-brouillons-facebook/SKILL.md'), 'utf8');
+  join(root, 'remote-skills/creer-brouillons-facebook/PROMPT.md'), 'utf8');
 
 const src = md.slice(md.indexOf('const esc    ='), md.indexOf('const f = () =>'));
-if (!src.includes('mdToText')) throw new Error('convertisseur introuvable dans SKILL.md');
+if (!src.includes('mdToText')) throw new Error('convertisseur introuvable dans PROMPT.md');
 const { mdToHtml, mdToText } = new Function(src + ';return {mdToHtml, mdToText};')();
 
 let ko = 0;

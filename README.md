@@ -5,7 +5,7 @@ plugins indépendants** : on n'installe que celui dont on a besoin.
 
 | Plugin | Pour qui | Compétences |
 |---|---|---|
-| `sarecrute-recruteur` | les recruteurs, au quotidien | `creer-clinique-offre`, `creer-brouillons-facebook` |
+| `sarecrute-recruteur` | les recruteurs, au quotidien | `creer-clinique-offre`, `creer-candidat`, `creer-brouillons-facebook` |
 | `sarecrute-admin` | le poste d'administration | `scrape-veto`, `maj-offres` |
 
 ## Installation — recruteurs
@@ -109,9 +109,9 @@ n'est pas l'onglet actif, elle demande de cliquer dessus.
 Ce dépôt est la **source de vérité** des compétences distribuées. Toute correction se fait ici,
 puis :
 
-### Compétences « distantes » : `scrape-veto` et `creer-candidat`
+### Compétences « distantes » : toutes, depuis le 01/09/2026
 
-Ces compétences n'embarquent plus leurs instructions dans le plugin : le `SKILL.md` installé est
+Les **cinq compétences** des deux plugins n'embarquent plus leurs instructions dans le plugin : le `SKILL.md` installé est
 un **stub** qui télécharge à chaque exécution un snapshot de
 [`remote-skills/<compétence>/`](remote-skills/) (PROMPT.md + scripts + références) depuis la
 **branche `stable`** de ce dépôt. Conséquences :
@@ -133,8 +133,9 @@ un **stub** qui télécharge à chaque exécution un snapshot de
 - `creer-candidat` a une dépendance de plus : son `scripts/routine.py` télécharge la doctrine
   d'enrichissement depuis `routines/profil-ia-candidat.md` sur **`main`**, délibérément — c'est la
   branche que clone la routine cloud, et les deux chemins d'enrichissement doivent rester
-  identiques. Et son `ville.py` est tiré de `creer-clinique-offre`, resté une compétence classique :
-  si celle-ci migre un jour ici, l'URL du `curl` dans son PROMPT.md est à reprendre.
+  identiques. Et son `ville.py` est tiré du snapshot de `creer-clinique-offre`
+  (`remote-skills/creer-clinique-offre/scripts/ville.py`, branche `stable`) : une seule copie,
+  partagée par les deux compétences.
 
 ```bash
 claude plugin validate .                       # manifeste marketplace

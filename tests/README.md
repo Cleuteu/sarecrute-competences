@@ -74,7 +74,7 @@ et 6 cas ; contre celle d'avant le 23 août 2026, `attribution_commentaires` éc
 ne prévoyait rien pour `[texte](url)`. Deux annonces sur cinq écrivant l'adresse de contact en
 `[sarah.vet@sarecrute.com](mailto:sarah.vet@sarecrute.com)`, le brouillon Facebook affichait les
 crochets et le `mailto:` en clair. Rien ne le signalait : le brouillon se crée, le contrôle
-`dup`/`img` passe, le gras est là. Le test lit les fonctions **dans le SKILL.md** et vérifie les
+`dup`/`img` passe, le gras est là. Le test lit les fonctions **dans le PROMPT.md** (corps distant, `remote-skills/`) et vérifie les
 liens `mailto:`/`tel:` et http, le gras dans un libellé de lien, l'échappement du `&` d'une URL
 (`link` doit tourner avant `esc`), la **cohérence `mdToHtml` / `mdToText`** — dont dépend le
 contrôle de longueur `attendu` vs `obtenu` du run — et la non-régression du gras, des titres, de

@@ -1,4 +1,4 @@
-**creer-candidat — version 0.1.0 (2026-09-01)**
+**creer-candidat — version 0.1.1 (2026-09-01)**
 
 > Ce fichier est le corps de la compétence `creer-candidat` du plugin `sarecrute-recruteur`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -37,17 +37,18 @@ Compétences `tblH8Zym1DNu7PN3c` · Actes `tblt32Afmq6vQ6FJS`.
 chemin en dur** et ne jamais aller chercher un fichier dans le plugin installé : ce corps de
 compétence ne vit pas dans le plugin.
 
-`ville.py` appartient à `creer-clinique-offre`, qui n'est pas encore une compétence distante.
-Plutôt que d'en garder une seconde copie qui dériverait, on le tire de la **même branche
-`stable`** que ce snapshot, et seulement quand une ville est à résoudre :
+`ville.py` appartient à `creer-clinique-offre` (compétence distante elle aussi depuis le
+01/09/2026, son snapshot vit dans `remote-skills/creer-clinique-offre/`). Plutôt que d'en garder
+une seconde copie qui dériverait, on le tire de la **même branche `stable`** que ce snapshot, et
+seulement quand une ville est à résoudre :
 
 ```bash
 curl -fsSL -o "<dossier_skill>/scripts/ville.py" \
-  https://raw.githubusercontent.com/Cleuteu/sarecrute-competences/stable/plugins/sarecrute-recruteur/skills/creer-clinique-offre/scripts/ville.py
+  https://raw.githubusercontent.com/Cleuteu/sarecrute-competences/stable/remote-skills/creer-clinique-offre/scripts/ville.py
 ```
 
-⚠️ Couplage connu : si `creer-clinique-offre` migre un jour vers `remote-skills/`, cette URL casse.
-Le symptôme sera franc (404), pas silencieux, et le repli est d'écrire `county` à la main.
+⚠️ Si ce téléchargement renvoie un 404 (fichier déplacé dans le dépôt), le symptôme est franc,
+pas silencieux : le repli est d'écrire `county` à la main.
 
 Écrire **par ID de champ**, **sans `typecast`**. Ne jamais ajouter de valeur à un champ select :
 si la source ne rentre dans aucune valeur existante, laisser vide et le signaler.
