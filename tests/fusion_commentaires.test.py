@@ -35,7 +35,8 @@ def check(label, got, want):
 
 POST = {"Prénom": "Sabine", "Nom": "Marcillaud", "Type d'entrée": "Post",
         "Date du post": "2026-08-15", "Type de post": "Clinique cherche vétérinaire",
-        "Pratiques": ["Canine", "Bovins"], "Statuts contractuels": ["CDI", "Collaboration libérale"],
+        "Pratiques requises": ["Canine", "Bovins"], "Pratiques optionnelles": ["NAC"],
+        "Statuts contractuels": ["CDI", "Collaboration libérale"],
         "Contenu complet": "URGENT Véto mixte recherché·e à Villeneuve d'Aveyron"}
 # Le commentaire hérite du post commenté (une candidate en CDD prophylaxie) : ces
 # valeurs décrivent la CANDIDATE, pas l'offre de Sabine — elles ne doivent rien écraser.
@@ -60,9 +61,14 @@ check("Statuts de l'annonce NON écrasés par ceux hérités du post commenté",
       sc["Statuts contractuels"], ["CDI", "Collaboration libérale"])
 check("Date du post = activité la plus récente (fraîcheur en prospection)",
       sc["Date du post"], "2026-08-19")
-check("une valeur vide ne chasse pas une valeur pleine",
-      ap.merged_scalars([dict(POST, **{"Date du post": "2026-08-20", "Pratiques": []}), POST])["Pratiques"],
-      ["Canine", "Bovins"])
+# Annonce republiée en version courte : les deux niveaux de pratiques déjà extraits
+# de la version longue doivent survivre (champs séparés depuis le 31/08/2026).
+_court = ap.merged_scalars([dict(POST, **{"Date du post": "2026-08-20",
+                                          "Pratiques requises": [], "Pratiques optionnelles": []}), POST])
+check("une valeur vide ne chasse pas une valeur pleine (Pratiques requises)",
+      _court["Pratiques requises"], ["Canine", "Bovins"])
+check("une valeur vide ne chasse pas une valeur pleine (Pratiques optionnelles)",
+      _court["Pratiques optionnelles"], ["NAC"])
 check("sans aucun post, l'enregistrement reste un Commentaire",
       ap.merged_scalars([COM])["Type d'entrée"], "Commentaire")
 
