@@ -1,13 +1,14 @@
 # Tests
 
 Ces tests ne sont **pas** embarqués dans les plugins (ils vivent hors de `plugins/`, donc rien
-n'est installé chez les recruteurs). Ils épinglent des bugs de `scrape-veto` qui ont tous été
-**silencieux** — ils ne provoquaient aucune erreur, juste des données fausses en base.
+n'est installé chez les recruteurs). Ils épinglent des bugs qui ont tous été **silencieux** — ils
+ne provoquaient aucune erreur, juste des données fausses en base ou dans une publication.
 
 ```bash
 node tests/troncature.test.mjs                      # aucune dépendance
 python3 tests/fusion_commentaires.test.py           # aucune dépendance
 npm i --no-save jsdom@22 && node tests/attribution_commentaires.test.js
+node tests/liens_markdown.test.mjs                  # aucune dépendance
 ```
 
 (jsdom 22 et non la dernière : les versions récentes ne se chargent pas en CommonJS sous Node 20.)
@@ -58,3 +59,13 @@ le fixture reflète toujours la forme réelle des ancres.
 
 Lancés contre la version d'avant le 10 août 2026, les deux premiers échouent respectivement sur 1
 et 6 cas ; contre celle d'avant le 23 août 2026, `attribution_commentaires` échoue sur 7 cas.
+
+**`liens_markdown.test.mjs`** — le convertisseur Markdown → HTML de `creer-brouillons-facebook`
+ne prévoyait rien pour `[texte](url)`. Deux annonces sur cinq écrivant l'adresse de contact en
+`[sarah.vet@sarecrute.com](mailto:sarah.vet@sarecrute.com)`, le brouillon Facebook affichait les
+crochets et le `mailto:` en clair. Rien ne le signalait : le brouillon se crée, le contrôle
+`dup`/`img` passe, le gras est là. Le test lit les fonctions **dans le SKILL.md** et vérifie les
+liens `mailto:`/`tel:` et http, le gras dans un libellé de lien, l'échappement du `&` d'une URL
+(`link` doit tourner avant `esc`), la **cohérence `mdToHtml` / `mdToText`** — dont dépend le
+contrôle de longueur `attendu` vs `obtenu` du run — et la non-régression du gras, des titres, de
+l'indentation et des crochets isolés.

@@ -40,6 +40,37 @@ synthétique (étape 4), qui n'utilise ni le presse-papiers système ni le focus
 
 Fonctionne sous macOS, Linux et Windows.
 
+## Zéro question quand tout est normal
+
+Les recruteurs se perdaient dans les questions posées au lancement. La règle, désormais :
+
+> **Ne poser une question que si la réponse change ce qui va être fait.**
+
+Un run nominal va donc **de bout en bout sans rien demander**. Tout se déduit :
+
+- **l'identité du recruteur** — déduite quand elle est déductible (étape 1) ;
+- **le nombre de brouillons** — lancé d'office entre 5 et 17 (étape 2.5) ;
+- **le navigateur** — choisi d'office quand un seul Chrome est connecté (étape 4) ;
+- **la méthode d'attache de l'image** (A ou B) — jamais soumise au recruteur, décidée par le test
+  de l'étape 3 ;
+- **les cas dégradés** (image manquante, groupe non rejoint, canal hors périmètre) — jamais une
+  question : on continue et on le dit dans le compte rendu.
+
+Il reste **trois** situations, toutes anormales, où l'on s'arrête pour demander : plusieurs
+recruteurs possibles et aucun ne correspond au compte (étape 1), un nombre de brouillons hors de
+la plage 5–17 (étape 2.5), plusieurs navigateurs connectés et aucun mémorisé (étape 4). Chacune
+signale quelque chose d'inhabituel — c'est ce qui les distingue des questions qu'on vient de
+retirer, dont la réponse était connue d'avance.
+
+**Déduire n'est pas escamoter.** Chaque décision prise seul s'affiche en une ligne au moment où
+elle est prise, et la liste des brouillons est montrée avant le premier onglet même quand on
+n'attend pas de réponse. Le recruteur peut toujours interrompre ; ce qu'on lui épargne, c'est
+d'avoir à autoriser ce qui n'avait pas besoin de l'être.
+
+Ce qui reste interdit sans le recruteur ne change pas : **ne jamais publier**, ne jamais cocher
+« Publié ? », ne jamais corriger une coquille de son annonce. Prendre l'initiative porte sur les
+questions de tuyauterie, pas sur le contenu ni sur la publication.
+
 ## Ordre de grandeur
 
 Mesuré en production sur un run de 12 brouillons : **~0,6 appel d'outil par brouillon**, zéro
@@ -87,8 +118,8 @@ Les champs `Texte de publication`, `url image publication`, `Responsable de l'of
 
 ## Étape 1 — Identifier le recruteur qui lance la compétence
 
-Chaque recruteur ne prépare **que ses propres** publications. L'identité est mémorisée sur son
-poste, pour ne poser la question qu'une seule fois.
+Chaque recruteur ne prépare **que ses propres** publications. L'identité se **déduit** ; elle
+n'est demandée qu'en dernier recours, et mémorisée sur son poste quand c'est possible.
 
 1. Lire le fichier de config `$HOME/.sarecrute/recruteur.json`
    (sous Windows : `%USERPROFILE%\.sarecrute\recruteur.json` — `$HOME` y renvoie déjà).
@@ -103,7 +134,13 @@ poste, pour ne poser la question qu'une seule fois.
    `navigateurDeviceId` est facultatif et sert à l'étape 4 (choix du navigateur). Il est écrit
    au premier run qui a dû poser la question ; son absence n'empêche rien.
 
-2. S'il n'existe pas, construire la liste des recruteurs possibles depuis Airtable :
+   **En session cloud (Cowork), ce fichier n'existera jamais** : aucun dossier du poste du
+   recruteur n'y est monté, et `$HOME` n'y survit pas d'un run à l'autre. La lecture qui échoue
+   n'est donc **pas une anomalie** — ne pas la signaler, ne pas chercher le fichier ailleurs,
+   enchaîner directement sur le point 2. C'est pour ce cas que la déduction du point 3 existe :
+   sans elle, la question serait reposée à chaque lancement.
+
+2. S'il n'existe pas ou n'est pas lisible, construire la liste des recruteurs possibles depuis Airtable :
    `list_records_for_table` sur `tblzKMXlCBH21hbJy`, **`fieldIds` limité au seul**
    `fld0PBN7RvLtXb2Is` (Responsable de l'offre), filtré sur les 30 derniers jours
    (`{"operator":"isWithin","operands":["fldgV9Lx0qoPiG5Ry",{"mode":"pastNumberOfDays","numberOfDays":30,"timeZone":"Europe/Paris"}]}`),
@@ -122,17 +159,45 @@ poste, pour ne poser la question qu'une seule fois.
            | .[] | .[0] | select(.!=null) | (.name+" <"+.email+">")] | unique[]' "<chemin_json>"
    ```
 
-3. Poser la question avec AskUserQuestion. **Pré-sélectionner** l'entrée dont l'email correspond
-   à celui du compte Claude de l'utilisateur, s'il y a une correspondance. Laisser la possibilité
-   de saisir un nom absent de la liste.
+3. **Déduire l'identité plutôt que la demander.** Dans l'ordre, en s'arrêtant au premier cas qui
+   s'applique :
 
-   Grouper cette question avec celle du navigateur (étape 4) et celle du feu vert (étape 2.5) :
-   AskUserQuestion accepte jusqu'à 4 questions par appel, et chaque appel séparé coûte une
-   attente humaine complète.
+   1. **L'email du compte Claude de l'utilisateur figure dans la liste** (comparaison exacte,
+      casse ignorée) → c'est lui. Pas de question.
+   2. **La liste ne contient qu'un seul couple nom + email** → c'est lui. Pas de question. C'est
+      le cas courant d'une petite équipe (et celui du run cloud du 01/09/2026, où la question a
+      été posée pour un choix à une seule réponse possible).
+   3. **Plusieurs candidats et aucun ne correspond à l'email du compte** → là seulement, poser la
+      question avec AskUserQuestion, en laissant la possibilité de saisir un nom absent de la
+      liste.
 
-4. Écrire le choix dans `$HOME/.sarecrute/recruteur.json` (créer le dossier au besoin) et le dire
-   à l'utilisateur, en précisant qu'il peut modifier ou supprimer ce fichier pour changer
-   d'identité. Ce fichier est **local à la machine** : ne jamais le versionner ni le partager.
+   La déduction du cas 2 peut se tromper — un recruteur qui démarre n'a encore aucune
+   publication à son nom, et hériterait de celles d'un collègue. Ce qui la rattrape est le
+   garde-fou `MAUVAIS_COMPTE` de la phase 2 : il compare le nom déduit à celui **affiché dans le
+   composeur Facebook** et lève une exception avant la première frappe si les deux diffèrent.
+   C'est le filet qui compte, et il est automatique. La liste affichée à l'étape 2.5 n'en est plus
+   un depuis qu'elle ne s'accompagne pas toujours d'une question : le recruteur la voit, mais rien
+   ne garantit qu'il la lise avant que les onglets s'ouvrent.
+
+   Dans les cas 1 et 2, **le dire en une ligne** au début du travail (« Brouillons préparés au nom
+   de <Nom> — déduit de <votre compte Claude | seul responsable des 30 derniers jours> ») et
+   préciser comment en changer : lancer la compétence en nommant le recruteur voulu. Une déduction
+   qu'on annonce n'est pas une décision prise dans le dos du recruteur.
+
+   Si une question doit malgré tout être posée, la poser **seule et tout de suite** : elle
+   conditionne le filtrage de l'étape 2, donc elle ne peut pas attendre pour être groupée avec une
+   autre. Une version antérieure prescrivait de la fusionner avec le feu vert — ce feu vert
+   n'existe plus dans le cas nominal, et l'attendre reviendrait à retarder tout le run.
+
+4. Écrire le choix dans `$HOME/.sarecrute/recruteur.json` (créer le dossier au besoin), en
+   précisant à l'utilisateur qu'il peut modifier ou supprimer ce fichier pour changer d'identité.
+   Ce fichier est **local à la machine** : ne jamais le versionner ni le partager.
+
+   **Si l'écriture échoue** (système de fichiers en lecture seule, `$HOME` absent — le cas d'une
+   session cloud) : ne pas réessayer, ne pas chercher un autre emplacement, et **ne pas en faire
+   une erreur**. Le run continue à l'identique ; la seule conséquence est que l'identité sera
+   redéduite au prochain lancement, ce qui ne coûte rien tant que le point 3 aboutit sans
+   question. En dire un mot en fin de compte rendu, pas au milieu du travail.
 
 Ne traiter les publications de **tous** les responsables que si l'utilisateur le demande
 explicitement ; ce n'est jamais le comportement par défaut.
@@ -209,15 +274,36 @@ explicitement ; ce n'est jamais le comportement par défaut.
    > textes dans son propre message perd les puces, aplatit les niveaux d'indentation, et
    > remplace les apostrophes courbes `’` par des droites `'`. Rien de tout cela n'apparaît dans
    > une relecture rapide, et le recruteur découvre les dégâts après publication.
-5. Présenter à l'utilisateur la liste des brouillons à préparer (offre × canal), regroupée par
-   offre, avec l'image associée, et demander son feu vert. **Signaler dès ici** les publications
-   sans image et les canaux hors périmètre : l'utilisateur doit pouvoir arbitrer avant qu'on
-   ouvre le moindre onglet.
+5. **Afficher** la liste des brouillons à préparer (offre × canal), regroupée par offre, avec
+   l'image associée. **Signaler dès ici** les publications sans image et les canaux hors
+   périmètre, pour que le recruteur les voie avant qu'on ouvre le moindre onglet.
+
+   Puis, selon le **nombre de brouillons retenus** :
+
+   | Nombre | Ce qu'on fait |
+   |---|---|
+   | **0** | S'arrêter (cas déjà traité au point 3). Pas de question : il n'y a rien à autoriser. |
+   | **1 à 4** | **Demander le feu vert** — volume anormalement bas. |
+   | **5 à 17** | **Lancer sans rien demander.** Afficher la liste et enchaîner sur l'étape 4. |
+   | **18 et plus** | **Demander le feu vert** — volume anormalement haut. |
+
+   Un run normal fait une dizaine de brouillons ; les bornes 5 et 17 encadrent cette plage. Dans
+   la plage, la question n'apporte rien : le recruteur répond oui, et c'est du temps humain pour
+   une réponse connue d'avance. **Hors de la plage, le chiffre est en soi l'information** — trop
+   peu veut souvent dire qu'un filtre a mordu (mauvais responsable déduit, canal sans URL,
+   publications déjà cochées « Publié ? ») et trop veut dire qu'on s'apprête à ouvrir 18 onglets
+   ou plus, ce qui n'est pas un geste anodin sur le poste du recruteur. Dans ces deux cas, dire
+   **quel** chiffre a déclenché la question et **ce qu'on soupçonne**, pas seulement « on
+   continue ? ».
+
+   Ce feu vert conditionnel ne remplace aucun des interdits : on ne publie jamais, on ne coche
+   jamais « Publié ? ». Ce qui est autorisé d'office, c'est **préparer** des brouillons — une
+   action que le recruteur relit ensuite onglet par onglet, et qui ne sort pas de sa machine.
 
 ## Étape 3 — Télécharger les images (une seule fois par image)
 
 **Quand.** Démarrer les téléchargements **dès que la liste du point 4 de l'étape 2 est connue**,
-c'est-à-dire *avant* de présenter la liste et *sans attendre* le feu vert. Le téléchargement Drive
+c'est-à-dire *avant* de présenter la liste et *sans attendre* un éventuel feu vert. Le téléchargement Drive
 et le décodage ne touchent pas au navigateur : ils ne rentrent en conflit avec rien, et le temps
 de lecture de l'utilisateur est autant de pris.
 
@@ -325,9 +411,23 @@ Sept faits établis en run réel. Les ignorer coûte 20 à 30 appels par brouill
 
 ### Choix du navigateur
 
-Appeler `list_connected_browsers` **avant** d'ouvrir le premier onglet. S'il y en a plus d'un,
-demander lequel via AskUserQuestion : une option par navigateur, plus l'option « ouvrir une
-confirmation dans chaque Chrome ». Ne jamais en choisir un soi-même.
+Appeler `list_connected_browsers` **avant** d'ouvrir le premier onglet, puis :
+
+- **Un seul navigateur connecté → le prendre, sans rien demander** : `select_browser` avec son
+  `deviceId`, et une ligne dans le compte rendu pour dire lequel a été utilisé.
+- **Plusieurs navigateurs → demander lequel** via AskUserQuestion : une option par navigateur,
+  plus l'option « ouvrir une confirmation dans chaque Chrome » (`switch_browser`). Ne jamais en
+  choisir un soi-même dans ce cas.
+
+> **Cette règle tranche une contradiction, ne la réintroduisez pas.** La description de
+> `list_connected_browsers` dit de s'en servir « to present choices to the user », ce qui se lit
+> comme une obligation de poser la question à chaque fois. Appliquée à un poste où un seul Chrome
+> est connecté, elle produit une question absurde : choisir entre une option unique et un repli.
+> C'est l'une des questions inutiles remontées par les recruteurs. On tranche ici pour la
+> déduction, et ce n'est pas un renoncement à la sécurité : le vrai garde-fou n'est pas cette
+> question, c'est le `MAUVAIS_COMPTE` de la phase 2, qui lève une exception et stoppe le
+> `browser_batch` avant la moindre frappe si le composeur n'affiche pas le nom du recruteur. Un
+> mauvais navigateur choisi d'office est donc rattrapé, pas subi.
 
 - **Les noms « Browser N » ne sont pas stables** : ils se renumérotent quand un navigateur se
   déconnecte, et le nom donné en cliquant « Connect » n'est pas repris. Les `deviceId` sont
@@ -337,9 +437,11 @@ confirmation dans chaque Chrome ». Ne jamais en choisir un soi-même.
 - **`switch_browser` ne diffuse qu'aux navigateurs *autres* que celui déjà sélectionné.** S'il
   n'y en a pas, il répond « No other browsers available to switch to » : ce n'est pas une panne,
   il faut simplement repasser par `select_browser` avec un id de la liste.
-- Aux runs suivants, si l'id mémorisé figure toujours dans `list_connected_browsers`, le proposer
-  **en première option et pré-sélectionné**. La question reste obligatoire dès qu'il y a plusieurs
-  navigateurs ; la mémorisation fait gagner la recherche du bon, pas la question.
+- Aux runs suivants, si l'id mémorisé dans `navigateurDeviceId` figure toujours dans
+  `list_connected_browsers`, **le prendre directement**, même s'il y a plusieurs navigateurs : le
+  recruteur a déjà répondu une fois, lui reposer la question est exactement ce qu'on cherche à
+  éviter. Le dire en une ligne dans le compte rendu. La question ne revient que si l'id mémorisé
+  a disparu de la liste et qu'il reste plusieurs candidats.
 - Le profil Chrome ne dit rien du compte Facebook actif : **seul le nom affiché dans le composeur
   fait foi**, et il est vérifié à chaque brouillon (voir le garde-fou ci-dessous).
 
@@ -373,7 +475,9 @@ const MD = "<Markdown brut d'Airtable, verbatim, sauts de ligne en \n>";
 // --- Markdown Airtable -> HTML pour le composeur Facebook ---
 const esc    = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const spaces = s => s.replace(/ {2,}/g, m => '&nbsp;'.repeat(m.length));  // HTML écrase les espaces multiples
-const inline = s => spaces(esc(s)).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+const link   = s => s.replace(/\[([^\]]+)\]\((?:mailto|tel):[^)]+\)/g, '$1')   // [adresse](mailto:adresse) -> adresse
+                     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)');        // [texte](url)          -> texte (url)
+const inline = s => spaces(esc(link(s))).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
 const mdToHtml = md => md.replace(/\r/g,'').split(/\n{2,}/)
   .map(bl => bl.split('\n')
       .map(l => l.replace(/^#{1,6}\s*/,''))                     // titres : marqueur retiré
@@ -384,7 +488,10 @@ const mdToHtml = md => md.replace(/\r/g,'').split(/\n{2,}/)
   .filter(b => b.length)
   .map(b => '<p>' + b + '</p>').join('');                       // <p> = saut de paragraphe
 const mdToText = md => md.replace(/\r/g,'')
-  .replace(/^#{1,6}\s*/gm,'').replace(/\*\*(.+?)\*\*/g,'$1');   // repli texte brut
+  .replace(/^#{1,6}\s*/gm,'')
+  .replace(/\[([^\]]+)\]\((?:mailto|tel):[^)]+\)/g,'$1')       // même règle de liens qu'en HTML
+  .replace(/\[([^\]]+)\]\(([^)]+)\)/g,'$1 ($2)')
+  .replace(/\*\*(.+?)\*\*/g,'$1');                             // repli texte brut
 
 const f = () => [...document.querySelectorAll('div[role="dialog"]')]
                   .find(d => d.querySelector('div[contenteditable="true"]'));
@@ -524,7 +631,10 @@ Ne jamais cocher « Publié ? » dans Airtable.
 
 Récapituler :
 
-- **au nom de quel recruteur** les brouillons ont été préparés ;
+- **au nom de quel recruteur** les brouillons ont été préparés, et **d'où vient cette identité**
+  (fichier de config, déduite du compte Claude, seul responsable de la période, ou choisie) ;
+  ajouter, **seulement si l'écriture de `recruteur.json` a échoué** (session cloud), une ligne
+  disant que l'identité sera redéduite au prochain lancement — sans en faire un incident ;
 - le nombre de brouillons préparés et leurs destinations, groupés par offre, avec l'image utilisée ;
 - **les publications sans image trouvée** ;
 - **les canaux en « accès manquant »** (groupe non rejoint), avec la consigne de demander l'accès
@@ -538,6 +648,10 @@ Récapituler :
   confirmer (voir les notes) — l'utilisateur peut le vérifier sur son premier post ;
 - rappeler que rien n'a été publié et qu'il reste à cliquer sur « Publier » dans chaque onglet.
 
+Ne pas y faire figurer les décisions de tuyauterie prises sans le recruteur (navigateur unique
+retenu, méthode d'attache A ou B) autrement qu'en une ligne factuelle : elles n'appellent pas
+d'action de sa part, et les détailler recrée par écrit la charge qu'on vient de lui retirer.
+
 ## Notes / pièges connus
 
 - **Interligne — résolu par `text/html`, ne pas revenir en arrière.** En collant du
@@ -545,6 +659,19 @@ Récapituler :
   en cinq sauts, et le texte est nettement plus aéré que dans Airtable. Avec `text/html`, `<br>`
   donne un saut serré et `<p>` un saut de paragraphe : la structure est restituée exactement.
   C'est la raison principale d'utiliser le HTML, indépendamment même du gras.
+- **Les liens Markdown : Facebook n'en fait rien, le convertisseur les aplatit.** Une annonce
+  écrite dans Airtable peut contenir `[sarah.vet@sarecrute.com](mailto:sarah.vet@sarecrute.com)`
+  ou `[notre site](https://sarecrute.com)`. Collés tels quels, ils sortent avec les crochets, les
+  parenthèses et le `mailto:` en clair dans le post — et **rien ne le signale** : le brouillon se
+  crée normalement, la vérification `dup`/`img` passe, le gras est là. Constaté sur 2 des 5
+  annonces d'un run réel (Hedera, Vétérinaires de l'eaulne).
+  Le convertisseur s'en charge maintenant : `[texte](mailto:…)` et `[texte](tel:…)` gardent le
+  seul texte (l'adresse y est déjà lisible), tout autre lien devient `texte (url)` — Facebook
+  n'accepte pas de lien cliquable au collage, donc l'URL doit rester visible.
+  Deux points à ne pas défaire : `link` s'applique **avant `esc`**, pour qu'une URL contenant un
+  `&` soit échappée comme le reste ; et **la même règle vit dans `mdToText`**, sinon le `attendu`
+  du contrôle de longueur diverge du `obtenu` et la vérification crie au faux positif.
+
 - **Ne pas retirer les tirets « - » des listes.** Une version antérieure le prescrivait, au motif
   que Facebook les transformait en puces avec un tiret en double. C'était vrai de la **frappe**,
   où Lexical applique l'autoformatage Markdown ; ça ne l'est pas du **collage**, qui ne déclenche
