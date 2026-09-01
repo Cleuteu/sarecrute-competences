@@ -15,6 +15,8 @@
  *   __profileUrl(anchor) -> string  : lien de profil FB depuis une ancre de nom
  *   __store, __merge()   : accumulateur persistant AUTO-RÉPARANT (garde le corps
  *                          le plus long → corrige la troncature "Voir plus")
+ *   __realClick(btn)     -> bool   : clic RÉEL (séquence pointer complète) ; un
+ *                          b.click() nu ne déclenche rien sur certains boutons FB
  *   __expandPostText()   -> n  : clique les "Voir plus" des posts
  *   __expandCommentText()-> n  : idem DANS les commentaires (jamais "Voir plus de
  *                          commentaires", qui navigue et viderait le store)
@@ -455,6 +457,26 @@ window.__merge = function () {
  * ⚠️ Ne PAS cliquer "Voir plus de commentaires" / le compteur de commentaires :
  * ça navigue vers le permalink et vide le window. On ne déplie que le texte
  * tronqué des posts ("Voir plus" / "En voir plus"). */
+/* --- Clic RÉEL sur un bouton React de Facebook ------------------------------
+ * ⚠️ `b.click()` ne suffit PAS. Certains boutons « En voir plus » de commentaires
+ * n'ont aucun handler attaché au click DOM : ils écoutent la séquence pointer.
+ * Le 1er septembre 2026, deux commentaires de « We need you » sont restés figés
+ * sur « … En voir plus » après une quinzaine de cycles __expandCommentText() +
+ * __merge() — __exportBlocked() bloquait donc l'export SANS moyen de le lever,
+ * et rien ne l'expliquait (le bouton était bien trouvé, le clic bien émis).
+ * La séquence ci-dessous a déplié les deux du premier coup, sur le même élément.
+ * Ne jamais revenir à un b.click() nu. */
+window.__realClick = function (b) {
+  const r = b.getBoundingClientRect();
+  const o = { bubbles: true, cancelable: true, view: window,
+              clientX: r.x + r.width / 2, clientY: r.y + r.height / 2 };
+  try {
+    ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']
+      .forEach(t => b.dispatchEvent(new MouseEvent(t, o)));
+    return true;
+  } catch (e) { return false; }
+};
+
 window.__EXPAND_RX = /^(?:en )?voir plus$|^afficher la suite$|^afficher plus$/i;
 
 /* ⚠️ Pré-filtrer sur textContent, PAS innerText : innerText force un reflow par
@@ -466,7 +488,7 @@ window.__expandPostText = function () {
     const tc = (b.textContent || '').trim();
     if (tc.length > 18 || !window.__EXPAND_RX.test(tc)) continue;
     if (b.closest('a')) continue;
-    try { b.click(); n++; } catch (e) {}
+    if (window.__realClick(b)) n++;
   }
   return n;
 };
@@ -486,7 +508,7 @@ window.__expandCommentText = function () {
       const tc = (b.textContent || '').trim();   // textContent : cf. __expandPostText
       if (tc.length > 18 || !window.__EXPAND_RX.test(tc)) continue;
       if (b.closest('a')) continue;
-      try { b.click(); n++; } catch (e) {}
+      if (window.__realClick(b)) n++;
     }
   }
   return n;
@@ -509,7 +531,7 @@ window.__expandVisible = function (pad) {
     if (b.closest('a')) continue;
     const r = b.getBoundingClientRect();
     if (r.bottom < -pad || r.top > vh + pad) continue;
-    try { b.click(); n++; } catch (e) {}
+    if (window.__realClick(b)) n++;
   }
   return n;
 };

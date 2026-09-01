@@ -1,4 +1,4 @@
-**scrape-veto — version 0.14.0 (2026-09-01)**
+**scrape-veto — version 0.14.1 (2026-09-01)**
 
 > Ce fichier est le corps de la compétence `scrape-veto` du plugin `sarecrute-admin`. Il n'est
 > **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la

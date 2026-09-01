@@ -8,6 +8,7 @@ ne provoquaient aucune erreur, juste des données fausses en base ou dans une pu
 node tests/troncature.test.mjs                      # aucune dépendance
 python3 tests/fusion_commentaires.test.py           # aucune dépendance
 npm i --no-save jsdom@22 && node tests/attribution_commentaires.test.js
+node tests/expansion_clic.test.js                   # jsdom aussi
 node tests/liens_markdown.test.mjs                  # aucune dépendance
 ```
 
@@ -22,6 +23,15 @@ pièges du nouveau régime : la cible de fusion est le **post** et pas le dernie
 commentaire **comble** les champs vides de l'annonce sans écraser les siens, la section commentée
 reste identifiable (`💬 COMMENTAIRE de X sous le post de Y`), et sa signature ignore ce marqueur —
 sinon chaque re-scrape d'un commentaire d'avant le 20/08/2026 empilerait une section en double.
+
+**`expansion_clic.test.js`** — `b.click()` nu ne déplie pas certains « En voir plus » de
+commentaires : ces boutons React de Facebook n'ont aucun handler sur le click DOM, ils écoutent la
+séquence pointer. Le 1er septembre 2026, deux commentaires de « We need you » sont restés tronqués
+après une quinzaine de cycles `__expandCommentText()` + `__merge()` — `__exportBlocked()` bloquait
+l'export **sans moyen de le lever**, et rien ne l'expliquait (le bouton était trouvé, le clic bien
+émis). Le test rejoue un bouton qui n'écoute que `pointerdown`, exige que les trois expanders
+passent par `__realClick`, vérifie que le click classique marche toujours, et interdit le retour
+d'un `b.click()` nu dans la source.
 
 **`troncature.test.mjs`** — `__truncated()` ne regarde que les **posts**. Un commentaire figé sur
 « Bonjour,… Voir plus » passait donc l'export sans aucun signal. Le test vérifie que
