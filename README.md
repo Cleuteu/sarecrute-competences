@@ -109,14 +109,14 @@ n'est pas l'onglet actif, elle demande de cliquer dessus.
 Ce dépôt est la **source de vérité** des compétences distribuées. Toute correction se fait ici,
 puis :
 
-### Compétences « distantes » : le cas `scrape-veto`
+### Compétences « distantes » : `scrape-veto` et `creer-candidat`
 
-`scrape-veto` n'embarque plus ses instructions dans le plugin : le `SKILL.md` installé est un
-**stub** qui télécharge à chaque exécution un snapshot de
-[`remote-skills/scrape-veto/`](remote-skills/scrape-veto/) (PROMPT.md + scripts + références)
-depuis la **branche `stable`** de ce dépôt. Conséquences :
+Ces compétences n'embarquent plus leurs instructions dans le plugin : le `SKILL.md` installé est
+un **stub** qui télécharge à chaque exécution un snapshot de
+[`remote-skills/<compétence>/`](remote-skills/) (PROMPT.md + scripts + références) depuis la
+**branche `stable`** de ce dépôt. Conséquences :
 
-- **Corriger le prompt ou les scripts** : éditer `remote-skills/scrape-veto/` sur `main`, monter
+- **Corriger le prompt ou les scripts** : éditer `remote-skills/<compétence>/` sur `main`, monter
   la ligne de version en tête de `PROMPT.md`, puis déployer en avançant la branche :
   `git push origin main:stable`. **Aucun bump de plugin, aucun `plugin update` chez personne** —
   la prochaine exécution tire la nouvelle version toute seule (l'exécution l'annonce, c'est la
@@ -125,9 +125,16 @@ depuis la **branche `stable`** de ce dépôt. Conséquences :
   pointer le stub sur `main`.
 - En cas d'échec de téléchargement, le stub **s'arrête** — pas de repli sur une copie locale.
   C'est voulu (même doctrine que la blacklist) : ne pas le « réparer ».
-- Le paragraphe sur les versions ci-dessous ne concerne plus `scrape-veto` que si l'on touche au
+- Le paragraphe sur les versions ci-dessous ne concerne plus ces compétences que si l'on touche au
   **stub lui-même** ou à son frontmatter (`description`, déclenchement) — là, bump + republish +
-  `plugin update` restent nécessaires.
+  `plugin update` restent nécessaires. C'est le cas d'une compétence **nouvelle** : son stub doit
+  arriver chez l'utilisateur une première fois, donc bump + republish + `plugin update`, **puis**
+  `git push origin main:stable` pour que le corps existe. Les deux sont nécessaires.
+- `creer-candidat` a une dépendance de plus : son `scripts/routine.py` télécharge la doctrine
+  d'enrichissement depuis `routines/profil-ia-candidat.md` sur **`main`**, délibérément — c'est la
+  branche que clone la routine cloud, et les deux chemins d'enrichissement doivent rester
+  identiques. Et son `ville.py` est tiré de `creer-clinique-offre`, resté une compétence classique :
+  si celle-ci migre un jour ici, l'URL du `curl` dans son PROMPT.md est à reprendre.
 
 ```bash
 claude plugin validate .                       # manifeste marketplace
