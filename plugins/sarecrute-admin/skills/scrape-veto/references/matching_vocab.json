@@ -1,5 +1,5 @@
 {
- "note": "Valeurs select VALIDES pour Posts scrappés. N'écrire QUE ces valeurs (sinon Airtable créerait une nouvelle option). Généré depuis la base. « pratiques » sert aux DEUX champs « Pratiques requises » et « Pratiques optionnelles » : ils partagent le vocabulaire, et il doit rester identique à celui des Candidats et des Offres — le matching compare des chaînes brutes, une valeur qui diverge d'un seul côté casse le rapprochement en silence.",
+ "note": "Valeurs select VALIDES pour Posts scrappés. N'écrire QUE ces valeurs (sinon Airtable créerait une nouvelle option). Généré depuis la base. « pratiques » et « specialites » servent chacune aux DEUX champs « Pratiques requises » et « Pratiques optionnelles » : ils partagent le vocabulaire, et il doit rester identique à celui des Candidats et des Offres — le matching compare des chaînes brutes, une valeur qui diverge d'un seul côté casse le rapprochement en silence.",
  "zones_de_recherche": [
   "France",
   "Suisse",
@@ -131,6 +131,21 @@
   "Porcin",
   "Loups",
   "Volailles"
+ ],
+ "specialites": [
+  "Chirurgie",
+  "Urgences",
+  "Echographie",
+  "Orthopédie",
+  "Ophtalmologie",
+  "Laboratoire",
+  "Ostéopathie",
+  "Management",
+  "Cardiologie",
+  "Reproduction",
+  "Oncologie",
+  "Neurologie",
+  "Médecine interne"
  ],
  "statuts_contractuels": [
   "CDI",

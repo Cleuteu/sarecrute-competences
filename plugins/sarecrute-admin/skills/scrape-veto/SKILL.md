@@ -412,7 +412,7 @@ Le `Type de post` conditionne tout. Décide sur le **sens du texte**, pas sur l'
 - **Lien du post** : utilise **`p.permalink`** tel quel (reconstruit à la capture depuis l'id du groupe courant et celui du post : `…/groups/{gid}/posts/{pid}/`) — c'est un vrai lien qui ouvre le post. **N'utilise une URL de recherche `…/search?q=<mots-clés url-encodés>` qu'en dernier recours**, si `p.permalink` ET `p.pid` sont vides. (Validé en live : le permalink se reconstruit depuis l'`innerHTML` du conteneur, y compris sur les posts à timestamp obfusqué où le href de l'ancre est vide.)
 - **Zone de recherche**, **Contenu complet** = le **texte INTÉGRAL du post** (jamais tronqué ni résumé — c'est pour ça qu'on passe par le download blob), **Type de post** (`Vétérinaire cherche poste` | `Clinique cherche vétérinaire`).
 - **Pratiques requises** et **Pratiques optionnelles**, toutes deux ⊆ {Canine, Bovins, Equine, NAC, Allaitant, Laitier, Ovin/Caprin, Porcin, Loups, Volailles}. **Requises** = ce que le post pose en condition (post candidat : ce que le vétérinaire veut faire ; post clinique : ce que la clinique fait, donc ce que le poste impose). **Optionnelles** = ce qu'il accepte sans l'exiger — « appétence rurale appréciée », « ouvert au bovin », « un peu de NAC en plus ». Une pratique ne va **jamais dans les deux**. Dans le doute, l'optionnelle : elle élargit le rapprochement, elle n'exclut jamais. Laisse `Pratiques optionnelles` vide quand le texte ne dit rien de tel — c'est le cas courant.
-- **Spécialités** ⊆ {Chirurgie, Urgences, Echographie, Orthopédie, Ophtalmologie, Laboratoire, Ostéopathie, Management, Cardiologie, Reproduction, Oncologie, Neurologie, Médecine interne}.
+- **Spécialités requises** et **Spécialités optionnelles**, toutes deux ⊆ {Chirurgie, Urgences, Echographie, Orthopédie, Ophtalmologie, Laboratoire, Ostéopathie, Management, Cardiologie, Reproduction, Oncologie, Neurologie, Médecine interne}. **Par défaut, une spécialité extraite d'un texte va en OPTIONNELLE** — voir la règle ci-dessous, elle est plus stricte que pour les pratiques.
 - **Type d'entrée** = `Post`. **Post source** vide. **Nom de la clinique** si type clinique.
 - **Expérience** (cf. règles ci-dessous).
 
@@ -482,7 +482,18 @@ Pièges vérifiés sur les annonces réelles (août 2026) :
   un post « recherche poste en NAC à 100 % ou 50 % NAC/canin, un poste avec 5 % de NAC n'est pas
   envisageable » donne `Pratiques requises = [NAC]` et `Pratiques optionnelles = [Canine]` — surtout
   pas les deux en requises, ce qui reviendrait à exiger du canin.
-- **`Spécialités` ne se lit pas dans la liste de matériel.** « radio numérique, échographe neuf,
+- ⚠️ **Une spécialité citée est une prétention, pas une compétence — elle va en OPTIONNELLE.**
+  « Je fais des chirurgies de convenance » ne fait pas un chirurgien ; « à l'aise en écho » ne fait
+  pas un échographiste. `Spécialités requises` est réservé à ce qui est **prouvé ou exigé** :
+  côté candidat un titre, un diplôme (CEAV, DIE, DESV), une pratique exclusive revendiquée
+  (« je ne fais que de l'ophtalmo depuis 6 ans ») ; côté clinique une annonce qui recrute
+  explicitement sur la spécialité (« recherche un chirurgien »), pas une orientation décrite en
+  passant. **Dans le doute, l'optionnelle** : elle élargit le rapprochement, elle n'exclut jamais,
+  alors qu'une requise écarte tous les profils qui ne la portent pas en face.
+  Pourquoi cette barre est si haute : l'extraction allait systématiquement en requises, le
+  recruteur l'effaçait **9 fois sur 10**, et deux candidats sont restés invisibles des mois pour
+  un « Laboratoire » requis qu'aucune offre ne portait.
+- **`Spécialités requises` ne se lit JAMAIS dans la liste de matériel.** « radio numérique, échographe neuf,
   analyseur, laser » décrit un plateau technique — ça ne fait pas de l'échographie une spécialité
   du poste. Ne retiens une spécialité que présentée comme **pratiquée ou attendue** :
   « compétences en… », « orientation… », « appétence pour… », « possibilité de développer… »,
@@ -500,7 +511,7 @@ Pièges vérifiés sur les annonces réelles (août 2026) :
 - Sous « Clinique cherche vétérinaire » → **candidat** (profil, dispo, zone, compétences) — y compris « MP envoyé » → contenu = `Candidature en MP`.
 - Sous « Vétérinaire cherche poste » → **clinique/recruteur** (propose poste/zone/contrat) — y compris « je t'envoie un MP » → contenu = `Proposition en MP`.
 - **Ignorer** : encouragements (« Bravo », « Courage », « Ne pas hésiter »), tags d'un tiers sans info, questions/critiques sans recrutement, et **les commentaires de l'auteur sur son propre post**.
-- Champs : **Canaux** = celui du post parent (un commentaire vient forcément du même groupe) ; Prénom/Nom du commentateur ; **Profil Facebook** = `c.profileUrl` (celui du **commentateur**, jamais celui du post parent ; vide si absent) ; Date = date du commentaire (sinon du post) ; Lien = même que le parent ; Zone (du commentaire, sinon du parent) ; Contenu (texte, ou « Candidature/Proposition en MP ») ; **Type de post inversé** vs parent — *par défaut, pas par principe* : c'est le **sens du commentaire** qui tranche (cf. ⚠️ ci-dessous) ; Pratiques/Spécialités déduites (sinon du parent) ; **Type d'entrée** = `Commentaire` ; **Post source** = `{Auteur du post} - {résumé court}` ; Expérience ; Nom de la clinique si recruteur.
+- Champs : **Canaux** = celui du post parent (un commentaire vient forcément du même groupe) ; Prénom/Nom du commentateur ; **Profil Facebook** = `c.profileUrl` (celui du **commentateur**, jamais celui du post parent ; vide si absent) ; Date = date du commentaire (sinon du post) ; Lien = même que le parent ; Zone (du commentaire, sinon du parent) ; Contenu (texte, ou « Candidature/Proposition en MP ») ; **Type de post inversé** vs parent — *par défaut, pas par principe* : c'est le **sens du commentaire** qui tranche (cf. ⚠️ ci-dessous) ; Pratiques et spécialités déduites (sinon du parent) ; **Type d'entrée** = `Commentaire` ; **Post source** = `{Auteur du post} - {résumé court}` ; Expérience ; Nom de la clinique si recruteur.
 - **Le commentaire d'une personne DÉJÀ en base enrichit son enregistrement — il n'en crée pas un second.** Le push s'en charge (cf. §5) : tu émets la ligne normalement, il la fusionne. Ce qui reste ton travail, c'est de **remplir les champs que l'annonce de base laissait vides**, en te servant de ce que le commentaire révèle.
   - Le signal le plus utile est **le profil des posts sous lesquels la personne commente**. L'annonce de Sabine Marcillaud (Villeneuve d'Aveyron) ne dit rien de l'expérience attendue ; elle relance deux **jeunes diplômées** → `Expérience` = `Débutant`. Une clinique qui ne démarche que des internes dirait autre chose.
   - ⚠️ N'hérite pas à l'envers : les `Statuts contractuels`, `Zones` ou `Date de disponibilité` du post commenté décrivent **la candidate**, pas l'offre de la personne qui commente. Le push refuse d'écraser une valeur existante de l'annonce avec elles, mais il ne peut pas deviner qu'une valeur *absente* de l'annonce serait fausse : dans le doute, **laisse vide**.
@@ -527,7 +538,8 @@ Pièges vérifiés sur les annonces réelles (août 2026) :
 - **Un commentaire hérite des caractéristiques de son post parent**, dans **les deux sens** de type
   (candidat sous une annonce clinique, comme recruteur sous une annonce de candidat) :
   `Zones de recherche`, `Statuts contractuels`, `Type de temps de travail`, `Expérience`,
-  `Pratiques requises`, `Pratiques optionnelles`, `Spécialités` — **jamais `Contrat court`** (cf. §Champs de matching) — avec les
+  `Pratiques requises`, `Pratiques optionnelles`, `Spécialités requises`,
+  `Spécialités optionnelles` — **jamais `Contrat court`** (cf. §Champs de matching) — avec les
   mêmes règles d'extraction et le même vocabulaire que pour un post, **et la sémantique du type du
   commentaire**, pas celle du parent (un commentaire de recruteur se remplit avec les règles
   `Clinique cherche vétérinaire` même si le parent est un post candidat).
@@ -623,7 +635,9 @@ vérifie l'auteur réel avant de pousser.
 2. Écris les enregistrements jugés dans un fichier `records.json` (liste de `{"fields": {...}}`), **hors du dossier de la compétence** (scratchpad de session).
 3. `python3 <dossier_skill>/scripts/airtable_push.py records.json --dry` puis sans `--dry`.
 
-Le script fait un **upsert-merge par personne** (ne renseigne pas `auteur_key`, il le calcule) :
+Le script fait un **upsert-merge par personne** pour les candidats (ne renseigne pas
+`auteur_key`, il le calcule) et **par offre** pour les cliniques (clé d'offre obligatoire,
+cf. §5 bis) :
 - **Nom fiable** (`auteur_key` non vide) → si la personne existe déjà (toutes dates confondues), il **met à jour** son enregistrement : le nouveau post est empilé **en haut** de `Contenu complet` (séparateur `──────────`, en-tête `[date] lien`), et les champs scalaires (Date, Zone, Pratiques…) prennent les valeurs du **post le plus récent**. Sinon il crée.
   - Un **commentaire ne fait que combler les trous** de l'annonce, il n'écrase rien — et une valeur **vide** ne chasse jamais une valeur pleine (une annonce republiée en version courte n'efface plus les Pratiques extraites de sa version longue). Seule exception : `Date du post` prend l'**activité la plus récente**, commentaire compris, parce que c'est l'indicateur de fraîcheur en prospection.
 - **Nom anonyme / non fiable** → **pas de fusion** : création, sauf si **exactement la même publication** est déjà en base. Ne sont « non fiables » que les noms qui ne désignent personne de stable : vide, « Membre anonyme », pseudo auto-généré par FB (il porte des chiffres, type *EagerGiraffe2400*), tout en capitales, et titre d'annonce capté à la place de l'auteur (> 6 mots).
@@ -642,32 +656,65 @@ Quand deux annonces d'un même auteur doivent vivre **séparément** (Rémi Mere
 
 Écris alors dans `auteur_key` la clé suivie d'un suffixe : `remi mereaux#etudiants-a6`. Toute valeur contenant `#` est **respectée telle quelle** au lieu d'être recalculée — l'enregistrement sort du routage automatique et ne sera plus choisi comme cible de fusion.
 
-- Laisse toujours **un** enregistrement non figé par auteur, pour absorber ses nouvelles publications ; sinon elles créeront un enregistrement de plus.
+- Laisse toujours **un** enregistrement non figé par auteur **candidat**, pour absorber ses
+  nouvelles publications ; sinon elles créeront un enregistrement de plus. (Les posts
+  **clinique** sont au contraire TOUS figés par clé d'offre depuis la 0.13.0 — cf. §5 bis :
+  leur routage est explicite à chaque scrape, aucun absorbeur n'est nécessaire.)
 - Le marqueur doit être explicite : un simple écart entre la clé stockée et le nom n'est **pas** interprété comme un figeage (un nom corrigé après coup produirait cet écart sans qu'on veuille rien figer).
 - ⚠️ **Ce que le figeage ne fait pas** : router une *republication* vers le bon enregistrement. Si l'annonce figée est republiée avec un texte remanié, sa section est nouvelle et part dans l'enregistrement resté ouvert — le script ne peut pas deviner à quelle annonce un texte inédit correspond. Quand tu repères ce cas à la relecture, renseigne toi-même la clé figée sur cette ligne de `records.json` : elle est respectée aussi à l'entrée.
 
-**La fusion par personne vaut pour les DEUX types de post**, clinique comprise : une clinique qui
-republie son annonce, la reformule ou ouvre un second poste au même endroit doit rester **un seul
-enregistrement**. C'est le régime par défaut, ne le contourne pas.
+#### §5 bis — Posts clinique : une offre = une clé d'offre (depuis 0.13.0)
 
-Deux garde-fous, à appliquer **avant** d'écrire dans `records.json` :
+**La fusion par personne ne vaut plus pour les posts clinique.** Elle agrégeait les offres
+distinctes d'une même page (Panier Fleuri : un CDD maternité ET un CDI mixte dans le même
+record) et éclatait la même offre publiée par plusieurs personnes (Sainte Croix : 3 auteurs,
+3 records, 1 offre). Le régime clinique est l'**upsert par offre** : chaque entrée clinique
+fusible de `records.json` doit porter dans `auteur_key` la **clé de l'offre** qu'elle
+republie — `<clé nue>#<slug>` — et **le push refuse tout `records.json` où elle manque**
+(il liste alors les offres connues de la clinique pour t'aider).
 
-- **Annonce vraiment différente ⇒ entrée séparée.** Une clinique peut recruter en mars, puis
-  chercher un **autre** vétérinaire en septembre — c'est une nouvelle annonce, pas un re-post. À
-  séparer quand le poste change (espèce/pratique, contrat, spécialité) **ou** que plusieurs mois
-  séparent les deux publications sans continuité de texte. À fusionner quand c'est le même poste
-  reformulé, relancé ou remonté. Dans le doute, **fusionne** : deux sections empilées dans un même
-  record restent lisibles, alors qu'un doublon éclaté fausse les décomptes de prospection.
+Procédure, pour chaque entrée clinique retenue (posts ET commentaires de recruteur) :
+
+1. **Clé nue** = nom de la clinique normalisé (minuscules, sans accents, apostrophe droite,
+   espaces simples) s'il est connu, sinon prénom+nom normalisés. C'est le nom de la CLINIQUE
+   qui prime : la même offre est souvent portée par plusieurs personnes.
+2. **Liste les offres existantes** : `python3 <dossier_skill>/scripts/airtable_push.py --offres
+   "<clé nue>"` (clé | date | début de la dernière section). Au besoin, lis le `Contenu
+   complet` du record pour juger sur pièce.
+3. **Test d'extinction**, offre par offre : *si la clinique n'embauchait qu'UNE personne, les
+   deux annonces tomberaient-elles ?* Oui → même offre → **réutilise la clé existante à
+   l'identique** (ne corrige jamais son slug : c'est un identifiant). Non → offre nouvelle →
+   invente `<clé nue>#<slug>` avec un slug court et lisible : contrat-pratique-cause ou date
+   (`cdd-canin-maternite`, `cdi-mixte`, `rempla-2026-08-24`).
+
+Règles de départage, toutes vérifiées sur cas réels :
+
+- **La réécriture intégrale n'est PAS une offre nouvelle.** Les cliniques réécrivent leur
+  annonce à chaque republication, souvent sans un mot commun (Château Gombert : « VÉTÉRINAIRE
+  CDI – MARSEILLE » et « Salut, on recherche un veto expérimenté » = la même offre). Juge le
+  POSTE À POURVOIR (cause, période, contrat, pratique), jamais la ressemblance des mots.
+- **Cause + période identifiantes priment sur le profil.** Le remplacement du congé maternité
+  de la même salariée sur la même fenêtre reste UNE offre même si l'annonce passe de « canin »
+  à « mixte » : le profil s'élargit, le poste ne change pas (Sainte Croix).
+- **Cause générique (agrandir l'équipe) → le profil discrimine.** « Vétérinaire autonome
+  (spécialité bienvenue) » et « Vétérinaire mixte rurale/canine » de la même clinique = DEUX
+  offres, même si tout le paragraphe de présentation est commun (Saint Christophe).
+- **Mission courte datée ≠ poste durable** : le remplacement du 24 au 29 août n'éteint pas le
+  CDD long de la même clinique (Chavannerie) = DEUX offres.
+- **Dans le doute, fusionne** (réutilise la clé existante) : deux sections empilées restent
+  lisibles, un doublon éclaté fausse la prospection. Et si un post est **rattachable à deux
+  offres existantes** (argumentaire générique en commentaire), rattache-le à la plus plausible
+  et **signale-le au résumé final** — jamais de choix silencieux.
+- Coupe le texte avant `━━━ Post commenté ━━━` avant de juger : ce qui suit est l'annonce d'un
+  tiers.
   ⚠️ Après §Détecter un intermédiaire, un même auteur postant dans **des départements éloignés**
-  n'est pas ce cas de figure : ne l'éclate pas en plusieurs entrées, **exclus-le et signale-le**.
-- **Vérifie contre ce qui est déjà en base**, pas seulement contre la fenêtre courante : le
-  `Contenu complet` du record existant contient l'historique des sections de cet auteur, c'est
-  là que se voit un « même poste qu'en juin ».
+  reste à **exclure et signaler**, pas à éclater en offres.
 
-Historique (11 août 2026) : `auteur_key` avait été conçu pour les posts candidat et appliqué tel
-quel aux posts clinique. Sur 681 posts clinique, ça avait produit **34 records agrégeant des
-annonces sans rapport** (pire cas : 20 sections / 18 offres distinctes) — tous des intermédiaires
-de recrutement, désormais exclus à la source. La clé reste la bonne pour de vraies cliniques.
+Historique : `auteur_key` par personne avait été conçu pour les candidats et appliqué tel quel
+aux cliniques (11 août 2026 : 34 records agrégeant des annonces sans rapport, intermédiaires
+depuis exclus à la source). Le 1er septembre 2026, la reprise `sarecrute/airtable/
+dedup-posts-cliniques/` a posé une clé d'offre figée sur tous les posts clinique existants :
+la base est entièrement « par offre » côté clinique, et ce régime est le seul valide.
 
 ⚠️ **Le script s'arrête si `references/matching_vocab.json` est introuvable** et que `records.json` porte un champ select protégé (`Zones de recherche`, `Statuts contractuels`, `Type de temps de travail`) : sans vocabulaire, une valeur mal orthographiée créerait une option Airtable. Ne « répare » jamais ça en retirant le contrôle — corrige le chemin. (Avant le 10 août 2026 un `except` silencieux désactivait le garde-fou sans le dire.)
 
@@ -688,7 +735,10 @@ bash <dossier_skill>/scripts/keep_awake.sh stop
 - Posts scrappés / retenus / exclus (avec raisons).
 - Commentaires pertinents (candidats / cliniques).
 - Doublons ignorés (par le dédup).
-- **Nouveaux enregistrements réellement créés.**
+- **Rattachements d'offre ambigus** (posts clinique, §5 bis) : chaque entrée rattachée « à la
+  plus plausible » de deux offres existantes, avec la clé retenue et l'alternative — jamais de
+  choix silencieux.
+- **Nouveaux enregistrements réellement créés** (et les **offres nouvelles** créées, avec leur clé).
 - **Intermédiaires de recrutement suspectés** (§Détecter un intermédiaire) : un bloc à part, jamais
   noyé dans le décompte des exclusions. Pour chacun : auteur, nombre d'annonces, **départements
   constatés**, un extrait, et le rapprochement s'il partage des cliniques avec un autre auteur.

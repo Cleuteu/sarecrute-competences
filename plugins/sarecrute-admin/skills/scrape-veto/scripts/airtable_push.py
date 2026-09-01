@@ -13,7 +13,7 @@ Usage :
 records.json = liste d'objets {"fields": {...}} au format Airtable.
   Champs utiles : Prénom, Nom, Profil Facebook, Date du post (YYYY-MM-DD), Lien du post,
   Zone de recherche, Contenu complet, Type de post, Pratiques requises[],
-  Pratiques optionnelles[], Spécialités[],
+  Pratiques optionnelles[], Spécialités requises[], Spécialités optionnelles[],
   Type d'entrée (Post|Commentaire), Post source, Expérience, Nom de la clinique.
   Archivé (ex "Non pertinent") : champ réservé au recruteur (usage manuel), le scrape
   ne doit JAMAIS l'écrire — un post jugé non pertinent est simplement omis de records.json.
@@ -28,10 +28,22 @@ records.json = liste d'objets {"fields": {...}} au format Airtable.
   Contrat court (bool) : à émettre EXPLICITEMENT (true ou false) sur toute entrée
   "Vétérinaire cherche poste", jamais omis — c'est un scalaire, donc le post le plus
   récent gagne à la fusion ; omis, l'ancienne valeur resterait figée.
-  Ne PAS renseigner auteur_key : le script le calcule. Les valeurs select hors
-  vocabulaire sont ignorées automatiquement (jamais de création d'option).
+  auteur_key : ne PAS le renseigner pour les CANDIDATS (le script le calcule) ;
+  OBLIGATOIRE pour toute entrée CLINIQUE fusible, sous forme de clé d'OFFRE
+  « <clé nue>#<slug> » (voir ci-dessous). Les valeurs select hors vocabulaire sont
+  ignorées automatiquement (jamais de création d'option).
 
-Déduplication — deux régimes :
+Déduplication — trois régimes :
+  • Entrée CLINIQUE (Type de post « Clinique cherche vétérinaire ») fusible → UPSERT
+    par OFFRE, jamais par personne (0.13.0). Chaque ligne doit porter dans auteur_key
+    la clé de l'offre qu'elle republie : « <clé nue>#<slug> », clé nue = nom de la
+    clinique normalisé (minuscules, sans accents, apostrophe droite) sinon
+    prénom+nom. La clé se choisit au JUGEMENT (test d'extinction, SKILL §5) contre
+    les offres existantes (`--offres`) : même poste → réutiliser la clé telle
+    quelle ; poste différent → clé neuve. Sans clé, le script s'arrête en listant
+    les offres connues de la clinique. Pourquoi : la fusion par personne agrégeait
+    deux offres distinctes d'une même page (Panier Fleuri) et éclatait la même offre
+    publiée par trois personnes (Sainte Croix).
   • Nom FIABLE (auteur_key non vide) → UPSERT par personne, toutes dates
     confondues. Si la personne existe déjà, on MET À JOUR son enregistrement :
     le nouveau post est empilé en haut de "Contenu complet" (séparateur daté,
@@ -86,7 +98,7 @@ CANAUX_TABLE = "tbluH5M2sogAN85dl"      # Canaux de diffusion (groupes FB, rése
 # Champs recopiés depuis le post le plus récent lors d'un merge (tout sauf le contenu).
 SCALAR_FIELDS = ["Prénom", "Nom", "Profil Facebook", "Date du post", "Lien du post", "Zone de recherche",
                  "Type de post", "Pratiques requises", "Pratiques optionnelles",
-                 "Spécialités", "Type d'entrée",
+                 "Spécialités requises", "Spécialités optionnelles", "Type d'entrée",
                  "Post source", "Expérience", "Nom de la clinique", "Archivé", "auteur_key",
                  "Zones de recherche", "Statuts contractuels", "Type de temps de travail",
                  "Date de disponibilité", "Rayon accepté (km)", "Contrat court"]
@@ -104,7 +116,8 @@ UNION_FIELDS = ["Canaux"]
 # désactivé sans que rien ne l'indique. Désormais l'absence de vocab est fatale dès qu'un
 # enregistrement porte un champ protégé (cf. check_vocab_loaded).
 GUARDED_FIELDS = ("Zones de recherche", "Statuts contractuels", "Type de temps de travail",
-                  "Pratiques requises", "Pratiques optionnelles")
+                  "Pratiques requises", "Pratiques optionnelles",
+                  "Spécialités requises", "Spécialités optionnelles")
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _VOCAB_PATHS = [os.path.join(_HERE, os.pardir, "references", "matching_vocab.json"),
                 os.path.join(_HERE, "matching_vocab.json")]
@@ -122,6 +135,9 @@ for _p in _VOCAB_PATHS:
         if _V.get("pratiques"):
             ALLOWED["Pratiques requises"] = set(_V["pratiques"])
             ALLOWED["Pratiques optionnelles"] = set(_V["pratiques"])
+        if _V.get("specialites"):
+            ALLOWED["Spécialités requises"] = set(_V["specialites"])
+            ALLOWED["Spécialités optionnelles"] = set(_V["specialites"])
         VOCAB_ERROR = None
         break
     except Exception as e:
@@ -159,7 +175,17 @@ def sanitize_selects(f):
 
 # Champs demandés au fetch (on a besoin du contenu pour merger la cible).
 FETCH_FIELDS = ["Prénom", "Nom", "Date du post", "Lien du post", "Contenu complet",
-                "Type d'entrée", "auteur_key", "Canaux"]
+                "Type d'entrée", "auteur_key", "Canaux", "Type de post", "Nom de la clinique"]
+
+CLINIC_TYPE = "Clinique cherche vétérinaire"
+
+
+def bare_key(f):
+    """Clé nue d'un contenu clinique : le nom de la clinique normalisé s'il est connu,
+    sinon la clé personne. C'est le préfixe attendu avant « # » dans une clé d'offre —
+    le nom de la clinique plutôt que l'auteur, parce que la même offre est publiée par
+    plusieurs personnes (Sainte Croix : 3 auteurs pour 1 offre)."""
+    return norm(f.get("Nom de la clinique")) or auteur_key(f.get("Prénom"), f.get("Nom"))
 
 
 def strip_accents(s):
@@ -167,7 +193,9 @@ def strip_accents(s):
 
 
 def norm(s):
-    return re.sub(r"\s+", " ", strip_accents(s).lower()).strip()
+    # L'apostrophe typographique est normalisée : sans ça « d'Ossau » et « d'Ossau »
+    # font deux clés différentes et la clinique ne se retrouve jamais elle-même.
+    return re.sub(r"\s+", " ", strip_accents((s or "").replace("’", "'")).lower()).strip()
 
 
 def auteur_key(prenom, nom):
@@ -411,14 +439,40 @@ def fetch_all(token):
     return recs
 
 
+def list_offres(token, filtre=""):
+    """--offres [filtre] : liste les clés d'offre clinique déjà en base.
+
+    Une clé d'offre est un auteur_key figé « <clé nue>#<slug> ». C'est CE listing que
+    le scrape consulte avant d'écrire records.json : pour chaque post clinique, soit le
+    poste correspond à une offre listée ici (→ réutiliser sa clé telle quelle), soit
+    c'est une offre nouvelle (→ inventer « <clé nue>#<slug> » neuf). Le filtre est un
+    sous-texte de la clé, insensible aux accents/majuscules."""
+    fl = norm(filtre)
+    rows = []
+    for r in fetch_all(token):
+        f = r["fields"]
+        stored = (f.get("auteur_key") or "").strip()
+        if PIN not in stored or (fl and fl not in norm(stored)):
+            continue
+        secs = parse_sections(f.get("Contenu complet"), f.get("Date du post"), f.get("Lien du post"))
+        body = re.sub(r"\s+", " ", secs[0]["body"])[:110] if secs else ""
+        rows.append("%s | %s | %s" % (stored, f.get("Date du post", ""), body))
+    for row in sorted(rows):
+        print(row)
+    if not rows:
+        print("(aucune offre%s)" % (" pour « %s »" % filtre if filtre else ""))
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     dry = "--dry" in sys.argv
     token = os.environ.get("AIRTABLE_API_KEY")
     if not token:
         sys.exit("AIRTABLE_API_KEY manquant (export depuis ~/.zshrc).")
+    if "--offres" in sys.argv:
+        return list_offres(token, args[0] if args else "")
     if not args:
-        sys.exit("Usage: airtable_push.py records.json [--dry]")
+        sys.exit("Usage: airtable_push.py records.json [--dry] | airtable_push.py --offres [filtre]")
     records = json.load(open(args[0]))
     check_vocab_loaded(records)
 
@@ -436,7 +490,7 @@ def main():
         print("  ⚠️  %d ligne(s) sans Canaux : l'origine du contenu sera perdue." % sans_canal)
 
     # 1) Répartir l'input : personnes fiables (groupées par clé) vs anonymes.
-    groups, singles = {}, []
+    groups, singles, sans_offre = {}, [], []
     for r in records:
         f = sanitize_selects(dict(r["fields"]))
         # UNE personne = UN enregistrement, commentaires compris (20 août 2026 —
@@ -446,30 +500,69 @@ def main():
         if f.get("Type d'entrée") == "Commentaire":
             f["Contenu complet"] = mark_comment(f.get("Contenu complet"), f)
         # effective_key et pas auteur_key : records.json n'est pas censé renseigner la
-        # clé, mais s'il porte une clé figée ("…#suffixe") c'est un choix délibéré de
-        # viser l'enregistrement figé — on le respecte.
+        # clé pour les CANDIDATS (elle se calcule), mais une clé figée ("…#suffixe")
+        # est un choix délibéré de viser cet enregistrement — on la respecte.
         k = effective_key(f)
+        # Depuis la 0.13.0, une entrée CLINIQUE fusible doit porter sa clé d'OFFRE
+        # (« <clé nue>#<slug> ») : la fusion par personne agrégeait les offres
+        # distinctes d'une même clinique et éclatait la même offre publiée par
+        # plusieurs personnes. La clé d'offre se choisit au jugement (cf. SKILL §5,
+        # test d'extinction), jamais ici — donc son absence est une erreur d'input.
+        if f.get("Type de post") == CLINIC_TYPE and k and PIN not in k:
+            sans_offre.append(f)
         f["auteur_key"] = k
         (groups.setdefault(k, []).append(f) if k else singles.append(f))
 
     # 2) Index de l'existant. On recalcule la clé depuis le nom (les records
     #    legacy ont auteur_key vide) → l'upsert marche même sans backfill.
     existing = fetch_all(token)
+
+    # Entrées clinique sans clé d'offre : arrêt AVANT toute écriture, avec les offres
+    # déjà connues de chaque clinique pour aider au jugement. Ne « répare » jamais ça
+    # en retirant le contrôle : choisis (ou crée) la clé d'offre et réécris records.json.
+    if sans_offre:
+        offres = {}
+        for r in existing:
+            stored = (r["fields"].get("auteur_key") or "").strip()
+            if PIN in stored:
+                offres.setdefault(stored.split(PIN)[0], []).append(stored)
+        msg = ["%d entrée(s) clinique sans clé d'offre (auteur_key « <clé nue>#<slug> ») :" % len(sans_offre)]
+        for f in sans_offre:
+            b = bare_key(f)
+            msg.append("  • %s | %s | %s :: %s" % (
+                f.get("Date du post", "?"),
+                (f.get("Nom de la clinique") or (f.get("Prénom", "") + " " + f.get("Nom", ""))).strip(),
+                ("offres existantes : " + ", ".join(sorted(set(offres.get(b, []))))) if offres.get(b)
+                else "aucune offre connue pour « %s »" % b,
+                re.sub(r"\s+", " ", f.get("Contenu complet") or "")[:70]))
+        msg.append("Choisis la clé au jugement (test d'extinction, cf. SKILL §5) : réutilise une clé")
+        msg.append("listée ci-dessus si c'est le même poste, sinon invente « <clé nue>#<slug> » neuf.")
+        msg.append("`airtable_push.py --offres [filtre]` liste toutes les offres connues.")
+        sys.exit("\n".join(msg))
+
     by_key, exact_recs = {}, {}
     # Sections déjà en base par AUTEUR (clé nue : regroupe ses enregistrements figés et
     # non figés). Sert à ne jamais ré-empiler ailleurs un texte déjà présent chez lui.
+    # Indexé sous la clé personne ET sous le préfixe nu d'une clé figée : les offres
+    # clinique sont figées sous le nom de la CLINIQUE alors que leurs posts peuvent
+    # venir de plusieurs personnes.
     sigs_by_person = {}
     for r in existing:
         f = r["fields"]
         # exact_recs (et pas un simple set) : quand la publication est déjà en base, il
         # faut pouvoir la PATCHER pour lui ajouter un canal manquant (cf. add_canaux).
         exact_recs.setdefault(exact_key(f), r)
-        person = auteur_key(f.get("Prénom"), f.get("Nom"))
-        if person:
-            sigs_by_person.setdefault(person, set()).update(
-                sec_sig(s) for s in parse_sections(
-                    f.get("Contenu complet"), f.get("Date du post"),
-                    f.get("Lien du post"), canal_of(f, canaux)))
+        stored = (f.get("auteur_key") or "").strip()
+        sig_keys = {auteur_key(f.get("Prénom"), f.get("Nom"))}
+        if PIN in stored:
+            sig_keys.add(stored.split(PIN)[0])
+        sig_keys.discard("")
+        if sig_keys:
+            sigs = {sec_sig(s) for s in parse_sections(
+                f.get("Contenu complet"), f.get("Date du post"),
+                f.get("Lien du post"), canal_of(f, canaux))}
+            for sk in sig_keys:
+                sigs_by_person.setdefault(sk, set()).update(sigs)
         k = effective_key(f)   # respecte une clé figée à la main ("…#suffixe")
         if k:
             # Cible = le POST de la personne s'il existe, sinon son commentaire le plus
