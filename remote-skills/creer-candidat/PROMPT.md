@@ -1,4 +1,4 @@
-**creer-candidat — version 0.1.1 (2026-09-01)**
+**creer-candidat — version 0.1.2 (2026-09-02)**
 
 > Ce fichier est le corps de la compétence `creer-candidat` du plugin `sarecrute-recruteur`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -60,12 +60,22 @@ si la source ne rentre dans aucune valeur existante, laisser vide et le signaler
    { "responsable": "Prénom Nom", "email": "prenom@exemple.fr" }
    ```
    S'il existe, l'utiliser **sans poser de question** et le dire en une ligne dans le compte rendu.
-2. Sinon, demander avec AskUserQuestion parmi les collaborateurs de la base, en pré-sélectionnant
-   celui dont l'e-mail correspond au compte Claude de l'utilisateur, puis écrire le fichier.
+2. Sinon, demander avec AskUserQuestion **parmi les collaboratrices listées dans
+   `references/champs-candidat.md`** (section « Champs collaborateur »), puis **écrire le fichier**
+   pour que la question ne se repose jamais. Créer le dossier s'il n'existe pas. Dire à
+   l'utilisateur que le fichier existe et qu'il peut le modifier pour changer d'identité.
    Ce fichier est **local** : ne jamais le versionner.
 
-C'est le même fichier que `creer-clinique-offre` : un recruteur ne le renseigne qu'une fois.
-Il alimente `Sourceur` et `Ajouté au CRM par`, tous deux sous la forme `{"email": "…"}`.
+⚠️ **Le fichier définit l'identité de la machine, pas celle de la personne qui tape.** Si le
+fichier dit Sarah, un candidat créé depuis ce poste est attribué à Sarah — même si c'est quelqu'un
+d'autre qui lance la commande. C'est voulu : c'est le poste de travail d'une recruteuse. Ne jamais
+essayer de deviner l'opérateur réel (compte Claude, utilisateur système, signature git) pour
+« corriger » l'attribution, et ne jamais demander confirmation quand le fichier existe.
+
+C'est le même fichier que `creer-clinique-offre` : une recruteuse ne le renseigne qu'une fois, et
+il sert aussi à signer la clinique et l'offre. Il alimente ici `Sourceur` et `Ajouté au CRM par`,
+tous deux sous la forme `{"email": "…"}` — la même personne dans les deux, comme le fait la saisie
+à la main dans la base.
 
 ## Étape 2 — Trier les sources
 

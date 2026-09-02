@@ -182,6 +182,37 @@ scrape), `Appels`, `Candidat entièrement sourcé`, `Sourcing jusqu'au`, `Date p
 
 ---
 
+## Champs collaborateur
+
+`Sourceur` (`fldECFOFPFdxzzFFP`) et `Ajouté au CRM par` (`fldq8pztsTZBa0IK4`) s'écrivent par
+e-mail, jamais par identifiant `usr…` :
+
+```json
+{"email": "prenom@exemple.fr"}
+```
+
+L'e-mail vient de `$HOME/.sarecrute/recruteur.json` — voir l'ÉTAPE 1 du PROMPT. Les deux champs
+reçoivent **la même personne** : c'est ce que fait la saisie à la main dans la base.
+
+Collaboratrices de la base au 01/09/2026, relevées sur les 1000 candidats et les offres :
+
+| Nom | E-mail | À proposer ? |
+|---|---|---|
+| Sarah Vanhersel | `sarah.vanhersel@gmail.com` | oui |
+| Pamela Martinez | `pamela.vet@sarecrute.com` | oui |
+| Automations | `automations@noreply.airtable.com` | **non** — compte de service Airtable |
+
+⚠️ **Ne jamais proposer ni écrire `Automations`.** C'est le compte sous lequel tournent les
+automations (il pose `Sourceur` à la conversion d'un post scrappé) : l'attribuer à une création
+faite par un humain effacerait qui a réellement sourcé le candidat.
+
+Si l'e-mail écrit n'est pas celui d'un collaborateur de la base, l'écriture échoue — demander
+alors avec quel compte la recruteuse travaille. Pour rafraîchir cette liste sans quitter Claude,
+lire `Sourceur` sur quelques candidats récents : la valeur renvoyée contient `name`, `email` et
+`id`.
+
+---
+
 ## Table Compétences — `tblH8Zym1DNu7PN3c`
 
 La grille par acte, écrite à l'ÉTAPE 6 selon les règles de la routine (une ligne = ce candidat, sur
