@@ -1,0 +1,6 @@
+version=0.1.0
+PROMPT.md
+assets/cv-standard-modele.js
+assets/cv-template.html
+assets/pdftext.html
+assets/serve.ps1

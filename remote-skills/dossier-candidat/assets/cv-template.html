@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Dossier de présentation candidat — SaRecrute</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+/* ==========================================================================
+   BLOC DE DONNEES — la seule zone a editer d'un candidat a l'autre.
+   Aucune regle CSS ne doit etre touchee.
+
+   REGLE ABSOLUE : chaque valeur ci-dessous est la recopie d'un champ Airtable,
+   verifie par les recruteuses. Le PDF joint a la fiche (champ CV) n'est JAMAIS
+   une source. Le champ "Profil IA" (fldtz8Gy68I1RMXrm) n'est JAMAIS une source.
+   Un champ Airtable vide reste vide : sa ligne disparait du document.
+   ========================================================================== */
+/*DATA-START*/
+const ANONYME = false;
+
+const CANDIDAT = {
+  reference:   "SR-AAAA-XX",
+
+  // --- Identite -----------------------------------------------------------
+  prenom:      "Prénom",                    // fld1WR6pNpe8sAya6
+  nom:         "NOM",                       // fld6yzzWrqBZBtXly
+  sousTitre:   "Vétérinaire · Pratique · N ans d'expérience",
+                                            // fldizV1UoejwizYSq + fldKxF494zI5Kgc6n + fldSGOptEz0Api4wN
+
+  // 4 lignes maximum. Redigees a partir des seuls champs de la section
+  // "Notes et entretiens" : Profil (fldlnO9d1ctGABT9v), Notes (fld0s84U1HdrHKqkg),
+  // Notes du candidat (fld8WaHsnucNvdEqW), Transcripts (fldNMVoFoHx3t3O9D).
+  // Jamais depuis "Profil IA", jamais depuis le CV PDF.
+  // Aucun echange interne consultant-client, aucune information perimee.
+  accroche:    "Quatre lignes factuelles issues des notes d'entretien : parcours, niveau d'autonomie, ce que le candidat cherche. Pas de superlatif, pas d'adjectif non sourcé.",
+
+  // --- Contact (fldmtHKu93RMqkVw6 / fldZ9229oPu876Ls2) ---------------------
+  // Pas de localisation : ni ville, ni departement, ni CP.
+  contact: {
+    email:     "",
+    telephone: ""
+  },
+
+  // --- Cadre recherche — toute valeur vide masque sa ligne -----------------
+  cadre: {
+    statut:        "",   // fldOijG6rapbZUqMR Statut Recherche
+    experience:    "",   // fldSGOptEz0Api4wN Années d'expérience
+    enPoste:       "",   // fldnAVvWO3EfSOXXs En poste ?
+    disponibilite: "",   // fldlCCJY7quJEqbyv Date de disponibilité
+    contrat:       "",   // fldZaUsTcNsN7HlWe Statuts contractuels souhaités
+    tempsTravail:  "",   // fldGZhonpYwDW78ze Type de temps de travail
+    gardes:        "",   // fldI1xWGed3dcQIUs + fldZ3kGzgXLhj5UJv
+    remuneration:  "",   // fldZZj7aCQpzQKgZx Rémunération souhaitée
+    mobilite:      ""    // NE PAS RENSEIGNER (decision du 27/08/2026) : la ligne
+                         // reste vide et disparait du dossier. La zone de
+                         // recherche se discute de vive voix, pas sur le document.
+  },
+
+  // --- Domaines -----------------------------------------------------------
+  pratiques:    [],      // fldsUtHmyFAFyjFgl Pratiques maitrisées
+  specialites:  [],      // flde9dmHJUqdMZIOL Spécialités maitrisées
+  recherche:    [],      // fldKxF494zI5Kgc6n Pratiques requises + fldYpaOYuUBHpqlqU Spécialités requises
+
+  // --- Formation et diplomes ----------------------------------------------
+  // Une valeur exactement egale a "Oui" sort en pastille verte portant son
+  // intitule ; une valeur detaillee garde un bloc intitule + texte.
+  // Internat et DESV ne se renseignent que positifs : jamais "Non".
+  formation: {
+    ecole:        "",    // fldEUkJLo4ygiEZHZ Ecole véto
+    anneeSortie:  "",    // fldp6whT8yfZdETi4 Année de sortie
+    internat:     "",    // fld3eO9JuwrHyNkIJ Internat
+    desv:         "",    // fldnvfN95E23ng7ep DESV?
+    diplomeSup:   "",    // fldmi2DQKpPmcpXEV Diplôme supplémentaire
+    habilitation: ""     // fldSIVZ8UxggjhffA Habilitation sanitaire
+  },
+
+  // --- Langues (fld48WU9SCR9DkVN6) — noms seuls, aucun niveau -------------
+  langues: [],
+
+  // --- Bilan de competences ----------------------------------------------
+  // Table Compétences (tblH8Zym1DNu7PN3c), un enregistrement par acte :
+  //   acte   = fldUZQyIvlhNeZhzG (Acte)      espece = fldlREgGF38TczqNi (Espèce)
+  //   niveau = fld0SGFcuffxHSSq0 (Niveau), valeur Airtable recopiee telle quelle :
+  //   "Autonome" | "Ponctuel" | "En apprentissage" | "Jamais fait" | "Non concerné"
+  // Le regroupement par espece et le tri par niveau sont automatiques.
+  competences: []
+};
+/*DATA-END*/
+
+/* Traduction des niveaux Airtable vers les trois etats lisibles d'un coup d'oeil.
+   "Non concerné" n'est pas affiche. */
+const NIVEAUX = {
+  "Autonome":         { etat:"ok",  rang:0 },
+  "Ponctuel":         { etat:"wip", rang:1 },
+  "En apprentissage": { etat:"wip", rang:1 },
+  "Jamais fait":      { etat:"no",  rang:2 },
+  "Non évalué":       { etat:"na",  rang:3 },  // referentiel seul, aucune cotation
+  "Non concerné":     { etat:null,  rang:9 }
+};
+const ETATS = [
+  { cle:"ok",  libelle:"Acquis" },
+  { cle:"wip", libelle:"En cours" },
+  { cle:"no",  libelle:"Non acquis" },
+  { cle:"na",  libelle:"Non évalué" }
+];
+</script>
+<style>
+  :root{
+    --sr-cream:#F8F4EA; --sr-paper:#FFFDF8; --sr-forest:#203832; --sr-green:#426354;
+    --sr-sage:#6E9278;  --sr-muted:#64736E; --sr-terracotta:#C87355; --sr-gold:#DCA85E;
+    --sr-line:rgba(32,56,50,.11); --sr-line-2:rgba(32,56,50,.18);
+    --sr-wash:rgba(110,146,120,.09);
+    --scale:1;
+  }
+  @page{ size:A4; margin:0; }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ background:#E7E1D4; }
+  body{
+    font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;
+    color:var(--sr-forest); -webkit-font-smoothing:antialiased;
+    display:flex; justify-content:center; padding:18px 0;
+  }
+
+  .page{
+    width:210mm; height:297mm; background:var(--sr-cream);
+    position:relative; overflow:hidden;
+    display:flex; flex-direction:column;
+    box-shadow:0 10px 34px rgba(32,56,50,.16);
+  }
+
+  /* ---------- Bandeau ---------- */
+  .band{
+    height:32mm; flex:0 0 32mm; background:var(--sr-green);
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 14mm; color:var(--sr-cream);
+  }
+  .brand{ display:flex; align-items:center; gap:9px; }
+  .brand svg{ width:46px; height:31px; display:block; }
+  .wordmark{
+    font-family:Fraunces,Georgia,serif; font-weight:600; font-size:20.5px;
+    letter-spacing:-.03em; color:var(--sr-cream); line-height:1;
+  }
+  .wordmark .r{ color:var(--sr-terracotta); }
+  .band-label{
+    font-size:9.5px; letter-spacing:.10em; text-transform:uppercase;
+    font-weight:600; color:rgba(248,244,234,.82); text-align:right; line-height:1.5;
+  }
+  .band-label .ref{ display:block; color:rgba(248,244,234,.55); letter-spacing:.06em; }
+
+  /* ---------- Corps ---------- */
+  .body{
+    flex:1 1 auto; min-height:0; padding:calc(7mm * var(--scale)) 14mm 0;
+    display:flex; flex-direction:column;
+  }
+
+  .identity{ padding-bottom:calc(4.4mm * var(--scale)); border-bottom:1px solid var(--sr-line); }
+  .name{
+    font-family:Fraunces,Georgia,serif; font-weight:600;
+    font-size:calc(31px * var(--scale)); letter-spacing:-.02em;
+    line-height:1.06; color:var(--sr-forest);
+  }
+  .subtitle{
+    font-weight:500; font-size:calc(11.6px * var(--scale)); color:var(--sr-terracotta);
+    margin-top:calc(2.2mm * var(--scale)); letter-spacing:.005em;
+  }
+  .accroche{
+    margin-top:calc(3.2mm * var(--scale));
+    font-size:calc(9.6px * var(--scale)); line-height:1.58; color:#3B4F49;
+    max-width:172mm; text-align:justify;
+  }
+
+  .cols{
+    flex:1 1 auto; min-height:0; display:flex; gap:calc(7mm * var(--scale));
+    padding-top:calc(4.6mm * var(--scale));
+  }
+  .aside{ flex:0 0 62mm; width:62mm; }
+  .main{ flex:1 1 auto; min-width:0; }
+
+  .label{
+    font-size:calc(9.5px * var(--scale)); text-transform:uppercase; font-weight:600;
+    letter-spacing:.09em; color:var(--sr-muted);
+    margin-bottom:calc(2.4mm * var(--scale));
+  }
+  .main .label{ letter-spacing:.10em; }
+  .block + .block{ margin-top:calc(3.4mm * var(--scale)); }
+
+  /* --- carte laterale --- */
+  .card{
+    background:var(--sr-paper); border:1px solid var(--sr-line);
+    border-radius:14px; padding:calc(3.1mm * var(--scale)) calc(3.8mm * var(--scale));
+  }
+  .card.soft{ background:var(--sr-wash); border-color:rgba(110,146,120,.20); }
+  .kv + .kv{ margin-top:calc(1.55mm * var(--scale)); }
+  .kv dt{
+    font-size:calc(8.2px * var(--scale)); text-transform:uppercase; font-weight:600;
+    letter-spacing:.07em; color:var(--sr-muted); margin-bottom:calc(.25mm * var(--scale));
+  }
+  .kv dd{ font-size:calc(9.2px * var(--scale)); line-height:1.45; color:var(--sr-forest); }
+
+  .pills{ display:flex; flex-wrap:wrap; gap:calc(1.5mm * var(--scale)); }
+  .pills + .sublabel{ margin-top:calc(2mm * var(--scale)); }
+  .pills.apres{ margin-top:calc(1.8mm * var(--scale)); }
+  .sublabel{
+    font-size:calc(8.2px * var(--scale)); text-transform:uppercase; font-weight:600;
+    letter-spacing:.07em; color:var(--sr-muted); margin-bottom:calc(1.4mm * var(--scale));
+  }
+  .pill{
+    display:inline-block; border-radius:999px; padding:calc(1.1mm * var(--scale)) calc(2.6mm * var(--scale));
+    font-size:calc(8.4px * var(--scale)); font-weight:500; line-height:1.35;
+    background:var(--sr-paper); border:1px solid var(--sr-line-2); color:var(--sr-green);
+  }
+  .pill.accent{ background:rgba(110,146,120,.15); border-color:rgba(110,146,120,.38); color:#2E4B3F; }
+
+  .lang{ font-size:calc(9.2px * var(--scale)); line-height:1.55; color:var(--sr-forest); }
+
+  .edu + .edu{ margin-top:calc(1.3mm * var(--scale)); }
+  .edu-t{ font-size:calc(9.3px * var(--scale)); font-weight:600; line-height:1.35; }
+  .edu-s{ font-size:calc(8.7px * var(--scale)); color:#4C5F59; line-height:1.4; }
+
+  /* ---------- Bilan de competences ---------- */
+  .bil-head{
+    display:flex; justify-content:space-between; align-items:baseline;
+    gap:4mm; margin-bottom:calc(2.4mm * var(--scale));
+  }
+  .bil-head .label{ margin-bottom:0; white-space:nowrap; }
+  .legend{ display:flex; gap:calc(3.2mm * var(--scale)); align-items:center; }
+  .lg{
+    display:flex; align-items:center; gap:calc(1.1mm * var(--scale));
+    font-size:calc(7.8px * var(--scale)); font-weight:600; letter-spacing:.05em;
+    text-transform:uppercase; color:var(--sr-muted); white-space:nowrap;
+  }
+
+  .dot{
+    flex:0 0 auto; display:inline-block; border-radius:999px;
+    width:calc(1.7mm * var(--scale)); height:calc(1.7mm * var(--scale));
+  }
+  .ok  .dot{ background:var(--sr-sage); }
+  .wip .dot{ background:var(--sr-gold); }
+  .no  .dot{ background:transparent; box-shadow:inset 0 0 0 1px rgba(32,56,50,.34); }
+  .na  .dot{ background:transparent; box-shadow:inset 0 0 0 1px rgba(32,56,50,.20); }
+
+  .grp + .grp{ margin-top:calc(2.6mm * var(--scale)); }
+  .grp-t{
+    font-size:calc(9px * var(--scale)); font-weight:600; line-height:1.3;
+    color:var(--sr-forest); margin-bottom:calc(1.3mm * var(--scale));
+    display:flex; align-items:baseline; gap:calc(1.8mm * var(--scale));
+  }
+  .grp-t em{
+    font-style:normal; font-size:calc(7.8px * var(--scale)); font-weight:500;
+    color:var(--sr-muted); letter-spacing:.03em;
+  }
+
+  .acts{ display:flex; flex-wrap:wrap; gap:calc(1.3mm * var(--scale)); }
+  .ac{
+    display:inline-flex; align-items:center; gap:calc(1.3mm * var(--scale));
+    border-radius:999px; padding:calc(.95mm * var(--scale)) calc(2.4mm * var(--scale));
+    font-size:calc(8.3px * var(--scale)); font-weight:500; line-height:1.35;
+    border:1px solid var(--sr-line-2); background:var(--sr-paper); color:var(--sr-forest);
+  }
+  .ac.ok { background:rgba(110,146,120,.13); border-color:rgba(110,146,120,.34); color:#2E4B3F; }
+  .ac.wip{ background:rgba(220,168,94,.15);  border-color:rgba(220,168,94,.45);  color:#7A5620; }
+  .ac.no { background:transparent; border-color:var(--sr-line); color:var(--sr-muted); }
+  .ac.na { background:transparent; border-style:dashed; border-color:var(--sr-line-2); color:var(--sr-muted); }
+
+  /* mode compact : une ligne de texte par etat, utilise si les pastilles debordent */
+  .cl{
+    font-size:calc(8.6px * var(--scale)); line-height:1.5;
+    display:flex; gap:calc(1.6mm * var(--scale)); align-items:flex-start;
+  }
+  .cl + .cl{ margin-top:calc(.7mm * var(--scale)); }
+  .cl .dot{ margin-top:calc(1.5mm * var(--scale)); }
+  .cl.ok  span{ color:#2E4B3F; }
+  .cl.wip span{ color:#7A5620; }
+  .cl.no  span{ color:var(--sr-muted); }
+  .cl.na  span{ color:var(--sr-muted); }
+
+  .empty{
+    border:1px dashed var(--sr-line-2); border-radius:12px;
+    padding:calc(3.4mm * var(--scale)) calc(4mm * var(--scale));
+    font-size:calc(9px * var(--scale)); line-height:1.5; color:var(--sr-muted);
+  }
+
+  /* ---------- Pied ---------- */
+  .foot{
+    flex:0 0 auto; margin:0 14mm; padding:calc(2.6mm * var(--scale)) 0 calc(5.5mm * var(--scale));
+    border-top:1px solid var(--sr-line);
+    display:flex; justify-content:space-between; align-items:center; gap:6mm;
+    font-size:calc(7.8px * var(--scale)); letter-spacing:.055em; text-transform:uppercase;
+    font-weight:500; color:var(--sr-muted);
+  }
+  .foot .sep{ color:var(--sr-sage); }
+
+  @media print{
+    html,body{ background:#fff; padding:0; }
+    .page{ box-shadow:none; margin:0; }
+  }
+</style>
+</head>
+<body>
+<div class="page" id="page">
+
+  <header class="band">
+    <div class="brand">
+      <svg viewBox="0 0 120 80" xmlns="http://www.w3.org/2000/svg" aria-label="SaRecrute">
+        <path d="M60 18a24 24 0 0 1 0 44 24 24 0 0 1 0-44z" fill="#426354"/>
+        <circle cx="46" cy="40" r="24" fill="none" stroke="#6E9278" stroke-width="7"/>
+        <circle cx="74" cy="40" r="24" fill="none" stroke="#C87355" stroke-width="7"/>
+      </svg>
+      <div class="wordmark">Sa<span class="r">R</span>ecrute</div>
+    </div>
+    <div class="band-label">
+      Dossier de présentation candidat
+      <span class="ref" id="ref"></span>
+    </div>
+  </header>
+
+  <div class="body" id="fit">
+    <section class="identity">
+      <h1 class="name" id="name"></h1>
+      <div class="subtitle" id="subtitle"></div>
+      <p class="accroche" id="accroche"></p>
+    </section>
+
+    <div class="cols">
+      <aside class="aside" id="aside"></aside>
+      <main class="main" id="main"></main>
+    </div>
+  </div>
+
+  <footer class="foot">
+    <span>SaRecrute <span class="sep">·</span> Recrutement vétérinaire <span class="sep">·</span> France <span class="sep">·</span> Suisse <span class="sep">·</span> Espagne <span class="sep">·</span> Belgique</span>
+    <span id="foot-ref"></span>
+  </footer>
+</div>
+
+<script>
+(function(){
+  const esc = s => String(s == null ? "" : s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const C = CANDIDAT;
+
+  /* ---------- identite ---------- */
+  const nomAffiche = ANONYME
+    ? C.prenom + " " + String(C.nom || "").trim().charAt(0).toUpperCase() + "."
+    : C.prenom + " " + C.nom;
+
+  document.getElementById("name").textContent     = nomAffiche;
+  document.getElementById("subtitle").textContent = C.sousTitre || "";
+  document.getElementById("accroche").textContent = C.accroche || "";
+  document.getElementById("ref").textContent      = C.reference ? "Réf. " + C.reference : "";
+  document.getElementById("foot-ref").textContent = C.reference
+    ? "Réf. " + C.reference + (ANONYME ? " · Profil anonymisé" : "")
+    : (ANONYME ? "Profil anonymisé" : "");
+  document.title = nomAffiche + " — Dossier de présentation candidat · SaRecrute";
+
+  /* ---------- colonne laterale ---------- */
+  const A = [];
+  const kv = rows => rows.filter(r => r[1])
+    .map(r => `<div class="kv"><dt>${esc(r[0])}</dt><dd>${esc(r[1])}</dd></div>`).join("");
+
+  // Contact — jamais de localisation
+  const ct = C.contact || {};
+  const contactHtml = ANONYME
+    ? kv([["Coordonnées", "Communiquées après accord de mise en relation"]])
+    : kv([["Email", ct.email], ["Téléphone", ct.telephone]]);
+  if (contactHtml)
+    A.push(`<section class="block"><div class="label">Contact</div><dl class="card">${contactHtml}</dl></section>`);
+
+  const cd = C.cadre || {};
+  const cadreHtml = kv([
+    ["Statut",           cd.statut],
+    ["Expérience",       cd.experience],
+    ["En poste",         cd.enPoste],
+    ["Disponibilité",    cd.disponibilite],
+    ["Contrat",          cd.contrat],
+    ["Temps de travail", cd.tempsTravail],
+    ["Gardes",           cd.gardes],
+    ["Rémunération",     cd.remuneration],
+    ["Mobilité",         cd.mobilite]
+  ]);
+  if (cadreHtml)
+    A.push(`<section class="block"><div class="label">Cadre recherché</div><dl class="card soft">${cadreHtml}</dl></section>`);
+
+  // Domaines : maitrises (accent) puis recherches
+  const maitrises = [].concat(C.pratiques || [], C.specialites || []);
+  const dom = [];
+  if (maitrises.length)
+    dom.push(`<div class="sublabel">Maîtrisés</div><div class="pills">` +
+      maitrises.map(p => `<span class="pill accent">${esc(p)}</span>`).join("") + `</div>`);
+  if ((C.recherche || []).length)
+    dom.push(`<div class="sublabel">Recherchés</div><div class="pills">` +
+      C.recherche.map(p => `<span class="pill">${esc(p)}</span>`).join("") + `</div>`);
+  if (dom.length)
+    A.push(`<section class="block"><div class="label">Domaines</div>${dom.join("")}</section>`);
+
+  const f = C.formation || {};
+  const edu = [];
+  if (f.ecole || f.anneeSortie)
+    edu.push(`<div class="edu"><div class="edu-t">Docteur vétérinaire</div>` +
+      `<div class="edu-s">${esc([f.ecole, f.anneeSortie].filter(Boolean).join(" · "))}</div></div>`);
+  // Une qualification binaire ("Oui") devient une pastille : deux lignes de
+  // colonne economisees a chaque fois, et un badge se lit mieux qu'un couple
+  // intitule/valeur qui repete « Oui ». Un intitule detaille garde son bloc.
+  const badges = [];
+  [["Internat", f.internat], ["DESV", f.desv], ["Diplôme complémentaire", f.diplomeSup],
+   ["Habilitation sanitaire", f.habilitation]]
+    .filter(r => r[1])
+    .forEach(r => {
+      if (/^oui$/i.test(String(r[1]).trim())) badges.push(r[0]);
+      else edu.push(`<div class="edu"><div class="edu-t">${esc(r[0])}</div><div class="edu-s">${esc(r[1])}</div></div>`);
+    });
+  if (edu.length || badges.length)
+    A.push(`<section class="block"><div class="label">Formation et diplômes</div>` +
+      (edu.length ? `<div>${edu.join("")}</div>` : "") +
+      (badges.length ? `<div class="pills${edu.length ? " apres" : ""}">` +
+        badges.map(b => `<span class="pill accent">${esc(b)}</span>`).join("") + `</div>` : "") +
+      `</section>`);
+
+  // Langues — noms seuls, aucun niveau
+  if ((C.langues || []).length)
+    A.push(`<section class="block"><div class="label">Langues</div>` +
+      `<div class="lang">${esc(C.langues.join(" · "))}</div></section>`);
+
+  document.getElementById("aside").innerHTML = A.join("");
+
+  /* ---------- bilan de competences ---------- */
+  // Regroupement par espece dans l'ordre d'apparition, tri interne par etat.
+  const groupes = [];
+  (C.competences || []).forEach(c => {
+    const n = NIVEAUX[c.niveau];
+    if (!n || !n.etat) return;                 // "Non concerné" ou niveau inconnu : ignore
+    let g = groupes.find(g => g.espece === c.espece);
+    if (!g) groupes.push(g = { espece: c.espece, actes: [] });
+    g.actes.push({ acte: c.acte, etat: n.etat, rang: n.rang });
+  });
+  groupes.forEach(g => g.actes.sort((a,b) => a.rang - b.rang || a.acte.localeCompare(b.acte,"fr")));
+
+  const MAIN = document.getElementById("main");
+  function renderMain(mode){
+    if (!groupes.length){
+      MAIN.innerHTML = `<section class="block"><div class="label">Bilan de compétences</div>` +
+        `<div class="empty">Aucune compétence évaluée n'est renseignée dans la fiche candidat.</div></section>`;
+      return;
+    }
+    // La legende ne montre que les etats reellement presents : afficher
+    // « non acquis » sur un dossier qui n'en compte aucun est un contresens.
+    const presents = new Set();
+    groupes.forEach(g => g.actes.forEach(a => presents.add(a.etat)));
+    const legende = ETATS.filter(e => presents.has(e.cle)).map(e =>
+      `<span class="lg ${e.cle}"><i class="dot"></i>${esc(e.libelle)}</span>`).join("");
+
+    let html = `<section class="block">
+      <div class="bil-head"><div class="label">Compétences vérifiées</div>
+      <div class="legend">${legende}</div></div>`;
+
+    html += groupes.map(g => {
+      const n = {}; ETATS.forEach(e => n[e.cle] = 0);
+      g.actes.forEach(a => n[a.etat]++);
+      const compte = ETATS.filter(e => n[e.cle])
+        .map(e => n[e.cle] + " " + e.libelle.toLowerCase()).join(" · ");
+      const tete = `<div class="grp-t">${esc(g.espece)}<em>${esc(compte)}</em></div>`;
+
+      if (mode === "chips"){
+        return `<div class="grp">${tete}<div class="acts">` +
+          g.actes.map(a => `<span class="ac ${a.etat}"><i class="dot"></i>${esc(a.acte)}</span>`).join("") +
+          `</div></div>`;
+      }
+      // mode compact : une ligne par etat
+      const lignes = ETATS.map(e => {
+        const l = g.actes.filter(a => a.etat === e.cle).map(a => a.acte);
+        return l.length
+          ? `<div class="cl ${e.cle}"><i class="dot"></i><span>${esc(l.join(" · "))}</span></div>`
+          : "";
+      }).join("");
+      return `<div class="grp">${tete}${lignes}</div>`;
+    }).join("");
+
+    html += `</section>`;
+    MAIN.innerHTML = html;
+  }
+
+  /* ---------- ajustement automatique a la page ---------- */
+  const PAGE = document.getElementById("page");
+  const FIT  = document.getElementById("fit");
+  const overflow = () => FIT.scrollHeight > FIT.clientHeight + 1 || PAGE.scrollHeight > PAGE.clientHeight + 1;
+
+  // Les fiches sont de densite tres inegale : l'echelle monte jusqu'a 1.11 pour
+  // qu'un dossier leger occupe la page, et descend jusqu'a 0.82 pour qu'un
+  // dossier dense y tienne. Le premier palier qui ne deborde pas fait foi.
+  // La colonne principale est rendue tout de suite, en dehors de la routine
+  // d'ajustement. C'est vital : si le rendu ne depend que de fit(), une passe
+  // qui n'aboutit jamais laisse la page SANS ses competences — invisible a
+  // l'ecran (ou une passe finit par passer) mais bien reel dans le PDF.
+  renderMain("chips");
+
+  // Garde-fou : une mesure prise avant que les polices soient chargees et la
+  // page composee est fausse, et elle se figerait. On abandonne la passe plutot
+  // que d'arreter une echelle absurde ; d'autres passes sont planifiees plus bas.
+  const pret = () =>
+    (!document.fonts || document.fonts.status === "loaded") &&
+    PAGE.clientHeight > 0 && FIT.clientHeight > 0;
+
+  function fit(force){
+    if (!force && !pret()) return false;
+    for (const mode of ["chips", "compact"]){
+      renderMain(mode);
+      for (let s = 1.11; s >= 0.8199; s -= 0.01){
+        document.documentElement.style.setProperty("--scale", s.toFixed(2));
+        if (!overflow()) return true;
+      }
+    }
+    document.documentElement.style.setProperty("--scale", "0.82");
+    return true;
+  }
+
+  // Plusieurs passes : chacune repart du haut, la derniere valide fait foi.
+  // Les passes planifiees n'empruntent pas toutes requestAnimationFrame : a
+  // l'impression, sous --virtual-time-budget, rAF peut ne jamais etre servi.
+  const passe = () => requestAnimationFrame(() => requestAnimationFrame(() => fit(false)));
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => fit(false));
+  window.addEventListener("load", () => fit(false));
+  setTimeout(() => fit(false), 300);
+  setTimeout(() => fit(false), 900);
+  // Dernier recours : au-dela de ce delai, mieux vaut une echelle approximative
+  // qu'une page amputee. On force l'ajustement meme si les polices se taisent.
+  setTimeout(() => fit(true), 2000);
+  passe();
+  fit(false);
+})();
+</script>
+</body>
+</html>

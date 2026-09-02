@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>extraction</title></head>
+<body>
+<pre id="log">demarrage</pre>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+window.DONE = false; window.RESULT = null; window.ETAT = "init";
+const L = document.getElementById("log");
+(async function(){
+  try{
+    const src = new URLSearchParams(location.search).get("f");
+    window.ETAT = "worker";
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    window.ETAT = "ouverture";
+    const pdf = await pdfjsLib.getDocument(src).promise;
+    window.ETAT = "pages=" + pdf.numPages;
+    const out = [];
+    for (let i = 1; i <= pdf.numPages; i++){
+      const pg = await pdf.getPage(i);
+      const tc = await pg.getTextContent();
+      // regroupement par ligne via la coordonnee Y de la matrice de transformation
+      const lignes = new Map();
+      for (const it of tc.items){
+        if (!it.str) continue;
+        const y = Math.round(it.transform[5]);
+        if (!lignes.has(y)) lignes.set(y, []);
+        lignes.get(y).push({ x: it.transform[4], s: it.str });
+      }
+      const tri = [...lignes.entries()].sort((a,b) => b[0] - a[0]);
+      const txt = tri.map(([y, arr]) =>
+        arr.sort((a,b) => a.x - b.x).map(o => o.s).join("").replace(/\s+/g," ").trim()
+      ).filter(Boolean).join("\n");
+      out.push("=== PAGE " + i + " ===\n" + txt);
+    }
+    window.RESULT = out.join("\n\n");
+    window.ETAT = "fini";
+    window.DONE = true;
+    L.textContent = window.RESULT;
+  } catch(e){
+    window.ETAT = "ERREUR: " + (e && e.message ? e.message : e);
+    window.DONE = true;
+    L.textContent = window.ETAT;
+  }
+})();
+</script>
+</body>
+</html>

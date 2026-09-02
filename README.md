@@ -5,7 +5,7 @@ plugins indépendants** : on n'installe que celui dont on a besoin.
 
 | Plugin | Pour qui | Compétences |
 |---|---|---|
-| `sarecrute-recruteur` | les recruteurs, au quotidien | `creer-clinique-offre`, `creer-candidat`, `creer-brouillons-facebook` |
+| `sarecrute-recruteur` | les recruteurs, au quotidien | `creer-clinique-offre`, `creer-candidat`, `dossier-candidat`, `creer-brouillons-facebook` |
 | `sarecrute-admin` | le poste d'administration | `scrape-veto`, `maj-offres` |
 
 ## Installation — recruteurs
@@ -43,19 +43,23 @@ claude plugin update sarecrute-recruteur@sarecrute-competences
 | Compétence | Ce qu'elle fait | On la déclenche en disant… |
 |---|---|---|
 | `creer-clinique-offre` | à partir d'une annonce collée dans Claude : crée la clinique et l'offre d'emploi dans Airtable, puis prépare le premier contact (brouillon Gmail, ou message Messenger à copier) | « crée la clinique et l'offre », ou simplement en collant l'annonce |
+| `creer-candidat` | crée un candidat vétérinaire dans Airtable à partir d'un CV, d'une annonce de recherche, du transcript d'un appel ou d'un simple nom, puis enrichit sa fiche | « crée un candidat », « rentre ce CV », « ajoute-le au vivier » |
+| `dossier-candidat` | analyse et score le vivier, et monte le **dossier de présentation A4** d'un candidat à la charte SaRecrute, à partir des seuls champs Airtable vérifiés | « fais le dossier de Margot », « sors-moi les bons profils », « montre-moi le modèle » |
 | `creer-brouillons-facebook` | prépare un brouillon de publication Facebook par canal pour les publications du jour, texte + image, **sans publier** | « prépare les brouillons Facebook », « les publications du jour » |
 
-Aucune des deux n'envoie ni ne publie quoi que ce soit : elles préparent, le recruteur relit et
+Aucune n'envoie ni ne publie quoi que ce soit : elles préparent, le recruteur relit et
 clique.
 
 ### Ce qu'il faut avoir branché
 
 Les compétences s'appuient sur les connecteurs du compte Claude de chaque recruteur :
 
-- **Airtable** — les deux compétences ;
+- **Airtable** — les quatre compétences du plugin recruteur ;
 - **Gmail** — pour le brouillon de premier contact (`creer-clinique-offre`) ;
 - **Google Drive** + **Claude in Chrome** — pour les visuels et les onglets Facebook
-  (`creer-brouillons-facebook`).
+  (`creer-brouillons-facebook`) ;
+- **Chrome installé sur le poste** — pour l'export PDF du dossier A4 (`dossier-candidat`) : rien à
+  brancher côté Claude, c'est le navigateur local qui imprime.
 
 Chaque recruteur travaille sous sa propre identité, lue dans `~/.sarecrute/recruteur.json`
 (`%USERPROFILE%\.sarecrute\recruteur.json` sous Windows) :
@@ -111,7 +115,7 @@ puis :
 
 ### Compétences « distantes » : toutes, depuis le 01/09/2026
 
-Les **cinq compétences** des deux plugins n'embarquent plus leurs instructions dans le plugin : le `SKILL.md` installé est
+Les **six compétences** des deux plugins n'embarquent plus leurs instructions dans le plugin : le `SKILL.md` installé est
 un **stub** qui télécharge à chaque exécution un snapshot de
 [`remote-skills/<compétence>/`](remote-skills/) (PROMPT.md + scripts + références) depuis la
 **branche `stable`** de ce dépôt. Conséquences :
