@@ -128,12 +128,11 @@ manque, explique à l'utilisateur où aller (réglages des connecteurs de son co
 Pour que les compétences ne traitent que **ses** publications. Elles savent le faire au premier
 lancement, mais autant l'expédier maintenant :
 
-1. Récupère depuis Airtable la liste des responsables des 3 derniers mois : table
-   `tblzKMXlCBH21hbJy`, champ `Responsable de l'offre` (`fld0PBN7RvLtXb2Is`), filtre
-   `{"operator":"isWithin","operands":["fldgV9Lx0qoPiG5Ry",{"mode":"pastNumberOfDays","numberOfDays":90,"timeZone":"Europe/Paris"}]}`.
-   Déduplique les couples nom + email.
-2. Demande à l'utilisateur qui il est (AskUserQuestion), en pré-sélectionnant l'entrée dont
-   l'email correspond à celui de son compte Claude s'il y a une correspondance.
+1. Lis la table `Recruteurs` (`tblDUpPwkuHYnAPyt`) : `Nom` (`fldwLiZVl731wiI4o`), `Email`
+   (`fld4ETJcqeL3e2Ur0`, l'e-mail du collaborateur Airtable), `Email compte Claude`
+   (`fldaxrZ7PftpZQQfl`), lignes `Actif` (`fldscrgHc1n9M60XZ`) cochées.
+2. Si l'e-mail du compte Claude de l'utilisateur correspond à une ligne, c'est cette personne, sans
+   question. Sinon demande-lui qui il est (AskUserQuestion) parmi les lignes actives.
 3. Écris le résultat dans `$HOME/.sarecrute/recruteur.json` (crée le dossier) :
    ```json
    { "responsable": "Prénom Nom", "email": "prenom@exemple.fr" }

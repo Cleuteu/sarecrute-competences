@@ -1,4 +1,4 @@
-**creer-brouillons-facebook — version 0.1.1 (2026-09-02)**
+**creer-brouillons-facebook — version 0.1.2 (2026-09-02)**
 
 > Ce fichier est le corps de la compétence `creer-brouillons-facebook` du plugin `sarecrute-recruteur`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -141,42 +141,33 @@ n'est demandée qu'en dernier recours, et mémorisée sur son poste quand c'est 
    **En session cloud (Cowork), ce fichier n'existera jamais** : aucun dossier du poste du
    recruteur n'y est monté, et `$HOME` n'y survit pas d'un run à l'autre. La lecture qui échoue
    n'est donc **pas une anomalie** — ne pas la signaler, ne pas chercher le fichier ailleurs,
-   enchaîner directement sur le point 2. C'est pour ce cas que la déduction du point 3 existe :
-   sans elle, la question serait reposée à chaque lancement.
+   enchaîner directement sur le point 2.
 
-2. S'il n'existe pas ou n'est pas lisible, construire la liste des recruteurs possibles depuis Airtable :
-   `list_records_for_table` sur `tblzKMXlCBH21hbJy`, **`fieldIds` limité au seul**
-   `fld0PBN7RvLtXb2Is` (Responsable de l'offre), filtré sur les 30 derniers jours
-   (`{"operator":"isWithin","operands":["fldgV9Lx0qoPiG5Ry",{"mode":"pastNumberOfDays","numberOfDays":30,"timeZone":"Europe/Paris"}]}`),
-   **et `pageSize: 100`**. Puis dédupliquer les couples nom + email obtenus.
+2. S'il n'existe pas ou n'est pas lisible, lire la table **`Recruteurs`** (`tblDUpPwkuHYnAPyt`) :
+   `list_records_for_table` avec `fieldIds` = `Nom` `fldwLiZVl731wiI4o`, `Email`
+   `fld4ETJcqeL3e2Ur0`, `Email compte Claude` `fldaxrZ7PftpZQQfl`, filtré sur `Actif`
+   (`fldscrgHc1n9M60XZ`) coché. `Email` est l'e-mail du **collaborateur Airtable** : c'est lui
+   qui se compare au `Responsable de l'offre` des publications à l'étape 2 ; `Email compte Claude`
+   est l'adresse du compte Claude de la recruteuse, la clé du point 3. Quelques lignes, aucune
+   question de taille.
 
-   Ces trois bornes ne sont pas décoratives : sur 90 jours et sans `pageSize`, la table renvoie
-   ~455 enregistrements soit près de 200 Ko, **au-delà de la limite de contexte** — l'appel échoue
-   et la compétence s'arrête avant d'avoir rien fait. C'est le cas de tout **nouveau recruteur**,
-   puisque c'est justement quand `recruteur.json` est absent qu'on passe ici. Ne jamais élargir la
-   fenêtre ni demander de champ supplémentaire à cet appel-là.
-
-   Si malgré tout la réponse dépasse la limite et se retrouve sauvegardée dans un fichier, ne pas
-   la relire avec l'outil de lecture : extraire les responsables au shell, par exemple
-   ```bash
-   jq -r '[.records[].cellValuesByFieldId["fld0PBN7RvLtXb2Is"].valuesByLinkedRecordId // {}
-           | .[] | .[0] | select(.!=null) | (.name+" <"+.email+">")] | unique[]' "<chemin_json>"
-   ```
+   C'est ce qui remplace, depuis le 02/09/2026, la liste des responsables des publications des 30
+   derniers jours : cette lecture-là dépassait la limite de contexte dès qu'on élargissait la
+   fenêtre (~455 enregistrements sur 90 jours), et un recruteur qui démarre n'y figurait pas.
+   Même mécanique que `creer-candidat` et `creer-clinique-offre` — le même fichier local, la même
+   table.
 
 3. **Déduire l'identité plutôt que la demander.** Dans l'ordre, en s'arrêtant au premier cas qui
    s'applique :
 
-   1. **L'email du compte Claude de l'utilisateur figure dans la liste** (comparaison exacte,
-      casse ignorée) → c'est lui. Pas de question.
-   2. **La liste ne contient qu'un seul couple nom + email** → c'est lui. Pas de question. C'est
-      le cas courant d'une petite équipe (et celui du run cloud du 01/09/2026, où la question a
-      été posée pour un choix à une seule réponse possible).
-   3. **Plusieurs candidats et aucun ne correspond à l'email du compte** → là seulement, poser la
-      question avec AskUserQuestion, en laissant la possibilité de saisir un nom absent de la
-      liste.
+   1. **L'e-mail du compte Claude de l'utilisateur figure dans `Email compte Claude`, sinon dans
+      `Email`** (comparaison exacte, casse ignorée) → c'est cette personne. Pas de question.
+   2. **Une seule recruteuse active** → c'est elle. Pas de question.
+   3. **Plusieurs recruteuses actives et aucune ne correspond au compte** → là seulement, poser la
+      question avec AskUserQuestion parmi les actives, en laissant la possibilité de saisir un nom
+      absent de la liste. Jamais `Automations`.
 
-   La déduction du cas 2 peut se tromper — un recruteur qui démarre n'a encore aucune
-   publication à son nom, et hériterait de celles d'un collègue. Ce qui la rattrape est le
+   La déduction du cas 2 peut se tromper si la table n'est pas à jour. Ce qui la rattrape est le
    garde-fou `MAUVAIS_COMPTE` de la phase 2 : il compare le nom déduit à celui **affiché dans le
    composeur Facebook** et lève une exception avant la première frappe si les deux diffèrent.
    C'est le filet qui compte, et il est automatique. La liste affichée à l'étape 2.5 n'en est plus
@@ -184,24 +175,28 @@ n'est demandée qu'en dernier recours, et mémorisée sur son poste quand c'est 
    ne garantit qu'il la lise avant que les onglets s'ouvrent.
 
    Dans les cas 1 et 2, **le dire en une ligne** au début du travail (« Brouillons préparés au nom
-   de <Nom> — déduit de <votre compte Claude | seul responsable des 30 derniers jours> ») et
-   préciser comment en changer : lancer la compétence en nommant le recruteur voulu. Une déduction
-   qu'on annonce n'est pas une décision prise dans le dos du recruteur.
+   de <Nom> — déduit de <votre compte Claude | seule recruteuse active> ») et préciser comment en
+   changer : lancer la compétence en nommant le recruteur voulu. Une déduction qu'on annonce n'est
+   pas une décision prise dans le dos du recruteur.
 
    Si une question doit malgré tout être posée, la poser **seule et tout de suite** : elle
    conditionne le filtrage de l'étape 2, donc elle ne peut pas attendre pour être groupée avec une
    autre. Une version antérieure prescrivait de la fusionner avec le feu vert — ce feu vert
    n'existe plus dans le cas nominal, et l'attendre reviendrait à retarder tout le run.
 
-4. Écrire le choix dans `$HOME/.sarecrute/recruteur.json` (créer le dossier au besoin), en
-   précisant à l'utilisateur qu'il peut modifier ou supprimer ce fichier pour changer d'identité.
-   Ce fichier est **local à la machine** : ne jamais le versionner ni le partager.
+4. **Mémoriser, pour que la question ne se repose plus** — seulement si elle a été posée (cas 3) :
+   - écrire `Email compte Claude` (`fldaxrZ7PftpZQQfl`) sur la ligne `Recruteurs` choisie, avec
+     l'e-mail du compte Claude de la session, **si le champ est vide**. C'est le seul champ de
+     cette table que la compétence écrit. C'est lui qui rend le cas 3.1 suffisant au prochain
+     lancement, y compris en session cloud ;
+   - écrire le choix dans `$HOME/.sarecrute/recruteur.json` (créer le dossier au besoin), en
+     précisant à l'utilisateur qu'il peut modifier ou supprimer ce fichier pour changer d'identité.
+     Ce fichier est **local à la machine** : ne jamais le versionner ni le partager.
 
-   **Si l'écriture échoue** (système de fichiers en lecture seule, `$HOME` absent — le cas d'une
-   session cloud) : ne pas réessayer, ne pas chercher un autre emplacement, et **ne pas en faire
-   une erreur**. Le run continue à l'identique ; la seule conséquence est que l'identité sera
-   redéduite au prochain lancement, ce qui ne coûte rien tant que le point 3 aboutit sans
-   question. En dire un mot en fin de compte rendu, pas au milieu du travail.
+   **Si l'écriture du fichier échoue** (système de fichiers en lecture seule, `$HOME` absent — le
+   cas d'une session cloud) : ne pas réessayer, ne pas chercher un autre emplacement, et **ne pas
+   en faire une erreur**. Le run continue à l'identique ; la table `Recruteurs` fournira l'identité
+   au prochain lancement. En dire un mot en fin de compte rendu, pas au milieu du travail.
 
 Ne traiter les publications de **tous** les responsables que si l'utilisateur le demande
 explicitement ; ce n'est jamais le comportement par défaut.
@@ -636,9 +631,10 @@ Ne jamais cocher « Publié ? » dans Airtable.
 Récapituler :
 
 - **au nom de quel recruteur** les brouillons ont été préparés, et **d'où vient cette identité**
-  (fichier de config, déduite du compte Claude, seul responsable de la période, ou choisie) ;
-  ajouter, **seulement si l'écriture de `recruteur.json` a échoué** (session cloud), une ligne
-  disant que l'identité sera redéduite au prochain lancement — sans en faire un incident ;
+  (fichier de config, compte Claude reconnu dans la table `Recruteurs`, seule recruteuse active,
+  ou choisie) ; ajouter, **seulement si l'écriture de `recruteur.json` a échoué** (session cloud),
+  une ligne disant que la table `Recruteurs` fournira l'identité au prochain lancement — sans en
+  faire un incident ;
 - le nombre de brouillons préparés et leurs destinations, groupés par offre, avec l'image utilisée ;
 - **les publications sans image trouvée** ;
 - **les canaux en « accès manquant »** (groupe non rejoint), avec la consigne de demander l'accès
