@@ -68,8 +68,8 @@ Le champ primaire `Name` est une formule (nom de la clinique + `Second name`) : 
 |---|---|---|---|
 | Clinique | `fldtUGOTlzMmBrrx9` | lien | `["rec…"]` — **obligatoire** |
 | Emploi recherché | `fldC1pPXhUzhDh6Qj` | select | `Vétérinaire` \| `ASV` |
-| Pratiques requises | `fldgYo4mPQjxqPen4` | multi | `Canine` · `NAC` · `Equine` · `Bovins` · `Oiseaux` · `Allaitant` · `Laitier` · `Ovin` · `Caprin` · `Porcin` · `volailles` · `Vollaile` · `Mixte` · `Rurale` |
-| Pratiques optionnelles | `fld8BRQsnbvz7UpKM` | multi | idem sans `Mixte`/`Rurale` |
+| Pratiques requises | `fldgYo4mPQjxqPen4` | multi | `Canine` · `NAC` · `Equine` · `Bovins` · `Allaitant` · `Laitier` · `Ovin/Caprin` · `Porcin` · `Volailles` · `Loups` — vocabulaire **identique à celui des Candidats** depuis le 31/08/2026 ; `Mixte`, `Rurale`, `Oiseaux`, `Ovin`, `Caprin`, `volailles` n'existent plus (mixte = `Canine` + `Bovins`) |
+| Pratiques optionnelles | `fld8BRQsnbvz7UpKM` | multi | idem |
 | Spécialités requises | `fldfxUJuNO2kkstGq` | multi | `Chirurgie` · `Urgences` · `Orthopédie` · `Ophtalmologie` · `Echographie` · `Ostéopathie` · `Management` · `Cardiologie` · `Reproduction` · `Oncologie` · `Médecine interne` · `Anatomie Pathologique` · `Neurologie` |
 | Spécialités optionnelles | `fldUJWi2hIVuf5OPF` | multi | idem |
 | Expérience requise | `fldJiOMS63jUDSsz6` | select | `Etudiant` \| `Débutant` \| `1 à 2 ans` \| `Autonome` \| `Spécialiste` |

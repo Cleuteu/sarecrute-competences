@@ -1,4 +1,4 @@
-**creer-clinique-offre — version 0.1.1 (2026-09-02)**
+**creer-clinique-offre — version 0.1.2 (2026-09-02)**
 
 > Ce fichier est le corps de la compétence `creer-clinique-offre` du plugin `sarecrute-recruteur`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
