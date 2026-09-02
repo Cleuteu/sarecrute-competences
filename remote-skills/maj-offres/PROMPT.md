@@ -1,13 +1,14 @@
-**maj-offres — version 0.1.0 (2026-09-01)**
+**maj-offres — version 0.1.1 (2026-09-02)**
 
 > Ce fichier est le corps de la compétence `maj-offres` du plugin `sarecrute-admin`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
-> branche `stable` de ce dépôt à chaque exécution, avec `scripts/` et `assets/` (snapshot
-> tarball, donc toujours cohérents entre eux).
+> branche `stable` de ce dépôt à chaque exécution, avec `scripts/` et `assets/` (un `MANIFEST` liste les fichiers du
+> snapshot et leur version commune : le stub vérifie qu'elle est celle de ce PROMPT.md).
 >
 > **Pour déployer une modification** : éditer ce fichier (ou `scripts/` et `assets/`) sur
-> `main`, mettre à jour la ligne de version ci-dessus, puis avancer la branche de déploiement :
-> `git push origin main:stable`. Aucun republish du plugin, aucun `plugin update` chez
+> `main`, mettre à jour la ligne de version ci-dessus, régénérer les manifests
+> (`python3 tools/manifests.py`), puis avancer la branche de déploiement :
+> `git push origin main:stable` (compter jusqu'à cinq minutes de cache côté `raw`). Aucun republish du plugin, aucun `plugin update` chez
 > l'utilisateur.
 >
 > Le stub, lui, ne change presque jamais : n'y toucher que pour son `description` (déclenchement)

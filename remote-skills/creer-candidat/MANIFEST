@@ -1,0 +1,6 @@
+version=0.2.0
+PROMPT.md
+references/candidature.md
+references/champs-candidat.md
+scripts/cv.py
+scripts/routine.py

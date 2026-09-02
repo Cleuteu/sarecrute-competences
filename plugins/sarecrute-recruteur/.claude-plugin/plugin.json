@@ -1,6 +1,6 @@
 {
   "name": "sarecrute-recruteur",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Compétences quotidiennes des recruteurs SaRecrute : créer une clinique et son offre d'emploi depuis une annonce, créer un candidat depuis un CV, une annonce, un transcript d'appel ou un simple nom, et préparer les brouillons de publication Facebook du jour.",
   "author": {
     "name": "SaRecrute"

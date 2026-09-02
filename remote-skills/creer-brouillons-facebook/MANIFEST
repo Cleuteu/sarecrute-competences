@@ -1,0 +1,4 @@
+version=0.1.1
+PROMPT.md
+scripts/attach_image.ps1
+scripts/attach_image.sh

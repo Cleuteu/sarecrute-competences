@@ -1,0 +1,8 @@
+version=0.14.2
+PROMPT.md
+references/matching_vocab.json
+scripts/airtable_push.py
+scripts/focus_chrome.ps1
+scripts/focus_chrome.sh
+scripts/keep_awake.sh
+scripts/scrape_helpers.js

@@ -117,10 +117,19 @@ un **stub** qui télécharge à chaque exécution un snapshot de
 **branche `stable`** de ce dépôt. Conséquences :
 
 - **Corriger le prompt ou les scripts** : éditer `remote-skills/<compétence>/` sur `main`, monter
-  la ligne de version en tête de `PROMPT.md`, puis déployer en avançant la branche :
-  `git push origin main:stable`. **Aucun bump de plugin, aucun `plugin update` chez personne** —
-  la prochaine exécution tire la nouvelle version toute seule (l'exécution l'annonce, c'est la
-  trace de ce qui a réellement tourné).
+  la ligne de version en tête de `PROMPT.md`, régénérer les manifests (`python3 tools/manifests.py`),
+  puis déployer en avançant la branche : `git push origin main:stable`. **Aucun bump de plugin,
+  aucun `plugin update` chez personne** — la prochaine exécution tire la nouvelle version toute
+  seule (l'exécution l'annonce, c'est la trace de ce qui a réellement tourné).
+- **Le téléchargement passe par `raw.githubusercontent.com`, fichier par fichier**, guidé par le
+  `MANIFEST` de chaque compétence (depuis le 02/09/2026). Le tarball `github.com/…/archive/…`
+  utilisé avant est filtré par le proxy de sortie de Cowork (403 « access to this repository is
+  not enabled for this session ») : les trois compétences recruteur y étaient inutilisables. Le
+  `MANIFEST` porte la version du `PROMPT.md` ; le stub compare les deux après téléchargement,
+  puisque `raw` ne garantit pas qu'un snapshot vienne d'un seul commit. **Un fichier ajouté à
+  `remote-skills/` qui n'est pas dans le `MANIFEST` n'arrive pas chez l'utilisateur** — d'où le
+  `python3 tools/manifests.py --check` des tests. Compter jusqu'à cinq minutes de cache côté `raw`
+  après un push sur `stable`.
 - `stable` est le cran de sûreté : on peut pousser sur `main` sans déployer. Ne jamais faire
   pointer le stub sur `main`.
 - En cas d'échec de téléchargement, le stub **s'arrête** — pas de repli sur une copie locale.

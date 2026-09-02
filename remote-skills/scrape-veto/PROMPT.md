@@ -1,13 +1,14 @@
-**scrape-veto — version 0.14.1 (2026-09-01)**
+**scrape-veto — version 0.14.2 (2026-09-02)**
 
 > Ce fichier est le corps de la compétence `scrape-veto` du plugin `sarecrute-admin`. Il n'est
 > **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
-> branche `stable` de ce dépôt à chaque exécution, avec `scripts/` et `references/` (snapshot
-> tarball, donc toujours cohérents entre eux).
+> branche `stable` de ce dépôt à chaque exécution, avec `scripts/` et `references/` (un `MANIFEST` liste les fichiers du
+> snapshot et leur version commune : le stub vérifie qu'elle est celle de ce PROMPT.md).
 >
 > **Pour déployer une modification** : éditer ce fichier (ou `scripts/`, `references/`) sur
-> `main`, mettre à jour la ligne de version ci-dessus, puis avancer la branche de déploiement :
-> `git push origin main:stable`. Aucun republish du plugin, aucun `plugin update` chez
+> `main`, mettre à jour la ligne de version ci-dessus, régénérer les manifests
+> (`python3 tools/manifests.py`), puis avancer la branche de déploiement :
+> `git push origin main:stable` (compter jusqu'à cinq minutes de cache côté `raw`). Aucun republish du plugin, aucun `plugin update` chez
 > l'utilisateur.
 >
 > **À l'exécution** : annonce la version ci-dessus à l'utilisateur avant de commencer, pour que

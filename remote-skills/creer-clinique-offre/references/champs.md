@@ -122,9 +122,12 @@ et pour le champ multi-collaborateurs de la clinique, `[{"email": "prenom@exempl
 Écrire par e-mail plutôt que par identifiant `usr…` évite de tenir une liste à jour dans ce
 fichier (vérifié : Airtable résout l'e-mail en collaborateur à l'écriture).
 
-L'e-mail vient de `$HOME/.sarecrute/recruteur.json` — voir l'étape 1 du SKILL.md. Si ce n'est pas
-celui d'un collaborateur de la base, l'écriture échoue : demander alors au recruteur avec quel
-compte il travaille. Pour retrouver les collaborateurs existants sans quitter Claude, lire les
+L'e-mail vient de l'étape 1 du PROMPT : fichier local `$HOME/.sarecrute/recruteur.json`, sinon la
+table **`Recruteurs`** (`tblDUpPwkuHYnAPyt`) — `Nom` `fldwLiZVl731wiI4o`, `Email` `fld4ETJcqeL3e2Ur0`
+(le collaborateur Airtable, celui qu'on écrit ici), `Email compte Claude` `fldaxrZ7PftpZQQfl` (la
+clé de comparaison avec l'utilisateur de la session ; seul champ que la compétence écrit, si
+vide), `Actif` `fldscrgHc1n9M60XZ`. Si l'e-mail retenu n'est pas celui d'un collaborateur de la
+base, l'écriture échoue : c'est la ligne `Recruteurs` qui porte un mauvais `Email`, le dire. Pour retrouver les collaborateurs existants sans quitter Claude, lire les
 champs `Responsable de l'offre` (`fldPqVh2fe65tIct2`) et `Propriétaire de l'offre`
 (`fldERU7fexhGsuZJ3`) de quelques offres récentes : la valeur renvoyée contient `name`, `email`
 et `id`.

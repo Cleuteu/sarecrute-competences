@@ -131,10 +131,18 @@ dur. Le renseigner reste utile, mais ne suffit pas à élargir la portée d'un c
 
 Côté candidat, `nomExperience(...) || "Débutant"` : **une cellule vide vaut « Débutant »**, décision
 d'Alex. Le candidat disparaît donc des offres qui demandent `1 à 2 ans` ou `Autonome`. Renseigner ce
-champ dès que la source permet de trancher ; entre deux paliers, prendre le plus bas.
+champ dès que la source permet de trancher.
+
+**La grille de la base, quand une durée chiffrée existe** : moins d'un an → `Débutant` ; 1 ou 2 ans
+→ `1 à 2 ans` ; 3 ans et plus → `Autonome`. C'est celle de l'automation « Expérience depuis les
+années d'expérience » (`wfli6MfOEgdSMfCsZ`), qui réécrit `Expérience` dès que `Années d'expérience`
+change, et celle des fiches existantes (sur 136 candidats à 1 an d'expérience, une seule en
+`Débutant`). « Exerce depuis un an » = `1 à 2 ans`. « Entre deux paliers, le plus bas » ne
+s'applique qu'à un texte sans chiffre. ⚠️ Cette automation écrase aussi `Etudiant` et
+`Spécialiste` quand on écrit le nombre d'années : à revérifier après coup sur ces deux profils.
 
 `Années d'expérience` (`fldSGOptEz0Api4wN`, entier) ne sert **pas** au matching : il pilote
-`Echelon`, donc la rémunération convention collective. Ne jamais déduire l'un de l'autre, ni de
+`Echelon`, donc la rémunération convention collective. Ne jamais déduire ni l'un ni l'autre de
 l'année de sortie — une équivalence étrangère récente sur un diplôme de 2018 ne fait que quelques
 mois d'exercice, le cas existe dans la base.
 
@@ -172,7 +180,8 @@ Formules et lookups : `Noms`, `fullNameSearch`, `ville_departement`, `Echelon`,
 modification`, `Date de création`, `Numéro (à partir de Posts scrappés)`, les deux
 `… (à partir de Candidature)`.
 
-Liens gérés ailleurs : `Candidature`, `Potentielles candidatures`, `Communications`,
+Liens gérés ailleurs : `Candidature` (se remplit depuis la table `Candidatures` — voir
+`references/candidature.md`, ÉTAPE 7), `Potentielles candidatures`, `Communications`,
 `Posts scrappés`, `Localisations`, `Compétences candidat` (se remplit depuis les lignes de la table
 `Compétences`), `Régions de recherche`.
 
@@ -191,16 +200,25 @@ e-mail, jamais par identifiant `usr…` :
 {"email": "prenom@exemple.fr"}
 ```
 
-L'e-mail vient de `$HOME/.sarecrute/recruteur.json` — voir l'ÉTAPE 1 du PROMPT. Les deux champs
+L'e-mail vient de l'ÉTAPE 1 du PROMPT (fichier local, sinon table `Recruteurs`). Les deux champs
 reçoivent **la même personne** : c'est ce que fait la saisie à la main dans la base.
 
-Collaboratrices de la base au 01/09/2026, relevées sur les 1000 candidats et les offres :
+### Table `Recruteurs` — `tblDUpPwkuHYnAPyt`
 
-| Nom | E-mail | À proposer ? |
-|---|---|---|
-| Sarah Vanhersel | `sarah.vanhersel@gmail.com` | oui |
-| Pamela Martinez | `pamela.vet@sarecrute.com` | oui |
-| Automations | `automations@noreply.airtable.com` | **non** — compte de service Airtable |
+La source d'identité qui survit aux sessions cloud. Une ligne par recruteuse.
+
+| Champ | ID | Type | Rôle |
+|---|---|---|---|
+| Nom | `fldwLiZVl731wiI4o` | texte | affichage, et libellé de la question |
+| Email | `fld4ETJcqeL3e2Ur0` | email | **l'e-mail du collaborateur Airtable** — celui qu'on écrit dans `Sourceur`, `Propriétaire…` |
+| Email compte Claude | `fldaxrZ7PftpZQQfl` | email | l'adresse du compte Claude (Cowork / Claude Code) de la recruteuse — la clé de comparaison avec l'utilisateur de la session. **Seul champ que la compétence écrit**, et seulement s'il est vide, après que la recruteuse a répondu à la question |
+| Actif | `fldscrgHc1n9M60XZ` | case | ne proposer que les lignes cochées |
+| Telegram chat ID, Notes | `fldxtWfHEbPeYUPJG`, `fldQXiW28OKgooohI` | | ne pas toucher |
+
+Lignes au 02/09/2026 : Sarah Vanhersel (`sarah.vanhersel@gmail.com`) et Pamela Martinez
+(`pamela.vet@sarecrute.com`), toutes deux actives, `Email compte Claude` à remplir au premier
+lancement. Le compte de service `Automations` (`automations@noreply.airtable.com`) n'y figure pas
+et ne doit jamais y être ajouté.
 
 ⚠️ **Ne jamais proposer ni écrire `Automations`.** C'est le compte sous lequel tournent les
 automations (il pose `Sourceur` à la conversion d'un post scrappé) : l'attribuer à une création

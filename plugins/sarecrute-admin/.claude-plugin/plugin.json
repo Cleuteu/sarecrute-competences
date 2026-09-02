@@ -1,6 +1,6 @@
 {
   "name": "sarecrute-admin",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "description": "Compétences d'administration SaRecrute, hors poste de recrutement : collecte des posts des groupes Facebook vétérinaires cochés dans « Canaux de diffusion » vers Airtable, et mise à jour des offres publiées sur le site depuis l'Airtable de prod. Exige une clé d'API Airtable dans l'environnement ; le scrape exige en plus le Chrome réel de la machine.",
   "author": {
     "name": "SaRecrute"

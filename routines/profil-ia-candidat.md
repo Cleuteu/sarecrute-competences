@@ -189,17 +189,20 @@ Pour chaque champ singleSelect ou multipleSelect, utilise UNIQUEMENT les valeurs
 
 ⚠️ **« Expérience » et « Années d'expérience » sont deux champs distincts, et aucun ne se déduit de l'autre. Remplis les deux quand le texte le permet.**
 
-- **`Expérience`** est une **sélection unique** — Etudiant / Débutant / 1 à 2 ans / Autonome / Spécialiste. C'est ce champ, et lui seul, que le matching compare à l'« Expérience requise » des offres. Laissé vide, le candidat est traité comme « Débutant » et disparaît des offres qui demandent mieux : ne le laisse pas vide si le texte permet de trancher. « Vétérinaire depuis un peu plus de 2 ans » donne « 1 à 2 ans » ; « autonome en consultation courante » donne « Autonome » ; « je termine ma dernière année » donne « Etudiant ». Entre deux paliers, prends le plus bas — ce champ décide de ce qu'une clinique verra.
+- **`Expérience`** est une **sélection unique** — Etudiant / Débutant / 1 à 2 ans / Autonome / Spécialiste. C'est ce champ, et lui seul, que le matching compare à l'« Expérience requise » des offres. Laissé vide, le candidat est traité comme « Débutant » et disparaît des offres qui demandent mieux : ne le laisse pas vide si le texte permet de trancher. « Vétérinaire depuis un peu plus de 2 ans » donne « 1 à 2 ans » ; « autonome en consultation courante » donne « Autonome » ; « je termine ma dernière année » donne « Etudiant ».
+  **Quand le texte donne une durée d'exercice chiffrée, applique la grille de la base** — c'est celle de l'automation « Expérience depuis les années d'expérience », qui réécrit ce champ dès que « Années d'expérience » change, et celle des 1000 fiches existantes : **moins d'un an → « Débutant » ; 1 ou 2 ans → « 1 à 2 ans » ; 3 ans et plus → « Autonome »**. « Exerce depuis un an » est donc « 1 à 2 ans », pas « Débutant » : la première année compte, et la faire tomber en Débutant sortait des candidats des offres qui demandent 1 à 2 ans (constaté le 02/09/2026). La règle « entre deux paliers, prends le plus bas » ne vaut que pour un texte **sans chiffre** (« un peu d'expérience », « quelques mois en clinique ») — là, ce champ décide de ce qu'une clinique verra, et le doute profite à la prudence.
 - **`Années d'expérience`** est un **entier**, et il ne sert pas au matching : il pilote l'échelon et la rémunération convention collective. Ne le renseigne que si le texte donne une durée réelle d'exercice.
-- ⚠️ **Ne calcule jamais l'un depuis l'autre, ni depuis l'année de sortie.** « Spécialiste » n'est pas un nombre d'années, et un diplôme de 2018 obtenu à l'étranger avec une équivalence récente peut ne représenter que quelques mois d'exercice — le cas existe tel quel dans la base. L'année de sortie donne l'ancienneté du diplôme, pas l'expérience.
+- ⚠️ **Ne déduis jamais ni l'un ni l'autre de l'année de sortie.** Un diplôme de 2018 obtenu à l'étranger avec une équivalence récente peut ne représenter que quelques mois d'exercice — le cas existe tel quel dans la base. L'année de sortie donne l'ancienneté du diplôme, pas l'expérience. Et « Spécialiste » n'est pas un nombre d'années : il vient d'un titre ou d'un poste, jamais d'une durée.
+- ⚠️ Effet de bord connu : l'automation ci-dessus écrase aussi un « Etudiant » ou un « Spécialiste » dès que « Années d'expérience » est écrit (un spécialiste à 6 ans d'exercice redevient « Autonome »). Écris quand même les deux champs quand le texte les donne — le nombre d'années pilote la rémunération — et signale dans ton compte rendu final « Spécialiste / Etudiant posé, à revérifier après l'automation », pour que le recruteur remette la valeur si elle a sauté.
 
 ### B-bis) Règles déterministes — prioritaires sur l'analyse du CV, des transcripts et du post
 
 Applique ces règles APRÈS avoir rempli les champs structurés. Elles écrasent toute valeur que tu aurais déduite du CV, des transcripts ou du post.
 
-**Diplômé·e de l'année hors France** — Détermine d'abord l'année civile en cours (la date à laquelle tu exécutes cette routine). Si "Année de sortie" est EXACTEMENT égale à cette année ET que l'école véto n'est PAS une école française, alors :
-- Internat = "Non"
-- Habilitation sanitaire = "Non"
+**Diplômé·e de l'année** — Détermine d'abord l'année civile en cours (la date à laquelle tu exécutes cette routine). Si "Année de sortie" est EXACTEMENT égale à cette année, l'école décide de l'habilitation sanitaire (règle du 02/09/2026) :
+- école véto **française** → Habilitation sanitaire = "Oui" (elle est délivrée avec le diplôme) ; Internat : déduction normale ;
+- école **non française** → Internat = "Non" et Habilitation sanitaire = "Non" ;
+- école **non identifiable** → ne touche ni à l'un ni à l'autre : laisse vide plutôt que deviner.
 
 Sont considérées comme écoles françaises, y compris leurs variantes de nom :
 - Lyon / VetAgro Sup
@@ -208,11 +211,11 @@ Sont considérées comme écoles françaises, y compris leurs variantes de nom :
 - Toulouse / ENVT
 - Beauvais / UniLaSalle / Institut Polytechnique UniLaSalle
 
-Toute autre école déclenche la règle (Liège, Gand, Bruxelles, Cluj, Timisoara, Budapest, Lisbonne, Madrid, Zaragoza, Turin, Parme, etc.).
+Toute autre école est « non française » (Liège, Gand, Bruxelles, Cluj, Timisoara, Budapest, Lisbonne, Madrid, Zaragoza, Turin, Parme, etc.).
 
 Cas limites :
 - Si l'année de sortie est différente de l'année civile en cours — qu'elle soit antérieure OU postérieure — n'applique pas la règle et laisse la déduction normale.
-- Si l'année de sortie ou l'école ne sont pas identifiables, n'applique pas la règle.
+- Si l'année de sortie n'est pas identifiable, n'applique pas la règle. Si c'est l'école qui ne l'est pas, ne pose ni Internat ni Habilitation sanitaire (voir ci-dessus).
 - Les options attendues sont "Oui" / "Non" pour ces deux champs. Comme partout ailleurs, n'utilise que les options réellement présentes dans le schéma : si l'option "Non" est absente, laisse le champ vide plutôt que de créer une valeur.
 
 ### B-ter) Spécialités — la barre est haute, et c'est délibéré

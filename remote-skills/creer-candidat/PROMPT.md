@@ -1,13 +1,14 @@
-**creer-candidat — version 0.1.2 (2026-09-02)**
+**creer-candidat — version 0.2.0 (2026-09-02)**
 
 > Ce fichier est le corps de la compétence `creer-candidat` du plugin `sarecrute-recruteur`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
-> branche `stable` de ce dépôt à chaque exécution, avec `scripts/` et `references/` (snapshot
-> tarball, donc toujours cohérents entre eux).
+> branche `stable` de ce dépôt à chaque exécution, avec `scripts/` et `references/` (un `MANIFEST` liste les fichiers du
+> snapshot et leur version commune : le stub vérifie qu'elle est celle de ce PROMPT.md).
 >
 > **Pour déployer une modification** : éditer ce fichier (ou `scripts/`, `references/`) sur
-> `main`, mettre à jour la ligne de version ci-dessus, puis avancer la branche de déploiement :
-> `git push origin main:stable`. Aucun republish du plugin, aucun `plugin update` chez
+> `main`, mettre à jour la ligne de version ci-dessus, régénérer les manifests
+> (`python3 tools/manifests.py`), puis avancer la branche de déploiement :
+> `git push origin main:stable` (compter jusqu'à cinq minutes de cache côté `raw`). Aucun republish du plugin, aucun `plugin update` chez
 > l'utilisateur.
 >
 > Le stub, lui, ne change presque jamais : n'y toucher que pour son `description` (déclenchement)
@@ -28,7 +29,8 @@ Compétences `tblH8Zym1DNu7PN3c` · Actes `tblt32Afmq6vQ6FJS`.
 
 | Fichier | Rôle |
 |---|---|
-| `references/champs-candidat.md` | champs à remplir, IDs, valeurs de select, **et ce que chaque champ fait au matching** |
+| `references/champs-candidat.md` | champs à remplir, IDs, valeurs de select, **et ce que chaque champ fait au matching** ; table `Recruteurs` (ÉTAPE 1) |
+| `references/candidature.md` | l'offre visée : pratiques recopiées, contrôle du matching, création de la candidature (ÉTAPE 7) |
 | `scripts/routine.py` | télécharge la doctrine d'enrichissement depuis le dépôt (ÉTAPE 6) |
 | `scripts/cv.py` | retrouve le fichier d'un CV sur le disque, en extrait le texte, et le joint à la fiche |
 | `scripts/ville.py` | résout la ville en département + CP — **absent du snapshot, à télécharger** |
@@ -55,27 +57,50 @@ si la source ne rentre dans aucune valeur existante, laisser vide et le signaler
 
 ## Étape 1 — Savoir au nom de qui on travaille
 
-1. Lire `$HOME/.sarecrute/recruteur.json` (Windows : `%USERPROFILE%\.sarecrute\recruteur.json`) :
+L'identité du recruteur alimente `Sourceur` et `Ajouté au CRM par` (et, à l'ÉTAPE 7, le
+propriétaire de la candidature), sous la forme `{"email": "…"}` — l'e-mail du **collaborateur
+Airtable**, la même personne partout, comme le fait la saisie à la main dans la base. Trois
+sources, dans cet ordre, en s'arrêtant à la première qui répond :
+
+1. **Le fichier local** `$HOME/.sarecrute/recruteur.json` (Windows :
+   `%USERPROFILE%\.sarecrute\recruteur.json`) :
    ```json
    { "responsable": "Prénom Nom", "email": "prenom@exemple.fr" }
    ```
-   S'il existe, l'utiliser **sans poser de question** et le dire en une ligne dans le compte rendu.
-2. Sinon, demander avec AskUserQuestion **parmi les collaboratrices listées dans
-   `references/champs-candidat.md`** (section « Champs collaborateur »), puis **écrire le fichier**
-   pour que la question ne se repose jamais. Créer le dossier s'il n'existe pas. Dire à
-   l'utilisateur que le fichier existe et qu'il peut le modifier pour changer d'identité.
-   Ce fichier est **local** : ne jamais le versionner.
+   S'il existe, l'utiliser **sans poser de question**. C'est le même fichier que
+   `creer-clinique-offre`. **En session cloud (Cowork) il n'existe jamais** : `$HOME` est jeté à
+   la fin de la session. Sa lecture qui échoue n'est pas une anomalie — ne rien signaler, ne pas le
+   chercher ailleurs, passer au point 2.
+2. **La table `Recruteurs`** (`tblDUpPwkuHYnAPyt`, champs dans `references/champs-candidat.md`).
+   Lire les lignes **actives** avec `Nom`, `Email`, `Email compte Claude`. Comparer l'e-mail du
+   compte Claude de l'utilisateur de la session à `Email compte Claude`, puis à `Email`, casse
+   ignorée. **Une correspondance → c'est cette personne, sans question.** Aucune correspondance
+   mais **une seule recruteuse active** → c'est elle, sans question, en le disant.
+3. **Sinon, demander** avec AskUserQuestion parmi les recruteuses actives (jamais `Automations`),
+   puis **mémoriser pour que la question ne se repose plus** :
+   - écrire `Email compte Claude` (`fldaxrZ7PftpZQQfl`) sur la ligne `Recruteurs` choisie avec
+     l'e-mail du compte Claude de la session — c'est le seul champ de cette table que la
+     compétence écrit, et seulement s'il est vide ; c'est lui qui rend le point 2 suffisant au
+     prochain lancement, y compris en session cloud ;
+   - écrire le fichier local (créer le dossier), local à la machine, jamais versionné. Si
+     l'écriture échoue (session cloud) : ne pas réessayer, ne pas en faire un incident, la table
+     fait le travail.
 
-⚠️ **Le fichier définit l'identité de la machine, pas celle de la personne qui tape.** Si le
-fichier dit Sarah, un candidat créé depuis ce poste est attribué à Sarah — même si c'est quelqu'un
-d'autre qui lance la commande. C'est voulu : c'est le poste de travail d'une recruteuse. Ne jamais
-essayer de deviner l'opérateur réel (compte Claude, utilisateur système, signature git) pour
-« corriger » l'attribution, et ne jamais demander confirmation quand le fichier existe.
+Dire en une ligne, au début du compte rendu, au nom de qui on travaille **et d'où vient
+l'identité** (fichier, compte Claude reconnu dans `Recruteurs`, seule recruteuse active, ou
+choisie), et comment en changer : modifier le fichier, ou lancer la compétence en nommant la
+recruteuse voulue.
 
-C'est le même fichier que `creer-clinique-offre` : une recruteuse ne le renseigne qu'une fois, et
-il sert aussi à signer la clinique et l'offre. Il alimente ici `Sourceur` et `Ajouté au CRM par`,
-tous deux sous la forme `{"email": "…"}` — la même personne dans les deux, comme le fait la saisie
-à la main dans la base.
+⚠️ **Le fichier local définit l'identité de la machine, pas celle de la personne qui tape.** Si
+le fichier dit Sarah, un candidat créé depuis ce poste est attribué à Sarah — même si c'est
+quelqu'un d'autre qui lance la commande. C'est voulu : c'est le poste de travail d'une recruteuse.
+Ne jamais essayer de deviner l'opérateur réel (utilisateur système, signature git) pour
+« corriger » l'attribution quand le fichier existe, et ne jamais demander confirmation. Le compte
+Claude n'entre en jeu qu'au point 2, quand il n'y a pas de fichier.
+
+Si l'e-mail retenu n'est pas celui d'un collaborateur de la base, l'écriture des champs
+collaborateur échoue : c'est le signal que la ligne `Recruteurs` porte un mauvais `Email` —
+le dire, ne pas contourner.
 
 ## Étape 2 — Trier les sources
 
@@ -101,7 +126,9 @@ Trois règles de tri :
   s'écrit pas non plus.
 - **Une annonce de clinique n'est pas une source candidat.** Si le texte collé décrit un poste à
   pourvoir et non quelqu'un qui en cherche un, c'est `creer-clinique-offre` qu'il faut, pas cette
-  compétence. Le dire et s'arrêter.
+  compétence. Le dire et s'arrêter. Une seule exception, bornée et décrite à l'ÉTAPE 7 : quand le
+  recruteur désigne **l'offre à laquelle le candidat postule**, les **espèces** de cette offre
+  peuvent compléter sa fiche — jamais ses spécialités ni ses actes.
 
 **Sans nom, on ne crée rien.** Un candidat sans nom porte `Anonyme #<n>` (formule) et devient
 introuvable pour tout le monde. Si aucune source ne donne de nom, demander lequel avant d'écrire.
@@ -318,7 +345,41 @@ l'essentiel. Dire au recruteur d'ouvrir la fiche dans l'interface Airtable et de
 **« Enrichissement candidat »** — la routine cloud fera exactement ce travail. Laisser
 `Statut IA` vide.
 
-## Étape 7 — Lancer le matching
+## Étape 7 — Si le candidat vise une offre précise : pratiques, contrôle, candidature
+
+Cette étape ne tourne que si le recruteur a **désigné une offre** (« arrivée par mail sur l'annonce
+Hedera », « elle postule chez X »). Sans offre nommée, la sauter en silence : on ne devine jamais
+l'offre depuis le texte d'une source. Tout le détail (IDs, grilles, valeurs) est dans
+`references/candidature.md` — le lire avant d'écrire. En résumé, dans l'ordre :
+
+1. **Retrouver l'offre** non archivée par le nom de la clinique (et `Second name`). Plusieurs
+   candidates → montrer et demander laquelle, c'est la seule question de l'étape. Aucune → le dire,
+   proposer `creer-clinique-offre`, et sauter le reste de l'étape.
+2. **Les espèces de l'offre → la fiche.** Postuler à un poste canin, c'est dire qu'on veut faire du
+   canin : c'est une déclaration du candidat. `Pratiques requises` de l'offre → `Pratiques
+   requises` **et** `Pratiques maitrisées` du candidat, **seulement si vides après l'ÉTAPE 6** (les
+   sources du candidat priment, et une requise de plus exclut) ; `Pratiques optionnelles` de
+   l'offre → `Pratiques optionnelles` du candidat, en ajout. Recopie 1 pour 1, vocabulaires
+   identiques. ⚠️ **Espèces seulement** : ni les spécialités ni les actes de l'offre ne passent sur
+   le candidat — ce qu'une clinique propose ne dit rien de ce qu'un candidat sait faire, c'est le
+   « plateau technique » de la doctrine sous une autre forme.
+3. **Ce que dirait le matching** — trois contrôles : `Expérience` du candidat contre `Expérience
+   requise` (vide côté candidat = Débutant), double inclusion des pratiques, `county` de l'offre
+   contre les zones ou la ville du candidat. Aucun n'est bloquant : le recruteur a décidé de
+   présenter. Mais chaque écart est un ⚠️ dans le récapitulatif avant feu vert et dans le compte
+   rendu — « 1 an d'expérience pour une offre qui demande 1 à 2 ans » est exactement ce que le
+   recruteur veut voir avant de présenter.
+4. **Créer la candidature**, après avoir vérifié qu'il n'en existe pas déjà une pour ce couple
+   candidat × offre : `Candidat`, `Offre d'emploi`, `Propriétaire` = le recruteur de l'ÉTAPE 1,
+   `Statut candidature`, `Prochaine action` et sa date selon la grille de `candidature.md` (le
+   candidat a postulé lui-même → `Candidat postulé` / `Proposer le candidat à la clinique` /
+   aujourd'hui). Le statut retenu s'affiche dans le récapitulatif avant feu vert, le recruteur le
+   change en un mot ; pas de question séparée. Sur `En attente 1er retour candidat`, ne pas écrire
+   la prochaine action : l'automation « Set 1ère relance » la pose. Jamais de `Notes`.
+5. **Archiver la paire** de `Potentielles candidatures` pour ce couple si elle existe, sinon la
+   même personne serait proposée deux fois.
+
+## Étape 8 — Lancer le matching
 
 Le rapprochement n'est pas automatique à la création. Dire au recruteur d'ouvrir la fiche du
 candidat dans l'interface Airtable et de lancer le bouton de création des valeurs potentielles
@@ -330,14 +391,17 @@ Si rien ne sort, reprendre `references/champs-candidat.md` dans l'ordre de la co
 le matching » : c'est presque toujours `Statut Recherche` vide, une pratique de trop en
 « requises », ou aucune `Zone de recherche` sur un candidat sans ville.
 
-## Étape 8 — Compte rendu
+## Étape 9 — Compte rendu
 
 - la **version** de ce PROMPT.md, annoncée dès le début du run ;
-- au nom de quel recruteur on a travaillé ;
+- au nom de quel recruteur on a travaillé, et d'où vient cette identité (ÉTAPE 1) ;
 - le candidat créé (ou la fiche existante enrichie), avec son recordId ;
 - les sources déposées et où (`CV text` + pièce jointe, `Post`, `Transcripts`) ;
 - `county` / coordonnées obtenus, ou le problème restant ;
 - ce que l'enrichissement a produit : le compte rendu de la routine, tel qu'elle le formule ;
+- si une offre était visée (ÉTAPE 7) : l'offre retrouvée, les pratiques posées depuis elle, les
+  trois contrôles avec leurs ⚠️, la candidature créée (recordId, statut, prochaine action) ou
+  celle qui existait déjà ;
 - **les champs laissés vides faute d'information** — c'est la liste que le recruteur complétera
   après son premier appel ;
 - le rappel de lancer le matching depuis l'interface.
@@ -353,7 +417,11 @@ le matching » : c'est presque toujours `Statut Recherche` vide, une pratique de
 - **`Expérience` et `Années d'expérience` sont deux champs distincts.** `Expérience` (sélection
   unique) est le seul lu par le matching, et **vide y vaut « Débutant »**, donc exclusion des
   offres qui demandent mieux. `Années d'expérience` ne pilote que l'échelon et la rémunération
-  convention collective. Ne jamais calculer l'un depuis l'autre ni depuis l'année de sortie.
+  convention collective. Quand une durée chiffrée existe, `Expérience` suit la grille de la base
+  (moins d'un an → Débutant, 1 ou 2 ans → `1 à 2 ans`, 3 et plus → Autonome) : « exerce depuis un
+  an » est `1 à 2 ans`, pas Débutant. L'automation « Expérience depuis les années d'expérience »
+  l'imposerait de toute façon dès que le nombre d'années est écrit. Ne jamais déduire ni l'un ni
+  l'autre de l'année de sortie.
 - **Ne pas écrire `Régions de recherche`.** Ce champ de lien déclenche l'automation
   « Update Zones de Recherche (Candidat) », qui réécrit `Zones de recherche`. Écrire directement
   `Zones de recherche` (`fldacGQbzpkx88ULc`), comme le fait la routine.

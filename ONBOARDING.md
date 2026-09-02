@@ -141,6 +141,11 @@ lancement, mais autant l'expédier maintenant :
    Sous Windows : `%USERPROFILE%\.sarecrute\recruteur.json`. Ce fichier est **local à la
    machine** : il ne doit être ni versionné ni partagé. Dis à l'utilisateur qu'il peut le
    modifier ou le supprimer pour changer d'identité.
+4. Dans la table `Recruteurs` (`tblDUpPwkuHYnAPyt`), sur la ligne de cette personne (champ `Email`
+   `fld4ETJcqeL3e2Ur0` = l'e-mail choisi), pose `Email compte Claude` (`fldaxrZ7PftpZQQfl`) avec
+   l'adresse du compte Claude de l'utilisateur, si le champ est vide. C'est ce qui évite la
+   question « au nom de qui ? » en session Cowork, où le fichier ci-dessus ne survit pas d'une
+   session à l'autre. Si aucune ligne ne correspond, dis-le à l'utilisateur : Alex doit la créer.
 
 ### Étape 5 — Essai à blanc (sans ouvrir aucun onglet)
 

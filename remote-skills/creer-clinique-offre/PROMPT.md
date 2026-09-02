@@ -1,13 +1,14 @@
-**creer-clinique-offre — version 0.1.0 (2026-09-01)**
+**creer-clinique-offre — version 0.1.1 (2026-09-02)**
 
 > Ce fichier est le corps de la compétence `creer-clinique-offre` du plugin `sarecrute-recruteur`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
-> branche `stable` de ce dépôt à chaque exécution, avec `scripts/` et `references/` (snapshot
-> tarball, donc toujours cohérents entre eux).
+> branche `stable` de ce dépôt à chaque exécution, avec `scripts/` et `references/` (un `MANIFEST` liste les fichiers du
+> snapshot et leur version commune : le stub vérifie qu'elle est celle de ce PROMPT.md).
 >
 > **Pour déployer une modification** : éditer ce fichier (ou `scripts/` et `references/`) sur
-> `main`, mettre à jour la ligne de version ci-dessus, puis avancer la branche de déploiement :
-> `git push origin main:stable`. Aucun republish du plugin, aucun `plugin update` chez
+> `main`, mettre à jour la ligne de version ci-dessus, régénérer les manifests
+> (`python3 tools/manifests.py`), puis avancer la branche de déploiement :
+> `git push origin main:stable` (compter jusqu'à cinq minutes de cache côté `raw`). Aucun republish du plugin, aucun `plugin update` chez
 > l'utilisateur.
 >
 > Le stub, lui, ne change presque jamais : n'y toucher que pour son `description` (déclenchement)
@@ -39,15 +40,27 @@ si l'annonce ne rentre dans aucune valeur existante, laisser vide et le signaler
 L'offre et la clinique doivent être attribuées au recruteur qui lance la commande, sans le lui
 demander à chaque fois.
 
-1. Lire `$HOME/.sarecrute/recruteur.json` (sous Windows : `%USERPROFILE%\.sarecrute\recruteur.json`) :
+Trois sources, dans cet ordre, en s'arrêtant à la première qui répond (même mécanique que
+`creer-candidat`) :
+
+1. **Le fichier local** `$HOME/.sarecrute/recruteur.json` (sous Windows :
+   `%USERPROFILE%\.sarecrute\recruteur.json`) :
    ```json
    { "responsable": "Prénom Nom", "email": "prenom@exemple.fr" }
    ```
-   S'il existe, l'utiliser **sans poser de question** et le dire en une ligne dans le compte rendu.
-2. Sinon, demander avec AskUserQuestion parmi les collaborateurs de la base
-   (voir `references/champs.md`), en pré-sélectionnant celui dont l'e-mail correspond au compte
-   Claude de l'utilisateur. Écrire ensuite le fichier (créer le dossier) et préciser qu'il peut le
-   modifier pour changer d'identité. Ce fichier est **local** : ne jamais le versionner.
+   S'il existe, l'utiliser **sans poser de question**. **En session cloud (Cowork) il n'existe
+   jamais** (`$HOME` est jeté en fin de session) : sa lecture qui échoue n'est pas une anomalie,
+   passer au point 2 sans rien signaler.
+2. **La table `Recruteurs`** (`tblDUpPwkuHYnAPyt`, champs dans `references/champs.md`). Lire les
+   lignes **actives** ; comparer l'e-mail du compte Claude de l'utilisateur à `Email compte
+   Claude`, puis à `Email`, casse ignorée. Une correspondance → c'est cette personne, sans
+   question. Aucune, mais une seule recruteuse active → c'est elle, en le disant.
+3. **Sinon, demander** avec AskUserQuestion parmi les recruteuses actives, puis mémoriser : écrire
+   `Email compte Claude` (`fldaxrZ7PftpZQQfl`) sur la ligne choisie si vide (seul champ de cette
+   table qu'on écrit), et le fichier local (créer le dossier ; s'il ne s'écrit pas, session cloud,
+   ne pas insister). Ce fichier est **local** : ne jamais le versionner.
+
+Dire en une ligne dans le compte rendu au nom de qui on travaille et d'où vient l'identité.
 
 Cet e-mail alimente `Propriétaires du client` (clinique), `Responsable de l'offre` et
 `Propriétaire de l'offre` (offre), sous la forme `{"email": "…"}`.

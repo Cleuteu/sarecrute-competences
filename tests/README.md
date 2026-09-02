@@ -10,7 +10,15 @@ python3 tests/fusion_commentaires.test.py           # aucune dépendance
 npm i --no-save jsdom@22 && node tests/attribution_commentaires.test.js
 node tests/expansion_clic.test.js                   # jsdom aussi
 node tests/liens_markdown.test.mjs                  # aucune dépendance
+python3 tools/manifests.py --check                  # les MANIFEST des compétences distantes sont à jour
 ```
+
+**`tools/manifests.py --check`** — depuis le 02/09/2026 les stubs téléchargent les compétences
+fichier par fichier depuis `raw.githubusercontent.com`, guidés par un `MANIFEST` par compétence
+(voir README). Un fichier ajouté à `remote-skills/<compétence>/` sans régénérer le manifest n'arrive
+jamais chez l'utilisateur, et une version montée dans `PROMPT.md` sans régénération fait échouer
+le contrôle de cohérence du stub — dans les deux cas sans rien de visible côté dépôt. Le check
+échoue tant que `python3 tools/manifests.py` n'a pas été relancé.
 
 (jsdom 22 et non la dernière : les versions récentes ne se chargent pas en CommonJS sous Node 20.)
 
