@@ -1,20 +1,13 @@
 ---
-name: dossier-candidat
+name: creer-cv-candidat
 description: >-
-  Analyse et score les CV des candidats vétérinaires du vivier Airtable SaRecrute selon une grille
-  de recruteur expert, puis génère le « dossier de présentation candidat » standardisé sur une
-  seule page A4 à la charte SaRecrute, bâti exclusivement sur les champs Airtable vérifiés par les
-  recruteuses (jamais le CV PDF, jamais le Profil IA). Se déclenche dès que l'utilisateur parle de
-  CV, de dossier ou de fiche de présentation à envoyer à une clinique, de shortlist, de scoring,
-  de « meilleurs profils », de mise en forme ou de refonte de CV, de template ou de modèle
-  standard A4, du bilan de compétences par acte, ou qu'il demande d'analyser le vivier Airtable —
-  même s'il ne mentionne ni SaRecrute, ni Airtable, ni A4, et même s'il formule ça simplement
-  (« sors-moi les bons profils », « fais-moi un beau CV pour Margot », « qui est présentable chez
-  les vétos ? », « montre-moi le modèle »). L'analyse seule et la génération de dossier seule sont
-  deux moitiés indépendantes : l'une ou l'autre suffit à déclencher la compétence.
+  Monte le « dossier de présentation candidat » A4 à la charte SaRecrute d'un vétérinaire du
+  vivier Airtable, et analyse/score le vivier selon une grille de recruteur expert. Compétence à
+  invocation manuelle : elle ne se déclenche que sur appel explicite.
+disable-model-invocation: true
 ---
 
-# Dossier de présentation candidat
+# Créer le CV / dossier de présentation d'un candidat
 
 Les instructions de cette compétence ne sont **pas dans ce fichier** : elles vivent sur GitHub et
 se téléchargent **à chaque exécution**, pour que la version exécutée soit toujours la dernière
@@ -27,7 +20,7 @@ déployée — sans `plugin update`.
 listés avec la version qu'ils partagent) :
 
 ```bash
-SKILL="dossier-candidat"
+SKILL="creer-cv-candidat"
 BASE="https://raw.githubusercontent.com/Cleuteu/sarecrute-competences/stable/remote-skills/$SKILL"
 DEST="$(mktemp -d)/$SKILL-remote"   # toujours un dossier neuf : jamais de mélange ancien/nouveau
 mkdir -p "$DEST"

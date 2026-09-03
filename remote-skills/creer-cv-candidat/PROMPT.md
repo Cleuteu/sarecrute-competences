@@ -1,6 +1,6 @@
-**dossier-candidat — version 0.1.0 (2026-09-02)**
+**creer-cv-candidat — version 0.2.0 (2026-09-03)**
 
-> Ce fichier est le corps de la compétence `dossier-candidat` du plugin `sarecrute-recruteur`. Il
+> Ce fichier est le corps de la compétence `creer-cv-candidat` du plugin `sarecrute-recruteur`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
 > branche `stable` de ce dépôt à chaque exécution, avec ses `assets/` (un `MANIFEST` liste les
 > fichiers du snapshot et leur version commune : le stub vérifie qu'elle est celle de ce

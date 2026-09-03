@@ -5,7 +5,7 @@ plugins indépendants** : on n'installe que celui dont on a besoin.
 
 | Plugin | Pour qui | Compétences |
 |---|---|---|
-| `sarecrute-recruteur` | les recruteurs, au quotidien | `creer-clinique-offre`, `creer-candidat`, `dossier-candidat`, `creer-brouillons-facebook` |
+| `sarecrute-recruteur` | les recruteurs, au quotidien | `creer-clinique-offre`, `creer-candidat`, `creer-cv-candidat`, `creer-brouillons-facebook` |
 | `sarecrute-admin` | le poste d'administration | `scrape-veto`, `maj-offres` |
 
 ## Installation — recruteurs
@@ -44,7 +44,7 @@ claude plugin update sarecrute-recruteur@sarecrute-competences
 |---|---|---|
 | `creer-clinique-offre` | à partir d'une annonce collée dans Claude : crée la clinique et l'offre d'emploi dans Airtable, puis prépare le premier contact (brouillon Gmail, ou message Messenger à copier) | « crée la clinique et l'offre », ou simplement en collant l'annonce |
 | `creer-candidat` | crée un candidat vétérinaire dans Airtable à partir d'un CV, d'une annonce de recherche, du transcript d'un appel ou d'un simple nom, puis enrichit sa fiche | « crée un candidat », « rentre ce CV », « ajoute-le au vivier » |
-| `dossier-candidat` | analyse et score le vivier, et monte le **dossier de présentation A4** d'un candidat à la charte SaRecrute, à partir des seuls champs Airtable vérifiés | « fais le dossier de Margot », « sors-moi les bons profils », « montre-moi le modèle » |
+| `creer-cv-candidat` | analyse et score le vivier, et monte le **dossier de présentation A4** d'un candidat à la charte SaRecrute, à partir des seuls champs Airtable vérifiés | **invocation manuelle uniquement** : `/creer-cv-candidat` |
 | `creer-brouillons-facebook` | prépare un brouillon de publication Facebook par canal pour les publications du jour, texte + image, **sans publier** | « prépare les brouillons Facebook », « les publications du jour » |
 
 Aucune n'envoie ni ne publie quoi que ce soit : elles préparent, le recruteur relit et
@@ -58,7 +58,7 @@ Les compétences s'appuient sur les connecteurs du compte Claude de chaque recru
 - **Gmail** — pour le brouillon de premier contact (`creer-clinique-offre`) ;
 - **Google Drive** + **Claude in Chrome** — pour les visuels et les onglets Facebook
   (`creer-brouillons-facebook`) ;
-- **Chrome installé sur le poste** — pour l'export PDF du dossier A4 (`dossier-candidat`) : rien à
+- **Chrome installé sur le poste** — pour l'export PDF du dossier A4 (`creer-cv-candidat`) : rien à
   brancher côté Claude, c'est le navigateur local qui imprime.
 
 Chaque recruteur travaille sous sa propre identité, lue dans `~/.sarecrute/recruteur.json`
