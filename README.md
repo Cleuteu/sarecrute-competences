@@ -5,8 +5,8 @@ plugins indépendants** : on n'installe que celui dont on a besoin.
 
 | Plugin | Pour qui | Compétences |
 |---|---|---|
-| `sarecrute-recruteur` | les recruteurs, au quotidien | `creer-clinique-offre`, `creer-candidat`, `creer-cv-candidat`, `creer-brouillons-facebook` |
-| `sarecrute-admin` | le poste d'administration | `scrape-veto`, `maj-offres` |
+| `sarecrute-recruteur` | les recruteurs, au quotidien | `creer-clinique-offre`, `creer-candidat`, `creer-cv-candidat`, `creer-brouillons-facebook`, `insta-follow-veto` |
+| `sarecrute-admin` | le poste d'administration | `scrape-veto`, `maj-offres`, `insta-scrape-veto` |
 
 ## Installation — recruteurs
 
@@ -46,18 +46,23 @@ claude plugin update sarecrute-recruteur@sarecrute-competences
 | `creer-candidat` | crée un candidat vétérinaire dans Airtable à partir d'un CV, d'une annonce de recherche, du transcript d'un appel ou d'un simple nom, puis enrichit sa fiche | « crée un candidat », « rentre ce CV », « ajoute-le au vivier » |
 | `creer-cv-candidat` | analyse et score le vivier, et monte le **dossier de présentation A4** d'un candidat à la charte SaRecrute, à partir des seuls champs Airtable vérifiés | **invocation manuelle uniquement** : `/creer-cv-candidat` |
 | `creer-brouillons-facebook` | prépare un brouillon de publication Facebook par canal pour les publications du jour, texte + image, **sans publier** | « prépare les brouillons Facebook », « les publications du jour » |
+| `insta-follow-veto` | s'abonne en série aux profils Instagram du vivier partagé sur Drive, en pilotant le Chrome de l'utilisateur, et tient à jour la liste d'abonnements de la recruteuse pour ne jamais réapprocher deux fois la même personne | **invocation manuelle uniquement** : `/insta-follow-veto` |
 
-Aucune n'envoie ni ne publie quoi que ce soit : elles préparent, le recruteur relit et
-clique.
+Les quatre premières n'envoient ni ne publient quoi que ce soit : elles préparent, le recruteur
+relit et clique. `insta-follow-veto` fait exception — elle clique réellement « Suivre » dans la
+session Instagram de la recruteuse, ce qui notifie de vraies personnes et ne s'annule pas. C'est
+la raison pour laquelle elle est en invocation manuelle, et pourquoi elle demande un feu vert
+avant chaque lot.
 
 ### Ce qu'il faut avoir branché
 
 Les compétences s'appuient sur les connecteurs du compte Claude de chaque recruteur :
 
-- **Airtable** — les quatre compétences du plugin recruteur ;
+- **Airtable** — toutes les compétences du plugin recruteur sauf `insta-follow-veto` ;
 - **Gmail** — pour le brouillon de premier contact (`creer-clinique-offre`) ;
 - **Google Drive** + **Claude in Chrome** — pour les visuels et les onglets Facebook
-  (`creer-brouillons-facebook`) ;
+  (`creer-brouillons-facebook`), et pour la liste de prospection Instagram partagée + la session
+  Instagram de la recruteuse (`insta-follow-veto`) ;
 - **Chrome installé sur le poste** — pour l'export PDF du dossier A4 (`creer-cv-candidat`) : rien à
   brancher côté Claude, c'est le navigateur local qui imprime.
 
@@ -84,6 +89,7 @@ claude plugin install sarecrute-admin@sarecrute-competences
 |---|---|---|
 | `scrape-veto` | parcourt le groupe Facebook vétérinaire sur une fenêtre de temps (6 h par défaut), en tire les posts et les commentaires utiles, et les pousse dans la table « Posts scrappés » sans créer de doublon | « scrape les posts véto », « scrape veto 48h », « les posts d'aujourd'hui » |
 | `maj-offres` | synchronise les offres publiées sur le site vitrine (page des offres + carousel de l'accueil) avec l'Airtable de prod : retire les offres archivées ou dont la clinique n'est plus « Signé », ajoute les nouvelles, rédige leurs descriptions **anonymisées** et pose le tag « Nouvelle offre » | « mets à jour les offres », « maj offres », « il y a une nouvelle offre » |
+| `insta-scrape-veto` | extrait les abonnés d'un compte Instagram — ou, à l'inverse, les abonnements d'une recruteuse pour amorcer son fichier de suivi — dédoublonne contre les extractions précédentes et exporte en JSON | **invocation manuelle uniquement** : `/insta-scrape-veto` |
 
 `maj-offres` écrit dans les fichiers du site, jamais dans Airtable, et **ne déploie qu'avec un accord
 explicite**. Elle se lance depuis le dossier du site (ou avec `SARECRUTE_SITE` pointant dessus) et

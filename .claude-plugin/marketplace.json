@@ -10,8 +10,8 @@
     {
       "name": "sarecrute-recruteur",
       "source": "./plugins/sarecrute-recruteur",
-      "description": "Compétences quotidiennes des recruteurs SaRecrute : créer une clinique et son offre d'emploi depuis une annonce, créer un candidat depuis un CV, une annonce, un transcript d'appel ou un simple nom, monter le dossier de présentation A4 d'un candidat du vivier, et préparer les brouillons de publication Facebook du jour.",
-      "version": "0.11.0",
+      "description": "Compétences quotidiennes des recruteurs SaRecrute : créer une clinique et son offre d'emploi depuis une annonce, créer un candidat depuis un CV, une annonce, un transcript d'appel ou un simple nom, monter le dossier de présentation A4 d'un candidat du vivier, préparer les brouillons de publication Facebook du jour, et s'abonner en série aux profils Instagram du vivier.",
+      "version": "0.12.0",
       "author": {
         "name": "SaRecrute"
       },
@@ -20,6 +20,7 @@
         "candidat",
         "cv",
         "facebook",
+        "instagram",
         "recrutement",
         "sarecrute",
         "veterinaire"
@@ -28,8 +29,8 @@
     {
       "name": "sarecrute-admin",
       "source": "./plugins/sarecrute-admin",
-      "description": "Compétences d'administration SaRecrute, hors poste de recrutement : collecte des posts des groupes Facebook vétérinaires cochés dans « Canaux de diffusion » vers Airtable, et mise à jour des offres publiées sur le site depuis l'Airtable de prod. Exige une clé d'API Airtable dans l'environnement ; le scrape exige en plus le Chrome réel de la machine.",
-      "version": "0.16.0",
+      "description": "Compétences d'administration SaRecrute, hors poste de recrutement : collecte des posts des groupes Facebook vétérinaires cochés dans « Canaux de diffusion » vers Airtable, extraction des abonnés d'un compte Instagram, et mise à jour des offres publiées sur le site depuis l'Airtable de prod. Exige une clé d'API Airtable dans l'environnement ; le scrape exige en plus le Chrome réel de la machine.",
+      "version": "0.17.0",
       "author": {
         "name": "SaRecrute"
       },
@@ -37,6 +38,7 @@
         "administration",
         "airtable",
         "facebook",
+        "instagram",
         "offres",
         "sarecrute",
         "scraping",
