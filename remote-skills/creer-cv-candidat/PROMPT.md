@@ -1,4 +1,4 @@
-**creer-cv-candidat — version 0.2.0 (2026-09-03)**
+**creer-cv-candidat — version 0.2.1 (2026-09-03)**
 
 > Ce fichier est le corps de la compétence `creer-cv-candidat` du plugin `sarecrute-recruteur`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -230,7 +230,11 @@ Quatre lignes maximum, rédigées à partir des seuls champs de la section **Not
 
 Jamais depuis `Profil IA`. Jamais depuis le CV. Ton SaRecrute : factuel, professionnel, sans superlatif. Ce que la clinique achète — parcours, autonomie réelle, ce que le candidat cherche.
 
-Ces notes portent aussi ce qui n'a rien à faire dans un dossier client : les questions du candidat sur un poste précis, les échanges internes, et surtout les **disponibilités périmées**. Compare toujours la date de la note à la date du jour ; une note de janvier qui dit « disponible en mars » n'est plus une disponibilité en août. Signale l'écart à l'utilisateur, ne le recopie pas.
+Ces notes portent aussi ce qui n'a rien à faire dans un dossier client : les questions du candidat sur un poste précis, les échanges internes, et surtout les **disponibilités périmées**. Compare toujours la date de la note à la date du jour ; une note de janvier qui dit « disponible en mars » n'est plus une disponibilité en août. Ne la recopie pas.
+
+**Les notes ne servent qu'à l'accroche** (rappel du 03/09/2026). La limite est stricte, et elle vaut aussi pour ce que tu dis à l'utilisateur, pas seulement pour ce que tu imprimes : une fois l'accroche écrite, aucune autre ligne du dossier ne s'en alimente, et le compte rendu ne s'en sert pas non plus pour commenter l'état de la fiche. Les champs vides se listent comme des états de champ — « `Gardes` : vide » — jamais « le champ est vide alors que la note dit qu'elle accepte les gardes ». Une contradiction entre un champ et une note ne se rapporte pas comme un argument sur le champ.
+
+La tentation est réelle, parce que les notes contiennent souvent la valeur qui manque au champ et que la signaler ressemble à un service rendu. C'en est un mauvais : le champ vide **est** le signal, il dit qu'une recruteuse n'a pas encore qualifié ce point. Une valeur officieuse tirée des notes donne l'illusion que la fiche est à jour et retarde la saisie qui, elle, ferait foi.
 
 ### Le bilan de compétences : trois états, lisibles d'un coup d'œil
 
