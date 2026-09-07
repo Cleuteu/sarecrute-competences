@@ -1,4 +1,4 @@
-**creer-brouillons-facebook — version 0.1.2 (2026-09-02)**
+**creer-brouillons-facebook — version 0.1.3 (2026-09-07)**
 
 > Ce fichier est le corps de la compétence `creer-brouillons-facebook` du plugin `sarecrute-recruteur`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -57,8 +57,8 @@ Un run nominal va donc **de bout en bout sans rien demander**. Tout se déduit :
 - **le navigateur** — choisi d'office quand un seul Chrome est connecté (étape 4) ;
 - **la méthode d'attache de l'image** (A ou B) — jamais soumise au recruteur, décidée par le test
   de l'étape 3 ;
-- **les cas dégradés** (image manquante, groupe non rejoint, canal hors périmètre) — jamais une
-  question : on continue et on le dit dans le compte rendu.
+- **les cas dégradés** (image manquante, groupe non rejoint, canal sans URL, canal hors
+  périmètre) — jamais une question : on continue et on le dit dans le compte rendu.
 
 Il reste **trois** situations, toutes anormales, où l'on s'arrête pour demander : plusieurs
 recruteurs possibles et aucun ne correspond au compte (étape 1), un nombre de brouillons hors de
@@ -229,6 +229,10 @@ explicitement ; ce n'est jamais le comportement par défaut.
    - garder uniquement les canaux qui sont des **groupes**, c'est-à-dire dont l'URL contient
      `/groups/`. Les autres (murs de profil) sont **hors périmètre** — voir ci-dessous.
 
+   Ces deux derniers filtres écartent des publications qui étaient **bel et bien prévues
+   aujourd'hui**. Ne pas les jeter : garder leurs IDs et le nom de leur canal (voir « Ce qui
+   tombe au filtrage se nomme », plus bas).
+
    **Périmètre : groupes uniquement.** Sur les 14 canaux ayant une URL, 12 sont des groupes et
    2 sont des murs de profil : « Facebook perso » (`/me`, le mur du recruteur) et « Annonces
    véto » (`/veto.annonce`, le journal d'un tiers — c'est un profil personnel avec ~4 900
@@ -242,6 +246,41 @@ explicitement ; ce n'est jamais le comportement par défaut.
    Tant que ce flux n'est pas maîtrisé, **ne pas tenter ces canaux**. Les lister explicitement
    dans le compte rendu final comme « hors périmètre, à faire à la main » : ils ne doivent pas
    disparaître silencieusement de la sélection.
+
+   **Ce qui tombe au filtrage se nomme.** Une publication écartée parce que son canal n'a pas
+   d'URL est parfaitement invisible : elle était datée d'aujourd'hui, non publiée, au nom du
+   recruteur, avec son image — et elle disparaît avant que le moindre onglet s'ouvre. Constaté
+   en production (retour recruteur du 2026-09-07) : sur un run de 11 brouillons, l'annonce
+   RivieresVet × « Cercle liégeois des étudiants vétérinaires » est tombée sans être nommée, le
+   compte rendu ne mentionnant que « des canaux sans URL ». Le recruteur a dû demander pourquoi
+   une annonce manquait.
+
+   Donc, pour **chacune** des deux exclusions (canal sans URL, mur de profil), conserver la
+   paire **offre × canal** — pas seulement le canal. Le nom de l'offre demande un appel de plus,
+   sur les seuls écartés :
+
+   `list_records_for_table` sur `tblzKMXlCBH21hbJy`, `recordIds` = les IDs écartés,
+   `fieldIds` = Offre d'emploi (`fldhs2J4wBl1n158S`). Ni filtre ni `pageSize`.
+
+   Cet appel ne réintroduit pas le problème de contexte du point 2 : il porte sur une poignée de
+   records (2 en production), pas sur la journée entière. Il est indépendant de la chaîne du
+   point 4 — le lancer dans le même tour.
+
+   **Deux natures de « canal sans URL »**, à ne pas confondre dans le compte rendu :
+
+   - un **groupe Facebook dont l'Url n'a jamais été renseignée** dans « Canaux de diffusion » :
+     la compétence saurait le traiter, il ne manque qu'un champ. C'est celui-là qu'on signale
+     avec la consigne de renseigner l'Url avant le prochain lancement ;
+   - un canal **d'une autre plateforme** (« Linkedin », « Instagram ») : il n'a pas d'URL
+     Facebook parce que ce n'est pas Facebook. Le mentionner comme normal, **sans consigne** —
+     réclamer une Url n'aurait aucun sens, et un rappel qui revient chaque jour sans objet
+     finit par ne plus être lu.
+
+   Rien dans la table ne les distingue : les 4 canaux sans Url (« Linkedin », « Instagram »,
+   « Cercle liégeois des étudiants vétérinaires », « Trabajo veterinario en España ») n'ont pas
+   de champ de plateforme. Trancher **sur le nom**, et en cas de doute classer dans la première
+   catégorie : un rappel superflu se corrige d'un mot, une publication perdue en silence ne se
+   voit pas.
 
    Si aucune publication ne reste après filtrage, le dire clairement (« rien à publier
    aujourd'hui pour <nom> ») et s'arrêter là — ne pas élargir le périmètre de sa propre
@@ -274,8 +313,9 @@ explicitement ; ce n'est jamais le comportement par défaut.
    > remplace les apostrophes courbes `’` par des droites `'`. Rien de tout cela n'apparaît dans
    > une relecture rapide, et le recruteur découvre les dégâts après publication.
 5. **Afficher** la liste des brouillons à préparer (offre × canal), regroupée par offre, avec
-   l'image associée. **Signaler dès ici** les publications sans image et les canaux hors
-   périmètre, pour que le recruteur les voie avant qu'on ouvre le moindre onglet.
+   l'image associée. **Signaler dès ici** les publications sans image, celles écartées pour
+   canal sans URL et celles dont le canal est hors périmètre — ces deux dernières nommées
+   **offre × canal** —, pour que le recruteur les voie avant qu'on ouvre le moindre onglet.
 
    Puis, selon le **nombre de brouillons retenus** :
 
@@ -639,8 +679,14 @@ Récapituler :
 - **les publications sans image trouvée** ;
 - **les canaux en « accès manquant »** (groupe non rejoint), avec la consigne de demander l'accès
   avant le prochain lancement ;
+- **les publications écartées parce que leur canal n'a pas d'URL**, nommées **offre × canal**
+  et jamais résumées en un « des canaux sans URL » anonyme : avec la consigne de renseigner
+  l'Url dans « Canaux de diffusion » avant le prochain lancement quand le canal est un groupe
+  Facebook, et sans consigne quand il relève d'une autre plateforme (Linkedin, Instagram), où
+  c'est le comportement normal ;
 - **les publications écartées parce que leur canal est un mur de profil** (`/me`,
-  `/veto.annonce`), présentées comme « à faire à la main » et non comme un échec ;
+  `/veto.annonce`), nommées elles aussi **offre × canal**, présentées comme « à faire à la
+  main » et non comme un échec ;
 - **les coquilles repérées dans le texte Airtable** — les signaler, ne **jamais** les corriger de
   sa propre initiative : c'est la copie du recruteur, et deviner une correction est une
   modification silencieuse de son annonce ;
@@ -692,10 +738,14 @@ d'action de sa part, et les détailler recrée par écrit la charge qu'on vient 
   les lecteurs d'écran et la recherche Facebook qui ne retrouve plus ces mots.
 - Le texte et l'image d'une offre sont partagés par tous ses canaux → télécharger l'image une
   seule fois et réutiliser le fichier local pour tous les onglets de la même offre.
-- Sur les 14 canaux ayant une URL, 12 sont des groupes — les seuls traités — et un recruteur ne
-  peut y publier que s'il en est membre. Les 2 autres sont des murs de profil, écartés à
-  l'étape 2. « Annonces véto » n'est **pas une Page** malgré son usage : c'est un profil personnel
-  (~4 900 ami(e)s), et y publier revient à écrire sur le journal d'un tiers.
+- La table « Canaux de diffusion » compte 18 canaux, dont 14 ont une Url. Sur ces 14, 12 sont
+  des groupes — les seuls traités — et un recruteur ne peut y publier que s'il en est membre.
+  Les 2 autres sont des murs de profil, écartés à l'étape 2. Les **4 sans Url** écartent eux
+  aussi des publications : 2 relèvent d'une autre plateforme (Linkedin, Instagram) et 2 sont des
+  groupes dont l'Url n'a jamais été renseignée. Dans les deux cas la publication doit être
+  **nommée** dans le compte rendu (étape 2.3). « Annonces véto » n'est **pas une Page** malgré
+  son usage : c'est un profil personnel (~4 900 ami(e)s), et y publier revient à écrire sur le
+  journal d'un tiers.
 - **Ce qui reste à résoudre pour les murs de profil**, le jour où on voudra les réintégrer : le
   dialogue modal se replie en composeur inline, l'image ne s'attache pas, et le champ
   « Photo/Vidéo » à viser est ambigu. Rien n'a encore été trouvé qui fonctionne — ne pas écrire de
