@@ -1,4 +1,4 @@
-**insta-follow-veto — version 0.1.0 (2026-09-03)**
+**insta-follow-veto — version 0.2.0 (2026-09-09)**
 
 > Ce fichier est le corps de la compétence `insta-follow-veto` du plugin `sarecrute-recruteur`. Il n'est
 > **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -22,6 +22,27 @@ Deux choses la rendent délicate, et elles motivent la moitié des instructions 
 - **Chaque clic est une action sortante irréversible.** Un abonnement notifie une vraie personne. Se désabonner après coup n'annule pas la notification. Il n'y a pas de « annuler » — d'où la vérification du compte avant de commencer.
 - **Instagram traite l'automatisation comme un abus.** Trop de follows trop vite déclenche un « Action bloquée » qui peut durer de quelques heures à plusieurs jours, et le blocage frappe le compte de l'utilisateur, pas toi. Ce n'est pas seulement une question de vitesse : c'est la **régularité** du rythme qui trahit une machine. D'où une cadence délibérément lente *et* irrégulière.
 
+## Sortie — deux lecteurs, et les incidents
+
+La doctrine complète est dans `<dossier_skill>/references/compte-rendu.md`, identique dans les
+cinq compétences recruteur : la lire avant d'écrire le compte rendu, et dès qu'un incident
+survient. L'essentiel, qui s'applique dès la première ligne du run :
+
+- **Mode recruteur, par défaut.** Une seule ligne au départ : `insta-follow-veto <version>`. Ensuite, rien
+  entre deux outils sauf une question autorisée par ce PROMPT.md, le récapitulatif avant feu vert,
+  ou une erreur bloquante. Compte rendu final en trois blocs — **Fait** / **À faire par vous** /
+  **Pas fait** — dix lignes, liens Airtable cliquables, sans recordId ni nom de champ. La
+  recruteuse y lit ce qui lui demande une action, rien d'autre.
+- **Mode détaillé.** Seulement si le message de lancement contient `debug` : narration pendant le
+  run, et une section « Détail technique » après les trois blocs. Sans le mot-clé, ce détail
+  n'apparaît nulle part — il est réservé au mail d'incident.
+- **Incident** (arrêt avant résultat, écriture à moitié) : s'arrêter, ne rien défaire, dire en
+  deux lignes à la recruteuse qu'un mail pour Alex est prêt, et créer ce brouillon Gmail
+  (`create_draft`, `alex@botyglot.com`, objet `[SaRecrute] Échec insta-follow-veto <version> — …`) avec le
+  modèle de la référence. Les cas dégradés que ce PROMPT.md prévoit ne sont pas des incidents :
+  ils vont dans *Pas fait*, nommés un par un.
+- **Ici, le rapport par statut réel de l'étape 7 est le contenu des blocs** *Fait* et *Pas fait* :
+  les listes de pseudos se donnent en entier, c'est ce que l'utilisateur vient chercher.
 ## Avant de cliquer quoi que ce soit
 
 **Signale la contrainte, une fois, brièvement.** L'utilisateur mérite de savoir que l'automatisation d'abonnements contrevient aux conditions d'utilisation d'Instagram et peut valoir un blocage temporaire. Une ou deux phrases suffisent — ce n'est pas un refus, c'est une information pour qu'il décide en connaissance de cause. Puis enchaîne, il a demandé le travail.
@@ -237,31 +258,40 @@ Si la liste vient d'un fichier local plutôt que de Drive, écris-y les mêmes �
 
 ## Étape 7 — Rendre compte
 
-Ferme l'onglet que tu as ouvert (`tabs_close_mcp`), puis livre un rapport structuré par **statut réel**, pas par intention :
+Ferme l'onglet que tu as ouvert (`tabs_close_mcp`). Format et règles :
+`references/compte-rendu.md`. Le rapport est structuré par **statut réel**, pas par intention :
 
-```
-X/Y traités depuis <compte-connecté>
+**Fait**
+- `X/Y traités depuis <compte-connecté>` ;
+- abonnements effectifs (N comptes publics) : pseudo1, pseudo2, … ;
+- demandes en attente (M comptes privés) — effectives seulement si la personne accepte :
+  pseudo3, pseudo4, … ;
+- l'état des fichiers : combien d'entrées compte désormais sa liste, combien de profils restent
+  dans la liste principale.
 
-Abonnements effectifs (N comptes publics) :
-  pseudo1, pseudo2, ...
+**À faire par vous**
+- si un blocage est survenu : reprendre plus tard les profils non traités, nommés ;
+- **si la mise à la corbeille de l'ancienne version a échoué** : demander au propriétaire du
+  Drive le passage en « Gestionnaire de contenu ». Passé sous silence, c'est le genre de détail
+  qui produit six mois plus tard un dossier où personne ne sait quel fichier fait foi ;
+- quand le volume le justifie : nettoyer les demandes en attente (Paramètres → Ton activité →
+  Demandes d'abonnement envoyées) — un grand nombre de « Demandé » jamais acceptés est en soi un
+  signal de comportement suspect pour Instagram ; et rappeler le plafond quotidien si d'autres
+  listes suivent.
 
-Demandes en attente (M comptes privés) — effectives seulement si la personne accepte :
-  pseudo3, pseudo4, ...
+**Pas fait**
+- échecs / ignorés : `pseudo5 — page indisponible`, `pseudo6 — déjà suivi` ;
+- **la cadence convenue, si tu ne l'as pas tenue.** Ne présente jamais une précaution que tu
+  n'as pas prise : si tu as enchaîné les profils à intervalle fixe, dis-le tel quel plutôt que
+  d'invoquer la latence des appels comme si c'était de l'espacement délibéré. L'utilisateur prend
+  des risques sur son propre compte : il a besoin de savoir ce qui a réellement été fait, sans
+  avoir à le demander.
 
-Échecs / ignorés (si applicable) :
-  pseudo5 — page indisponible
-  pseudo6 — déjà suivi
-```
+**Détail technique** (mode `debug`, ou corps du mail d'incident) : version, fichiers Drive
+lus et écrits (ids), pauses réellement observées, états de bouton lus après chaque clic.
 
-Si un blocage est survenu, dis-le franchement et liste les profils non traités pour que l'utilisateur puisse reprendre plus tard.
-
-**Ne présente jamais une précaution que tu n'as pas prise.** Si tu as enchaîné les profils à intervalle fixe, dis-le tel quel plutôt que d'invoquer la latence des appels comme si c'était de l'espacement délibéré. L'utilisateur prend des risques sur son propre compte : il a besoin de savoir ce qui a réellement été fait, et si tu as ignoré la cadence convenue, c'est à signaler sans attendre qu'il le demande.
-
-Termine par l'état des fichiers : combien d'entrées compte désormais sa liste, combien de profils restent dans la liste principale, et **si la mise à la corbeille de l'ancienne version a échoué**, dis-le explicitement avec ce qu'il faut demander au propriétaire du Drive (passage en « Gestionnaire de contenu »). C'est le genre de détail qui, passé sous silence, produit six mois plus tard un dossier où personne ne sait quel fichier fait foi.
-
-Deux points de suivi utiles à mentionner quand le volume le justifie :
-- Les demandes en attente s'accumulent. Un grand nombre de « Demandé » jamais acceptés est en soi un signal de comportement suspect pour Instagram. Elles se nettoient depuis Paramètres → Ton activité → Demandes d'abonnement envoyées.
-- Si l'utilisateur enchaîne d'autres listes, rappeler le plafond quotidien.
+Un blocage Instagram n'est pas un incident au sens de `references/compte-rendu.md` : c'est une
+limite à ne pas franchir, il se rapporte dans *Pas fait* et *À faire par vous*, sans mail.
 
 ## Limites à ne pas franchir
 

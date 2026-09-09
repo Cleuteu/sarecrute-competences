@@ -1,4 +1,4 @@
-**creer-candidat — version 0.2.0 (2026-09-02)**
+**creer-candidat — version 0.3.0 (2026-09-09)**
 
 > Ce fichier est le corps de la compétence `creer-candidat` du plugin `sarecrute-recruteur`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -30,6 +30,7 @@ Compétences `tblH8Zym1DNu7PN3c` · Actes `tblt32Afmq6vQ6FJS`.
 | Fichier | Rôle |
 |---|---|
 | `references/champs-candidat.md` | champs à remplir, IDs, valeurs de select, **et ce que chaque champ fait au matching** ; table `Recruteurs` (ÉTAPE 1) |
+| `references/compte-rendu.md` | compte rendu à deux niveaux (recruteur / `debug`) et procédure d'incident — **commun aux cinq compétences** |
 | `references/candidature.md` | l'offre visée : pratiques recopiées, contrôle du matching, création de la candidature (ÉTAPE 7) |
 | `scripts/routine.py` | télécharge la doctrine d'enrichissement depuis le dépôt (ÉTAPE 6) |
 | `scripts/cv.py` | retrouve le fichier d'un CV sur le disque, en extrait le texte, et le joint à la fiche |
@@ -55,6 +56,26 @@ pas silencieux : le repli est d'écrire `county` à la main.
 Écrire **par ID de champ**, **sans `typecast`**. Ne jamais ajouter de valeur à un champ select :
 si la source ne rentre dans aucune valeur existante, laisser vide et le signaler.
 
+## Sortie — deux lecteurs, et les incidents
+
+La doctrine complète est dans `<dossier_skill>/references/compte-rendu.md`, identique dans les
+cinq compétences recruteur : la lire avant d'écrire le compte rendu, et dès qu'un incident
+survient. L'essentiel, qui s'applique dès la première ligne du run :
+
+- **Mode recruteur, par défaut.** Une seule ligne au départ : `creer-candidat <version>`. Ensuite, rien
+  entre deux outils sauf une question autorisée par ce PROMPT.md, le récapitulatif avant feu vert,
+  ou une erreur bloquante. Compte rendu final en trois blocs — **Fait** / **À faire par vous** /
+  **Pas fait** — dix lignes, liens Airtable cliquables, sans recordId ni nom de champ. La
+  recruteuse y lit ce qui lui demande une action, rien d'autre.
+- **Mode détaillé.** Seulement si le message de lancement contient `debug` : narration pendant le
+  run, et une section « Détail technique » après les trois blocs. Sans le mot-clé, ce détail
+  n'apparaît nulle part — il est réservé au mail d'incident.
+- **Incident** (arrêt avant résultat, écriture à moitié) : s'arrêter, ne rien défaire, dire en
+  deux lignes à la recruteuse qu'un mail pour Alex est prêt, et créer ce brouillon Gmail
+  (`create_draft`, `alex@botyglot.com`, objet `[SaRecrute] Échec creer-candidat <version> — …`) avec le
+  modèle de la référence. Les cas dégradés que ce PROMPT.md prévoit ne sont pas des incidents :
+  ils vont dans *Pas fait*, nommés un par un.
+
 ## Étape 1 — Savoir au nom de qui on travaille
 
 L'identité du recruteur alimente `Sourceur` et `Ajouté au CRM par` (et, à l'ÉTAPE 7, le
@@ -75,7 +96,7 @@ sources, dans cet ordre, en s'arrêtant à la première qui répond :
    Lire les lignes **actives** avec `Nom`, `Email`, `Email compte Claude`. Comparer l'e-mail du
    compte Claude de l'utilisateur de la session à `Email compte Claude`, puis à `Email`, casse
    ignorée. **Une correspondance → c'est cette personne, sans question.** Aucune correspondance
-   mais **une seule recruteuse active** → c'est elle, sans question, en le disant.
+   mais **une seule recruteuse active** → c'est elle, sans question ; son prénom ouvrira le bloc *Fait*.
 3. **Sinon, demander** avec AskUserQuestion parmi les recruteuses actives (jamais `Automations`),
    puis **mémoriser pour que la question ne se repose plus** :
    - écrire `Email compte Claude` (`fldaxrZ7PftpZQQfl`) sur la ligne `Recruteurs` choisie avec
@@ -86,10 +107,11 @@ sources, dans cet ordre, en s'arrêtant à la première qui répond :
      l'écriture échoue (session cloud) : ne pas réessayer, ne pas en faire un incident, la table
      fait le travail.
 
-Dire en une ligne, au début du compte rendu, au nom de qui on travaille **et d'où vient
-l'identité** (fichier, compte Claude reconnu dans `Recruteurs`, seule recruteuse active, ou
-choisie), et comment en changer : modifier le fichier, ou lancer la compétence en nommant la
-recruteuse voulue.
+Le prénom de la recruteuse retenue ouvre le bloc *Fait* du compte rendu (« Fiche créée au nom de
+Sarah ») : une mauvaise attribution se voit d'un coup d'œil. L'**origine** de l'identité (fichier,
+compte Claude reconnu dans `Recruteurs`, seule recruteuse active, ou choisie) et la manière d'en
+changer — modifier le fichier, ou lancer la compétence en nommant la recruteuse voulue — relèvent
+du détail technique : mode `debug` ou mail d'incident, jamais le compte rendu recruteur.
 
 ⚠️ **Le fichier local définit l'identité de la machine, pas celle de la personne qui tape.** Si
 le fichier dit Sarah, un candidat créé depuis ce poste est attribué à Sarah — même si c'est
@@ -328,9 +350,9 @@ Le prompt est écrit pour un run cloud déclenché par webhook. Six adaptations,
    construction sur une fiche qu'on vient de créer : aucun conflit. Sur une fiche existante
    (étape 5-bis), sa règle s'applique telle quelle.
 5. **Le compte rendu final** de la routine (lignes de compétences créées / mises à jour / gelées,
-   synonymes ajoutés, actes non reconnus) se reverse dans le compte rendu de l'étape 8. Ne pas
-   l'omettre : ces deux dernières lignes sont le seul canal par lequel le référentiel `Actes`
-   s'améliore.
+   synonymes ajoutés, actes non reconnus) va dans le détail technique de l'ÉTAPE 9 — sauf les
+   **actes non reconnus**, qui se nomment dans *Pas fait* quel que soit le mode : c'est le seul
+   canal par lequel le référentiel `Actes` s'améliore, il doit rester visible.
 6. **`Notes` reste interdit d'écriture**, comme partout ailleurs dans cette compétence. La routine
    ne le touche pas — elle écrit les champs de contact, les champs structurés, `Zones de recherche`
    et `Profil IA` — mais si une version future du prompt venait à l'inclure, cette règle-ci prime.
@@ -366,8 +388,8 @@ l'offre depuis le texte d'une source. Tout le détail (IDs, grilles, valeurs) es
 3. **Ce que dirait le matching** — trois contrôles : `Expérience` du candidat contre `Expérience
    requise` (vide côté candidat = Débutant), double inclusion des pratiques, `county` de l'offre
    contre les zones ou la ville du candidat. Aucun n'est bloquant : le recruteur a décidé de
-   présenter. Mais chaque écart est un ⚠️ dans le récapitulatif avant feu vert et dans le compte
-   rendu — « 1 an d'expérience pour une offre qui demande 1 à 2 ans » est exactement ce que le
+   présenter. Mais chaque écart est un ⚠️ dans le récapitulatif avant feu vert et dans *À faire par
+   vous* — « 1 an d'expérience pour une offre qui demande 1 à 2 ans » est exactement ce que le
    recruteur veut voir avant de présenter.
 4. **Créer la candidature**, après avoir vérifié qu'il n'en existe pas déjà une pour ce couple
    candidat × offre : `Candidat`, `Offre d'emploi`, `Propriétaire` = le recruteur de l'ÉTAPE 1,
@@ -393,18 +415,33 @@ le matching » : c'est presque toujours `Statut Recherche` vide, une pratique de
 
 ## Étape 9 — Compte rendu
 
-- la **version** de ce PROMPT.md, annoncée dès le début du run ;
-- au nom de quel recruteur on a travaillé, et d'où vient cette identité (ÉTAPE 1) ;
-- le candidat créé (ou la fiche existante enrichie), avec son recordId ;
-- les sources déposées et où (`CV text` + pièce jointe, `Post`, `Transcripts`) ;
-- `county` / coordonnées obtenus, ou le problème restant ;
-- ce que l'enrichissement a produit : le compte rendu de la routine, tel qu'elle le formule ;
-- si une offre était visée (ÉTAPE 7) : l'offre retrouvée, les pratiques posées depuis elle, les
-  trois contrôles avec leurs ⚠️, la candidature créée (recordId, statut, prochaine action) ou
-  celle qui existait déjà ;
-- **les champs laissés vides faute d'information** — c'est la liste que le recruteur complétera
+Format et règles : `references/compte-rendu.md`. Ce que chaque bloc contient ici :
+
+**Fait**
+- la fiche créée (ou la fiche existante enrichie), avec son lien, au nom de la recruteuse
+  retenue ;
+- les sources déposées, en une ligne (« CV et transcript déposés ») — sans les réimprimer ;
+- si une offre était visée (ÉTAPE 7) : la candidature créée, avec son lien, ou celle qui
+  existait déjà.
+
+**À faire par vous**
+- **les champs laissés vides faute d'information** — c'est la liste que la recruteuse complétera
   après son premier appel ;
-- le rappel de lancer le matching depuis l'interface.
+- lancer le matching depuis la fiche, dans l'interface (ÉTAPE 8) ;
+- si une offre était visée : chaque ⚠️ des trois contrôles de l'ÉTAPE 7, en une ligne chacun,
+  et la prochaine action de la candidature.
+
+**Pas fait**
+- le CV non joint en pièce jointe (pas de fichier sur le disque, ou pas de clé d'API) ;
+- `county` non résolu ;
+- l'homonyme réel laissé à côté (ÉTAPE 4), ou la fiche existante réutilisée au lieu d'une
+  création ;
+- les actes non reconnus par la routine, nommés.
+
+**Détail technique** (mode `debug`, ou corps du mail d'incident) : version, identité et son
+origine, recordIds, coordonnées obtenues, le compte rendu de la routine tel qu'elle le formule
+(compétences créées / mises à jour / gelées, synonymes ajoutés), les pratiques posées depuis
+l'offre, les décisions prises seul.
 
 ## Pièges connus
 

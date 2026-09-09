@@ -1,4 +1,4 @@
-**creer-clinique-offre — version 0.1.2 (2026-09-02)**
+**creer-clinique-offre — version 0.2.0 (2026-09-09)**
 
 > Ce fichier est le corps de la compétence `creer-clinique-offre` du plugin `sarecrute-recruteur`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -30,10 +30,31 @@ Base **PROD** : `appP0W2ISytaNyAhG` · Cliniques `tblagWImxHH15rRAh` · Offres `
 |---|---|
 | `references/champs.md` | tous les champs à remplir, leurs IDs, les valeurs de select autorisées |
 | `references/matching.md` | **à lire avant de remplir l'offre** : comment chaque champ est lu par le moteur de rapprochement candidats / posts |
+| `references/compte-rendu.md` | compte rendu à deux niveaux (recruteur / `debug`) et procédure d'incident — **commun aux cinq compétences** |
 | `scripts/ville.py` | résout la ville en département + CP + coordonnées, avec la même règle que l'automation Airtable |
 
 Écrire **par ID de champ**, **sans `typecast`**. Ne jamais ajouter de valeur à un champ select :
 si l'annonce ne rentre dans aucune valeur existante, laisser vide et le signaler.
+
+## Sortie — deux lecteurs, et les incidents
+
+La doctrine complète est dans `<dossier_skill>/references/compte-rendu.md`, identique dans les
+cinq compétences recruteur : la lire avant d'écrire le compte rendu, et dès qu'un incident
+survient. L'essentiel, qui s'applique dès la première ligne du run :
+
+- **Mode recruteur, par défaut.** Une seule ligne au départ : `creer-clinique-offre <version>`. Ensuite, rien
+  entre deux outils sauf une question autorisée par ce PROMPT.md, le récapitulatif avant feu vert,
+  ou une erreur bloquante. Compte rendu final en trois blocs — **Fait** / **À faire par vous** /
+  **Pas fait** — dix lignes, liens Airtable cliquables, sans recordId ni nom de champ. La
+  recruteuse y lit ce qui lui demande une action, rien d'autre.
+- **Mode détaillé.** Seulement si le message de lancement contient `debug` : narration pendant le
+  run, et une section « Détail technique » après les trois blocs. Sans le mot-clé, ce détail
+  n'apparaît nulle part — il est réservé au mail d'incident.
+- **Incident** (arrêt avant résultat, écriture à moitié) : s'arrêter, ne rien défaire, dire en
+  deux lignes à la recruteuse qu'un mail pour Alex est prêt, et créer ce brouillon Gmail
+  (`create_draft`, `alex@botyglot.com`, objet `[SaRecrute] Échec creer-clinique-offre <version> — …`) avec le
+  modèle de la référence. Les cas dégradés que ce PROMPT.md prévoit ne sont pas des incidents :
+  ils vont dans *Pas fait*, nommés un par un.
 
 ## Étape 1 — Savoir au nom de qui on travaille
 
@@ -60,7 +81,8 @@ Trois sources, dans cet ordre, en s'arrêtant à la première qui répond (même
    table qu'on écrit), et le fichier local (créer le dossier ; s'il ne s'écrit pas, session cloud,
    ne pas insister). Ce fichier est **local** : ne jamais le versionner.
 
-Dire en une ligne dans le compte rendu au nom de qui on travaille et d'où vient l'identité.
+Le prénom de la recruteuse retenue ouvre le bloc *Fait* du compte rendu ; l'origine de l'identité
+relève du détail technique (mode `debug` ou mail d'incident), pas du compte rendu recruteur.
 
 Cet e-mail alimente `Propriétaires du client` (clinique), `Responsable de l'offre` et
 `Propriétaire de l'offre` (offre), sous la forme `{"email": "…"}`.
@@ -238,7 +260,7 @@ compte Gmail connecté, donc celle du recruteur.
   Registre : sobre et concret, comme le reste des échanges cliniques. Pas de superlatif
   marketing, pas de promesse de candidats nommés.
 
-Signaler dans le compte rendu qu'une automation Airtable (« Mail intro clinique ») envoie déjà ce
+Dire dans *À faire par vous* qu'une automation Airtable (« Mail intro clinique ») envoie déjà ce
 message depuis l'interface quand la clinique est en `A contacter` avec `Canal de contact = Mail` :
 il faut choisir l'une des deux voies, pas les deux. Si le recruteur envoie le brouillon à la main,
 c'est à lui de passer `Status commercial` à `En attente de 1ere réponse` et de renseigner
@@ -259,15 +281,30 @@ Ne pas ouvrir Messenger, ne pas envoyer : le recruteur colle lui-même.
 
 ## Étape 9 — Compte rendu
 
-- au nom de quel recruteur on a travaillé ;
-- clinique créée (ou réutilisée) et offre créée, avec leurs IDs ;
-- `county` / coordonnées obtenus, ou le problème restant ;
-- **les champs laissés vides faute d'information dans l'annonce** — c'est la liste que le
-  recruteur complétera après son appel ;
-- les questions posées dans `Questions` ;
-- le rappel de lancer le matching depuis l'interface ;
-- ce qui a été préparé pour le contact (brouillon Gmail, ou message à coller) et le fait que rien
-  n'a été envoyé.
+Format et règles : `references/compte-rendu.md`. Ce que chaque bloc contient ici :
+
+**Fait**
+- la clinique créée (ou réutilisée) et l'offre créée, avec leurs liens, au nom de la recruteuse
+  retenue ;
+- le premier contact préparé : « brouillon Gmail prêt dans vos brouillons », ou, sans adresse
+  mail, le message Messenger à copier — le seul texte long que le compte rendu contient.
+
+**À faire par vous**
+- **les champs laissés vides faute d'information dans l'annonce** — la liste que la recruteuse
+  complétera après son appel ;
+- les questions posées dans `Questions`, à poser à la clinique ;
+- lancer le matching depuis la fiche de l'offre, dans l'interface (ÉTAPE 7) ;
+- envoyer le brouillon, ou laisser l'automation « Mail intro clinique » le faire — l'une des
+  deux voies, pas les deux (ÉTAPE 8) ; si elle envoie à la main, passer `Status commercial` et
+  `intro_at` elle-même.
+
+**Pas fait**
+- rien n'a été envoyé — toujours le dire ;
+- `county` non résolu ;
+- l'offre non archivée qui existait déjà, si l'annonce était la même (ÉTAPE 4).
+
+**Détail technique** (mode `debug`, ou corps du mail d'incident) : version, identité et son
+origine, recordIds, coordonnées obtenues, décisions prises seul.
 
 ## Pièges connus
 

@@ -1,4 +1,4 @@
-**creer-cv-candidat — version 0.2.1 (2026-09-03)**
+**creer-cv-candidat — version 0.3.0 (2026-09-09)**
 
 > Ce fichier est le corps de la compétence `creer-cv-candidat` du plugin `sarecrute-recruteur`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -32,6 +32,7 @@ Les deux moitiés sont indépendantes. Si l'utilisateur veut juste un CV mis en 
 | `assets/cv-standard-modele.js` | le bloc de données du modèle vierge, référentiel complet des actes |
 | `assets/serve.ps1` | serveur HTTP local (`-root`, `-port`), sert à **lire** un CV PDF |
 | `assets/pdftext.html` | extraction du texte d'un PDF par pdf.js, dans la pane |
+| `references/compte-rendu.md` | compte rendu à deux niveaux (recruteur / `debug`) et procédure d'incident — **commun aux cinq compétences** |
 
 `<dossier_skill>` = le `$DEST` dans lequel le stub a extrait ce snapshot. **Ne jamais coder de
 chemin en dur** et ne jamais aller chercher un fichier dans le plugin installé : ce corps de
@@ -52,6 +53,28 @@ ToolSearch: +airtable records
 Il faut `list_records_for_table`, `search_records` et `get_table_schema`. Si rien ne remonte, le
 connecteur Airtable n'est pas branché sur ce compte : le dire et s'arrêter là.
 
+## Sortie — deux lecteurs, et les incidents
+
+La doctrine complète est dans `<dossier_skill>/references/compte-rendu.md`, identique dans les
+cinq compétences recruteur : la lire avant d'écrire le compte rendu, et dès qu'un incident
+survient. L'essentiel, qui s'applique dès la première ligne du run :
+
+- **Mode recruteur, par défaut.** Une seule ligne au départ : `creer-cv-candidat <version>`. Ensuite, rien
+  entre deux outils sauf une question autorisée par ce PROMPT.md, le récapitulatif avant feu vert,
+  ou une erreur bloquante. Compte rendu final en trois blocs — **Fait** / **À faire par vous** /
+  **Pas fait** — dix lignes, liens Airtable cliquables, sans recordId ni nom de champ. La
+  recruteuse y lit ce qui lui demande une action, rien d'autre.
+- **Mode détaillé.** Seulement si le message de lancement contient `debug` : narration pendant le
+  run, et une section « Détail technique » après les trois blocs. Sans le mot-clé, ce détail
+  n'apparaît nulle part — il est réservé au mail d'incident.
+- **Incident** (arrêt avant résultat, écriture à moitié) : s'arrêter, ne rien défaire, dire en
+  deux lignes à la recruteuse qu'un mail pour Alex est prêt, et créer ce brouillon Gmail
+  (`create_draft`, `alex@botyglot.com`, objet `[SaRecrute] Échec creer-cv-candidat <version> — …`) avec le
+  modèle de la référence. Les cas dégradés que ce PROMPT.md prévoit ne sont pas des incidents :
+  ils vont dans *Pas fait*, nommés un par un.
+- **Le livrable n'est pas le compte rendu.** L'analyse du vivier, le tableau de scoring, le Top 8
+  et le dossier lui-même se rendent en entier, comme les parties 1 et 2 le décrivent : les trois
+  blocs ne portent que sur ce qui a été produit, où, et ce qui reste à faire.
 ## Posture à adopter
 
 Raisonne comme un directeur du recrutement vétérinaire avec quinze ans de placement derrière lui. Ce qui distingue ce regard d'une lecture naïve de CV :
@@ -399,6 +422,30 @@ La vérification qui a réellement fonctionné, en trois temps :
 Vérifie enfin que les aplats sont bien imprimés (le print-to-PDF headless supprime les fonds dans certaines configurations) et que l'ensemble reste lisible en noir et blanc.
 
 Ne cherche pas à prouver l'embarquement des polices en cherchant `/FontFile` dans le fichier : Chrome range les programmes de polices dans des flux compressés, et le compte ressort à zéro y compris sur des PDF parfaitement valides. Un écart de taille de fichier entre deux versions est un meilleur indice, et l'œil sur le rendu tranche.
+
+---
+
+## Compte rendu
+
+Format et règles : `references/compte-rendu.md`. Le livrable se rend en entier ; les trois blocs
+ne portent que sur ce qui l'entoure.
+
+**Fait**
+- les fichiers produits, avec leurs chemins, et la référence `SR-…` du dossier ;
+- pour l'analyse : le corpus réellement analysé, en une ligne.
+
+**À faire par vous**
+- les champs Airtable vides qui ont laissé une ligne du dossier vide, listés comme des états de
+  champ (« `Gardes` : vide »), jamais commentés à partir des notes d'entretien ;
+- ouvrir le PDF livré et le regarder, une fois.
+
+**Pas fait**
+- un CV du corpus qui n'a pas pu être lu (PDF image, fichier absent), nommé ;
+- le dossier qui n'a pas tenu en pastilles et a été rendu en mode `compact`, dit en une ligne.
+
+**Détail technique** (mode `debug`, ou corps du mail d'incident) : version, `--scale` retenu,
+mode `chips` / `compact`, résultat des trois contrôles PDF (pages, `MediaBox`, pied de page),
+commande d'export utilisée.
 
 ---
 

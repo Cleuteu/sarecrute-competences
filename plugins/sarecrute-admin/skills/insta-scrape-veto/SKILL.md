@@ -1,6 +1,10 @@
 ---
 name: insta-scrape-veto
-description: Extrait les abonnés d'un compte Instagram — ou, à l'inverse, les abonnements d'une recruteuse pour amorcer son fichier de suivi — en pilotant le Chrome de l'utilisateur, dédoublonne contre les extractions précédentes et exporte en JSON. Compétence à invocation manuelle : elle ne se déclenche que sur appel explicite.
+description: >-
+  Extrait les abonnés d'un compte Instagram — ou, à l'inverse, les abonnements d'une recruteuse
+  pour amorcer son fichier de suivi — en pilotant le Chrome de l'utilisateur, dédoublonne contre
+  les extractions précédentes et exporte en JSON. Compétence à invocation manuelle : elle ne se
+  déclenche que sur appel explicite.
 disable-model-invocation: true
 ---
 

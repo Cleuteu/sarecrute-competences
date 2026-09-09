@@ -1,5 +1,6 @@
-version=0.1.2
+version=0.2.0
 PROMPT.md
 references/champs.md
+references/compte-rendu.md
 references/matching.md
 scripts/ville.py

@@ -49,11 +49,27 @@ Ne jamais réutiliser le dossier d'une exécution précédente : un mélange anc
 pire qu'une copie périmée.
 
 **2. Si le téléchargement échoue** (une ligne `ÉCHEC` : réseau, 404 sur le `MANIFEST` ou sur un fichier, `PROMPT.md` absent de `$DEST`, ou version du `PROMPT.md` différente de celle du `MANIFEST` — ce dernier cas est un déploiement en cours de propagation sur `raw`, réessayer cinq minutes plus tard) :
-**ARRÊTE.** Explique ce qui a échoué à l'utilisateur. Ne te rabats sur aucune copie locale et
+**ARRÊTE.** Ne te rabats sur aucune copie locale et
 n'improvise aucune version dégradée de mémoire — créer une clinique ou une offre avec des champs devinés coûte plus cher à rattraper que ne rien créer.
 
+Puis, sans demander de diagnostic à l'utilisateur :
+
+- si son message de lancement contient `debug`, afficher la sortie complète du bloc ci-dessus et
+  s'arrêter là ;
+- sinon, lui dire en deux lignes que la compétence n'a pas pu démarrer et qu'un mail pour Alex est
+  prêt dans ses brouillons Gmail, à envoyer tel quel. Créer ce brouillon avec `create_draft` du
+  connecteur Gmail, **sans l'envoyer** : `to` `alex@botyglot.com`, `subject`
+  `[SaRecrute] Échec creer-clinique-offre (snapshot) — <JJ/MM/AAAA HH:MM>`, corps = la ligne `ÉCHEC` exacte, la
+  sortie complète du bloc de téléchargement, et ce que l'utilisateur avait demandé. Sans connecteur
+  Gmail, afficher ce corps dans un bloc de code précédé de « À envoyer à alex@botyglot.com ».
+
+La procédure complète (ce qui compte comme incident, le modèle du mail) vit dans le snapshot
+lui-même, `references/compte-rendu.md`, qu'on n'a justement pas pu lire : cette version courte
+suffit.
+
 **3. Read `$DEST/PROMPT.md`** et annonce à l'utilisateur la **version** indiquée sur sa première
-ligne avant de commencer.
+ligne avant de commencer — une seule ligne, `creer-clinique-offre <version>`, rien d'autre : ce qui
+s'écrit ensuite est réglé par `$DEST/references/compte-rendu.md`, que le corps applique.
 
 **4. Exécute `$DEST/PROMPT.md` comme s'il était le corps de cette compétence.** Partout où il
 mentionne `<dossier_skill>`, « le dossier de la compétence » ou des chemins relatifs

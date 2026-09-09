@@ -185,6 +185,11 @@ mêmes quand la demande correspond :
 - « prépare les brouillons Facebook du jour » ;
 - ou simplement en collant une annonce de clinique dans Claude.
 
+Dis-lui aussi ce qui se passe quand ça ne marche pas : la compétence s'arrête, lui écrit deux
+lignes et prépare un **brouillon Gmail pour Alex** avec tout le nécessaire. Il n'a qu'à l'envoyer
+tel quel, sans rien diagnostiquer ni recopier. Le compte rendu d'un run normal tient en trois
+blocs — *Fait*, *À faire par vous*, *Pas fait* — et ne contient que ce qui lui demande une action.
+
 Précise le mode détecté à l'étape 2 et la gêne à attendre pendant un run : aucune en Cowork,
 quelques secondes de premier plan par image sinon.
 

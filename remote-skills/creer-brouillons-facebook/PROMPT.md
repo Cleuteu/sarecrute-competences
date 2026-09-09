@@ -1,4 +1,4 @@
-**creer-brouillons-facebook — version 0.1.3 (2026-09-07)**
+**creer-brouillons-facebook — version 0.2.0 (2026-09-09)**
 
 > Ce fichier est le corps de la compétence `creer-brouillons-facebook` du plugin `sarecrute-recruteur`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -66,14 +66,35 @@ la plage 5–17 (étape 2.5), plusieurs navigateurs connectés et aucun mémoris
 signale quelque chose d'inhabituel — c'est ce qui les distingue des questions qu'on vient de
 retirer, dont la réponse était connue d'avance.
 
-**Déduire n'est pas escamoter.** Chaque décision prise seul s'affiche en une ligne au moment où
-elle est prise, et la liste des brouillons est montrée avant le premier onglet même quand on
-n'attend pas de réponse. Le recruteur peut toujours interrompre ; ce qu'on lui épargne, c'est
+**Déduire n'est pas escamoter.** La liste des brouillons, avec le prénom du recruteur retenu, est
+montrée avant le premier onglet même quand on n'attend pas de réponse. En mode `debug`, chaque
+décision prise seul s'affiche en outre en une ligne au moment où elle est prise ; en mode
+recruteur, ces décisions de tuyauterie vont au détail technique et nulle part ailleurs. Le recruteur peut toujours interrompre ; ce qu'on lui épargne, c'est
 d'avoir à autoriser ce qui n'avait pas besoin de l'être.
 
 Ce qui reste interdit sans le recruteur ne change pas : **ne jamais publier**, ne jamais cocher
 « Publié ? », ne jamais corriger une coquille de son annonce. Prendre l'initiative porte sur les
 questions de tuyauterie, pas sur le contenu ni sur la publication.
+
+## Sortie — deux lecteurs, et les incidents
+
+La doctrine complète est dans `<dossier_skill>/references/compte-rendu.md`, identique dans les
+cinq compétences recruteur : la lire avant d'écrire le compte rendu, et dès qu'un incident
+survient. L'essentiel, qui s'applique dès la première ligne du run :
+
+- **Mode recruteur, par défaut.** Une seule ligne au départ : `creer-brouillons-facebook <version>`. Ensuite, rien
+  entre deux outils sauf une question autorisée par ce PROMPT.md, le récapitulatif avant feu vert,
+  ou une erreur bloquante. Compte rendu final en trois blocs — **Fait** / **À faire par vous** /
+  **Pas fait** — dix lignes, liens Airtable cliquables, sans recordId ni nom de champ. La
+  recruteuse y lit ce qui lui demande une action, rien d'autre.
+- **Mode détaillé.** Seulement si le message de lancement contient `debug` : narration pendant le
+  run, et une section « Détail technique » après les trois blocs. Sans le mot-clé, ce détail
+  n'apparaît nulle part — il est réservé au mail d'incident.
+- **Incident** (arrêt avant résultat, écriture à moitié) : s'arrêter, ne rien défaire, dire en
+  deux lignes à la recruteuse qu'un mail pour Alex est prêt, et créer ce brouillon Gmail
+  (`create_draft`, `alex@botyglot.com`, objet `[SaRecrute] Échec creer-brouillons-facebook <version> — …`) avec le
+  modèle de la référence. Les cas dégradés que ce PROMPT.md prévoit ne sont pas des incidents :
+  ils vont dans *Pas fait*, nommés un par un.
 
 ## Ordre de grandeur
 
@@ -132,8 +153,8 @@ n'est demandée qu'en dernier recours, et mémorisée sur son poste quand c'est 
    { "responsable": "Prénom Nom", "email": "prenom@exemple.fr",
      "navigateurDeviceId": "acfe93e7-2ce7-45e6-8e1b-1a4889876eaa" }
    ```
-   S'il existe et que `responsable` est renseigné : l'utiliser **sans poser de question**, et
-   indiquer en une ligne au début du compte rendu au nom de qui on travaille.
+   S'il existe et que `responsable` est renseigné : l'utiliser **sans poser de question** ; le
+   prénom ouvrira la liste des brouillons (étape 2.5) et le bloc *Fait* du compte rendu.
 
    `navigateurDeviceId` est facultatif et sert à l'étape 4 (choix du navigateur). Il est écrit
    au premier run qui a dû poser la question ; son absence n'empêche rien.
@@ -174,10 +195,10 @@ n'est demandée qu'en dernier recours, et mémorisée sur son poste quand c'est 
    un depuis qu'elle ne s'accompagne pas toujours d'une question : le recruteur la voit, mais rien
    ne garantit qu'il la lise avant que les onglets s'ouvrent.
 
-   Dans les cas 1 et 2, **le dire en une ligne** au début du travail (« Brouillons préparés au nom
-   de <Nom> — déduit de <votre compte Claude | seule recruteuse active> ») et préciser comment en
-   changer : lancer la compétence en nommant le recruteur voulu. Une déduction qu'on annonce n'est
-   pas une décision prise dans le dos du recruteur.
+   Dans les cas 1 et 2, le prénom retenu ouvre la liste des brouillons montrée à l'étape 2.5
+   (« Brouillons de <Nom> ») puis le bloc *Fait* : une déduction visible n'est pas une décision
+   prise dans le dos du recruteur. D'où vient la déduction et comment en changer (lancer la
+   compétence en nommant le recruteur voulu) relèvent du détail technique.
 
    Si une question doit malgré tout être posée, la poser **seule et tout de suite** : elle
    conditionne le filtrage de l'étape 2, donc elle ne peut pas attendre pour être groupée avec une
@@ -196,7 +217,7 @@ n'est demandée qu'en dernier recours, et mémorisée sur son poste quand c'est 
    **Si l'écriture du fichier échoue** (système de fichiers en lecture seule, `$HOME` absent — le
    cas d'une session cloud) : ne pas réessayer, ne pas chercher un autre emplacement, et **ne pas
    en faire une erreur**. Le run continue à l'identique ; la table `Recruteurs` fournira l'identité
-   au prochain lancement. En dire un mot en fin de compte rendu, pas au milieu du travail.
+   au prochain lancement. En dire un mot dans le détail technique seulement, jamais au recruteur.
 
 Ne traiter les publications de **tous** les responsables que si l'utilisateur le demande
 explicitement ; ce n'est jamais le comportement par défaut.
@@ -453,7 +474,7 @@ Sept faits établis en run réel. Les ignorer coûte 20 à 30 appels par brouill
 Appeler `list_connected_browsers` **avant** d'ouvrir le premier onglet, puis :
 
 - **Un seul navigateur connecté → le prendre, sans rien demander** : `select_browser` avec son
-  `deviceId`, et une ligne dans le compte rendu pour dire lequel a été utilisé.
+  `deviceId`, et une ligne de détail technique pour dire lequel a été utilisé.
 - **Plusieurs navigateurs → demander lequel** via AskUserQuestion : une option par navigateur,
   plus l'option « ouvrir une confirmation dans chaque Chrome » (`switch_browser`). Ne jamais en
   choisir un soi-même dans ce cas.
@@ -479,7 +500,7 @@ Appeler `list_connected_browsers` **avant** d'ouvrir le premier onglet, puis :
 - Aux runs suivants, si l'id mémorisé dans `navigateurDeviceId` figure toujours dans
   `list_connected_browsers`, **le prendre directement**, même s'il y a plusieurs navigateurs : le
   recruteur a déjà répondu une fois, lui reposer la question est exactement ce qu'on cherche à
-  éviter. Le dire en une ligne dans le compte rendu. La question ne revient que si l'id mémorisé
+  éviter. Le noter dans le détail technique. La question ne revient que si l'id mémorisé
   a disparu de la liste et qu'il reste plusieurs candidats.
 - Le profil Chrome ne dit rien du compte Facebook actif : **seul le nom affiché dans le composeur
   fait foi**, et il est vérifié à chaque brouillon (voir le garde-fou ci-dessous).
@@ -668,35 +689,43 @@ Ne jamais cocher « Publié ? » dans Airtable.
 
 ## Étape 5 — Compte rendu
 
-Récapituler :
+Format et règles : `references/compte-rendu.md`. Ce que chaque bloc contient ici :
 
-- **au nom de quel recruteur** les brouillons ont été préparés, et **d'où vient cette identité**
-  (fichier de config, compte Claude reconnu dans la table `Recruteurs`, seule recruteuse active,
-  ou choisie) ; ajouter, **seulement si l'écriture de `recruteur.json` a échoué** (session cloud),
-  une ligne disant que la table `Recruteurs` fournira l'identité au prochain lancement — sans en
-  faire un incident ;
-- le nombre de brouillons préparés et leurs destinations, groupés par offre, avec l'image utilisée ;
-- **les publications sans image trouvée** ;
-- **les canaux en « accès manquant »** (groupe non rejoint), avec la consigne de demander l'accès
-  avant le prochain lancement ;
+**Fait**
+- le nombre de brouillons préparés, au nom du recruteur retenu, et leurs destinations groupées
+  par offre, avec l'image utilisée.
+
+**À faire par vous**
+- cliquer sur « Publier » dans chaque onglet — rien n'a été publié ;
+- **les canaux en « accès manquant »** (groupe non rejoint), nommés offre × canal : demander
+  l'accès avant le prochain lancement ;
 - **les publications écartées parce que leur canal n'a pas d'URL**, nommées **offre × canal**
-  et jamais résumées en un « des canaux sans URL » anonyme : avec la consigne de renseigner
-  l'Url dans « Canaux de diffusion » avant le prochain lancement quand le canal est un groupe
-  Facebook, et sans consigne quand il relève d'une autre plateforme (Linkedin, Instagram), où
-  c'est le comportement normal ;
+  et jamais résumées en un « des canaux sans URL » anonyme : renseigner l'Url dans « Canaux de
+  diffusion » avant le prochain lancement quand le canal est un groupe Facebook ; sans consigne
+  quand il relève d'une autre plateforme (Linkedin, Instagram), où c'est le comportement normal ;
 - **les publications écartées parce que leur canal est un mur de profil** (`/me`,
-  `/veto.annonce`), nommées elles aussi **offre × canal**, présentées comme « à faire à la
-  main » et non comme un échec ;
+  `/veto.annonce`), nommées offre × canal, présentées comme « à faire à la main » et non comme
+  un échec ;
 - **les coquilles repérées dans le texte Airtable** — les signaler, ne **jamais** les corriger de
   sa propre initiative : c'est la copie du recruteur, et deviner une correction est une
   modification silencieuse de son annonce ;
-- **si des annonces contenaient du gras**, rappeler que sa conservation après publication reste à
-  confirmer (voir les notes) — l'utilisateur peut le vérifier sur son premier post ;
-- rappeler que rien n'a été publié et qu'il reste à cliquer sur « Publier » dans chaque onglet.
+- **si des annonces contenaient du gras**, vérifier sa conservation sur le premier post publié
+  (voir les notes).
 
-Ne pas y faire figurer les décisions de tuyauterie prises sans le recruteur (navigateur unique
-retenu, méthode d'attache A ou B) autrement qu'en une ligne factuelle : elles n'appellent pas
-d'action de sa part, et les détailler recrée par écrit la charge qu'on vient de lui retirer.
+**Pas fait**
+- **les publications sans image trouvée**, parties en texte seul, nommées ;
+- tout brouillon qui n'a pas pu être préparé, nommé offre × canal, avec la raison en quelques
+  mots.
+
+**Détail technique** (mode `debug`, ou corps du mail d'incident) : version, identité et son
+origine, l'échec d'écriture de `recruteur.json` en session cloud (la table `Recruteurs` fournira
+l'identité au prochain lancement — ce n'est pas un incident), le navigateur retenu, la méthode
+d'attache A ou B, le compte de passages en gras par onglet, le résultat des contrôles `dup` /
+`img` / `MAUVAIS_COMPTE`.
+
+Les décisions de tuyauterie n'appellent aucune action du recruteur : en mode recruteur elles
+n'apparaissent pas, pas même en une ligne — les détailler recrée par écrit la charge qu'on vient
+de lui retirer.
 
 ## Notes / pièges connus
 

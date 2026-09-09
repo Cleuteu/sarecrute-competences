@@ -54,6 +54,13 @@ session Instagram de la recruteuse, ce qui notifie de vraies personnes et ne s'a
 la raison pour laquelle elle est en invocation manuelle, et pourquoi elle demande un feu vert
 avant chaque lot.
 
+**Ce qu'elles racontent** (depuis le 09/09/2026) : pendant un run, rien d'autre qu'une question
+nécessaire ou un récapitulatif avant feu vert ; à la fin, trois blocs — *Fait*, *À faire par
+vous*, *Pas fait* — qui ne contiennent que ce qui demande une action au recruteur. Le détail
+technique n'apparaît qu'en ajoutant `debug` au message de lancement. **Quand une compétence
+s'arrête en erreur**, elle le dit en deux lignes et prépare un **brouillon Gmail pour Alex** avec
+tout le nécessaire : le recruteur l'envoie tel quel, sans rien diagnostiquer.
+
 ### Ce qu'il faut avoir branché
 
 Les compétences s'appuient sur les connecteurs du compte Claude de chaque recruteur :
@@ -149,6 +156,12 @@ un **stub** qui télécharge à chaque exécution un snapshot de
   `plugin update` restent nécessaires. C'est le cas d'une compétence **nouvelle** : son stub doit
   arriver chez l'utilisateur une première fois, donc bump + republish + `plugin update`, **puis**
   `git push origin main:stable` pour que le corps existe. Les deux sont nécessaires.
+- **Compte rendu et incidents** : une seule doctrine, `references/compte-rendu.md`, **copiée à
+  l'identique dans les cinq compétences recruteur** (chaque snapshot se télécharge seul, il ne peut
+  pas pointer vers un dossier commun). `tests/compte_rendu_commun.test.py` échoue dès qu'une copie
+  dérive. Toute modification = les cinq copies + les cinq versions. Le stub, lui, porte une version
+  courte de la procédure d'incident pour le cas où le snapshot ne se télécharge pas — c'est la seule
+  raison du bump 0.13.0 du plugin recruteur.
 - `creer-candidat` a une dépendance de plus : son `scripts/routine.py` télécharge la doctrine
   d'enrichissement depuis `routines/profil-ia-candidat.md` sur **`main`**, délibérément — c'est la
   branche que clone la routine cloud, et les deux chemins d'enrichissement doivent rester

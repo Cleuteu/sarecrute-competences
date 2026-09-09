@@ -11,7 +11,14 @@ npm i --no-save jsdom@22 && node tests/attribution_commentaires.test.js
 node tests/expansion_clic.test.js                   # jsdom aussi
 node tests/liens_markdown.test.mjs                  # aucune dépendance
 python3 tools/manifests.py --check                  # les MANIFEST des compétences distantes sont à jour
+python3 tests/compte_rendu_commun.test.py           # aucune dépendance
 ```
+
+**`compte_rendu_commun.test.py`** — la doctrine « compte rendu à deux niveaux + mail d'incident »
+(`references/compte-rendu.md`) est copiée dans les cinq compétences recruteur, faute de dossier
+commun téléchargeable par les stubs. Une copie qui dérive donne une consigne différente selon la
+compétence lancée, sans rien de visible. Le test exige cinq copies identiques et la présence des
+invariants (adresse d'Alex, préfixe d'objet du mail, les trois blocs, le mot-clé `debug`).
 
 **`tools/manifests.py --check`** — depuis le 02/09/2026 les stubs téléchargent les compétences
 fichier par fichier depuis `raw.githubusercontent.com`, guidés par un `MANIFEST` par compétence
