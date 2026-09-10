@@ -35,39 +35,39 @@ Prérequis pour que ça fonctionne :
 
 ## Déploiement de `mail-presentation-candidature` (à faire, dans cet ordre)
 
-Décisions d'Alex du 09/09/2026 : Sarah seule pour l'instant, vouvoiement systématique, **rien ne part
-tout seul**. Pas d'automation d'envoi : le mail est enregistré dans la candidature, Sarah le copie dans
-Gmail, joint le CV et envoie elle-même (suivi d'ouverture Mailsuite conservé). Le brouillon Gmail créé
-par la routine viendra **après** validation du texte sur de vraies candidatures.
+Décisions d'Alex des 09 et 10/09/2026 : Sarah seule pour l'instant, vouvoiement systématique, **rien
+ne part tout seul**, pas d'automation d'envoi (Sarah copie dans Gmail, joint le CV, envoie elle-même,
+suivi Mailsuite conservé), brouillon Gmail par la routine **après** validation du texte. **La routine
+écrit dans des champs réservés à l'IA** (`Mail IA - *`) et ne touche jamais aux champs de la
+recruteuse (`Mail de présentation - Sujet / Body`, existants).
 
-1. **Trois champs sur `Candidatures`** (tbl3LnGoBxnheGI7v), à créer par API ou à la main :
-   `Mail de présentation - Statut` (sélection unique : À générer, En cours, Généré, Envoyé, Erreur),
-   `Mail de présentation - Généré le` (date), `Mail de présentation - Note IA` (texte long).
-   Les champs `- Sujet` et `- Body` existent déjà.
+1. **Cinq champs sur `Candidatures`** (tbl3LnGoBxnheGI7v) : `Mail IA - Sujet` (texte court),
+   `Mail IA - Body` (texte long), `Mail IA - Note` (texte long), `Mail IA - Statut` (sélection
+   unique : En cours, Généré, Erreur), `Mail IA - Généré le` (date).
 2. **La routine cloud** sur claude.ai/code/routines : déclencheur API, dépôt
    `Cleuteu/sarecrute-competences` attaché, connecteur **Airtable** coché (pas Gmail pour l'instant),
    instructions = « Suis intégralement les instructions du fichier
    routines/mail-presentation-candidature.md du dépôt Cleuteu/sarecrute-competences, en les appliquant
-   au candidatureId transmis au déclenchement. » Noter le `trig_…`.
-3. **Automation bouton** « Générer le mail de présentation » (déclencheur bouton d'interface sur
-   Candidatures) : action native « Mettre à jour l'entrée » → Statut = En cours, puis action
-   « Exécuter un script » = `airtable/declencherMailPresentation.js` du dépôt `sarecrute`, variable
-   `candidatureId` = Déclencheur > Record ID, secret `ANTHROPIC_KEY` coché. Bouton posé sur les pages
-   « Détails des Intéressés » et « Détails des Postulés » de l'interface Candidatures, avec les champs
-   Sujet, Body, Note IA et Statut affichés.
-4. **Automation de chaînage** « Mails de présentation après enrichissement » : déclencheur
-   « enregistrement modifié » sur Candidats, champ surveillé Statut IA ; condition Statut IA = Exécuté ;
-   Find records sur Candidatures : Candidat = déclencheur, Archivée décochée, Statut candidature parmi
-   (Candidat intéressé, Candidat postulé) OU Prochaine action = Proposer le candidat à la clinique,
-   Mail de présentation - Body vide ; groupe répété : Mettre à jour l'entrée (Statut = En cours) puis
-   le même script avec `candidatureId` = élément courant.
-   ⚠️ Un Find records dont une valeur de comparaison est vide est ignoré : garder la condition sur le
-   candidat en tête et vérifier le comptage avant d'activer.
-5. **Statut « Envoyé »** : ajouter à l'automation existante « Set date_intro_clinic for candidature »
-   (wflJHSHxuUF3ef88u, native) l'écriture `Mail de présentation - Statut` = Envoyé quand le statut de
-   la candidature passe à « Candidat postulé ». C'est le geste que Sarah fait déjà après l'envoi.
-6. `git push origin main` du dépôt des compétences, avec l'accord d'Alex : la routine clone `main`.
+   au candidatureId transmis au déclenchement. » Noter le `trig_…` et le reporter dans
+   `sarecrute/airtable/declencherMailPresentation.js`.
+3. **Trois automations, un seul script** (`declencherMailPresentation.js`, collé à la main, secret
+   `ANTHROPIC_KEY` coché) :
+   - **Bouton candidat** « Générer les mails de présentation » (bouton d'interface sur Candidats) :
+     Find records sur Candidatures — Candidat = déclencheur, Archivée décochée, et Statut parmi
+     (Candidat intéressé, Candidat postulé) OU Prochaine action = Proposer le candidat à la clinique —
+     puis groupe répété : « Mettre à jour l'entrée » (Mail IA - Statut = En cours) puis le script avec
+     `candidatureId` = élément courant.
+   - **Après enrichissement** : déclencheur « enregistrement modifié » sur Candidats, champ surveillé
+     Statut IA, condition Statut IA = Exécuté, puis exactement le même corps.
+   - **Bouton candidature** « Générer le mail de présentation » (bouton d'interface sur Candidatures) :
+     « Mettre à jour l'entrée » (En cours) puis le script avec `candidatureId` = Déclencheur > Record ID.
+   ⚠️ Un Find records dont une valeur de comparaison est vide est ignoré : la condition sur le
+   candidat reste en tête, et on vérifie le comptage avant d'activer.
+4. **Interface** : afficher `Mail IA - Sujet`, `Mail IA - Body`, `Mail IA - Note`, `Mail IA - Statut`
+   sur les pages « Détails des Intéressés » et « Détails des Postulés », à côté des champs
+   `Mail de présentation - *` de la recruteuse.
+5. `git push origin main` du dépôt des compétences, avec l'accord d'Alex : la routine clone `main`.
 
-Test de recette : les neuf candidatures de l'essai à blanc du 09/09/2026 (page
-https://claude.ai/code/artifact/62a6295c-2a8b-44d5-a5c5-85cd9651dd2c), en relançant le bouton sur
-chacune et en comparant au mail réel.
+Recette : les neuf candidatures de l'essai à blanc du 09/09/2026 (page
+https://claude.ai/code/artifact/62a6295c-2a8b-44d5-a5c5-85cd9651dd2c), bouton par bouton, comparées
+au mail réel.
