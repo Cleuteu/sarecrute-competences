@@ -53,14 +53,20 @@ recruteuse (`Mail de présentation - Sujet / Body`, existants).
 3. **Trois automations, un seul script** (`declencherMailPresentation.js`, collé à la main, secret
    `ANTHROPIC_KEY` coché) :
    - **Bouton candidat** « Générer les mails de présentation » (bouton d'interface sur Candidats) :
-     Find records sur Candidatures — Candidat = déclencheur, Archivée décochée, et Statut parmi
-     (Candidat intéressé, Candidat postulé) OU Prochaine action = Proposer le candidat à la clinique —
+     Find records sur Candidatures — Candidat = déclencheur, Archivée décochée, `date_intro_clinic`
+     vide, `Mail IA - Body` vide, `Mail IA - Statut` ≠ En cours, `Mail de présentation - Body` vide,
+     et (Statut = Candidat intéressé OU Prochaine action = Proposer le candidat à la clinique) —
      puis groupe répété : « Mettre à jour l'entrée » (Mail IA - Statut = En cours) puis le script avec
-     `candidatureId` = élément courant.
+     `candidatureId` = élément courant. Zéro candidature éligible = zéro déclenchement : chaque run
+     compte, la plateforme limite les déclenchements par jour. « Candidat postulé » est exclu : la
+     présentation est déjà faite.
    - **Après enrichissement** : déclencheur « enregistrement modifié » sur Candidats, champ surveillé
      Statut IA, condition Statut IA = Exécuté, puis exactement le même corps.
    - **Bouton candidature** « Générer le mail de présentation » (bouton d'interface sur Candidatures) :
-     « Mettre à jour l'entrée » (En cours) puis le script avec `candidatureId` = Déclencheur > Record ID.
+     groupe conditionnel — si `date_intro_clinic` est renseigné ou `Mail IA - Statut` = En cours,
+     « Mettre à jour l'entrée » écrit seulement `Mail IA - Note` (« Déjà présenté le … » / « Génération
+     déjà en cours ») sans déclencher ; sinon « Mettre à jour l'entrée » (En cours) puis le script avec
+     `candidatureId` = Déclencheur > Record ID. C'est le seul chemin qui régénère un mail existant.
    ⚠️ Un Find records dont une valeur de comparaison est vide est ignoré : la condition sur le
    candidat reste en tête, et on vérifie le comptage avant d'activer.
 4. **Interface** : afficher `Mail IA - Sujet`, `Mail IA - Body`, `Mail IA - Note`, `Mail IA - Statut`
