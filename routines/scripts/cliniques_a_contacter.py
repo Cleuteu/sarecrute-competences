@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Cliniques à contacter — score des posts « Clinique cherche vétérinaire » et lot hebdomadaire.
 
-Source de vérité du classement (la copie `sarecrute/airtable/score_posts_cliniques.py` ne sert
-plus qu'au rendu PDF local). Lit la base prod Airtable avec la clé AIRTABLE_API_KEY (REST), et :
+Seule implémentation du classement (l'ancien script local et son rendu PDF ont été supprimés le
+10/09/2026 : le score se lit dans Airtable). Lit la base prod avec la clé AIRTABLE_API_KEY (REST), et :
 
   * calcule pour chaque post clinique un score /19 et ses raisons (voir score()) ;
   * rapproche le post d'une clinique déjà en base (nom normalisé, mail, téléphone du texte) ;
