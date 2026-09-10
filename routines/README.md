@@ -52,7 +52,7 @@ recruteuse (`Mail de présentation - Sujet / Body`, existants).
    `trig_01K582k1wWqi8BRpov5q7ueG`. Instructions = pointeur vers ce fichier (avec repli sur l'URL raw
    si le dépôt n'est pas cloné), connecteur Airtable, modèle Opus 5.
 3. **Trois automations** — squelettes créés par API le 10/09/2026, désactivés, script à coller à la main
-   (`sarecrute/airtable/declencherMailPresentation.js`, variable `candidatureId`, secret `ANTHROPIC_KEY`) :
+   (`sarecrute/airtable/declencherMailPresentation.js`, variable `candidatureId`, secret `ROUTINE_CLAUDE_KEY` (jeton OAuth sk-ant-oat01, pas une clé API)) :
    - `wfllefNfQ6O0BPcBu` **Mails de présentation après enrichissement** : Statut IA → Exécuté, Find records
      (Candidat = déclencheur ET Éligible = oui), groupe répété : En cours puis script (candidatureId =
      élément courant > Record ID).
