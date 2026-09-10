@@ -12,7 +12,7 @@ pousse. Le formulaire web ne contient qu'un pointeur vers le fichier.
 | --- | --- | --- |
 | `profil-ia-candidat.md` | Enrichissement d'un candidat : champs structurés, Profil IA, et grille de compétences par acte (base `appP0W2ISytaNyAhG`, tables `Candidats`, `Actes`, `Compétences`) | API (`/fire`), `text` = `recordId:recXXXXXXXXXXXXXX` |
 | `mail-presentation-candidature.md` | Rédaction du mail de présentation d'un candidat à une clinique, enregistré dans la candidature (jamais envoyé par la routine). Lit `Candidatures`, `Candidats`, `Compétences`, `Offres d'emploi`, `Cliniques` ; écrit uniquement les champs `Mail de présentation - *` de la candidature. Exemples de ton dans `references/mails-presentation-exemples.md`. **Pas encore déployée** : routine cloud à créer, et trois champs à créer sur Candidatures (`Mail de présentation - Statut`, `- Généré le`, `- Note IA`). | API (`/fire`), `text` = `candidatureId:recXXXXXXXXXXXXXX` |
-| `cliniques-a-contacter.md` | Lot hebdomadaire de cliniques à contacter : lance `scripts/cliniques_a_contacter.py --attribuer`, qui score les posts « Clinique cherche vétérinaire » de `Posts scrappés`, écrit `Score` / `Raisons` / `Clinique existante`, et attribue 20 posts par recruteuse active (`Attribué à`, `Attribué le`, `Attribué jusqu'au` = dimanche). Les recruteuses lisent leur lot sur les pages « À contacter — Sarah / Pamela » de l'interface Posts scrappés. Un lot encore valide bloque la réattribution. **Pas encore déployée** (voir ci-dessous). | Planifiée : lundi 07:00 Europe/Paris |
+| `cliniques-a-contacter.md` | Lot hebdomadaire de cliniques à contacter : lance `scripts/cliniques_a_contacter.py --attribuer`, qui score les posts « Clinique cherche vétérinaire » de `Posts scrappés`, écrit `Score` / `Raisons` / `Clinique existante`, et attribue 10 posts par recruteuse active (`Attribué à`, `Attribué le`, `Attribué jusqu'au` = dimanche). Les recruteuses lisent leur lot sur les pages « À contacter — Sarah / Pamela » de l'interface Posts scrappés. Un lot encore valide bloque la réattribution. **Pas encore déployée** (voir ci-dessous). | Planifiée : lundi 07:00 Europe/Paris |
 
 ## Convention
 
@@ -75,7 +75,7 @@ au mail réel.
 
 ## Déploiement de `cliniques-a-contacter` (à faire par Alex)
 
-Décisions d'Alex et des recruteuses (04 et 10/09/2026) : un lot fermé de 20 cliniques par recruteuse
+Décisions d'Alex et des recruteuses (04 et 10/09/2026) : un lot fermé de 10 cliniques par recruteuse
 et par semaine, qui expire le dimanche **sans report** ; pas de groupes de cliniques (autre process),
 mail obligatoire, fraîcheur ≤ 15 jours prioritaire ; le contact se trace dans `Cliniques` via le bouton
 « Convert post to clinique + offre », jamais sur le post ; pas de Telegram pour l'instant.
@@ -90,9 +90,9 @@ mail obligatoire, fraîcheur ≤ 15 jours prioritaire ; le contact se trace dans
    brouillon : « À contacter — Sarah » pagWKxjE22zMa1cgk et « À contacter — Pamela » pagxPnx9UivTK7jmT,
    filtrées sur `Attribué à` = la recruteuse et `À contacter (semaine)` = oui, triées par Score, ouvrant
    la fiche « Détails de Posts scrappés Clinique » (celle qui porte le bouton de conversion). **À publier
-   dans l'UI** (l'API ne publie pas). Un compteur « x / 20 » en tête de page se pose dans l'UI aussi.
+   dans l'UI** (l'API ne publie pas). Un compteur « x / 10 » en tête de page se pose dans l'UI aussi.
 3. **Premier lot** — ATTRIBUÉ le 10/09/2026 par Alex depuis sa machine, valable jusqu'au 20/09 (première
-   semaine longue). Rapport : `sarecrute/docs/lot-cliniques-2026-09-10.md`.
+   semaine longue) ; d'abord 20 par recruteuse, **ramené à 10 le soir même** (décision d'Alex : on avait dit 10). Rapport : `sarecrute/docs/lot-cliniques-2026-09-10.md`.
 4. **La routine cloud** — À CRÉER : planifiée le lundi à 07:00 Europe/Paris, Instructions = pointeur vers
    `routines/cliniques-a-contacter.md`, dépôt attaché (cloné sur `main`), **variable d'environnement
    `AIRTABLE_API_KEY`** dans l'environnement de la routine (le script écrit par l'API REST, pas par le
@@ -100,6 +100,6 @@ mail obligatoire, fraîcheur ≤ 15 jours prioritaire ; le contact se trace dans
    le 21/09 — le 14/09 le script verra le lot en cours et n'attribuera rien (garde-fou `--force`).
 5. `git push origin main` du dépôt des compétences, avec l'accord d'Alex : la routine clone `main`.
 
-Réservoir mesuré le 10/09 : 113 posts attribuables pour 40 par semaine, et 15 à 25 nouveaux éligibles par
+Réservoir mesuré le 10/09 : 113 posts attribuables pour 20 par semaine, et 15 à 25 nouveaux éligibles par
 semaine. Quand il manque, le script réduit les lots plutôt que de les gonfler d'annonces sans mail, et le
 dit dans son rapport.

@@ -16,7 +16,7 @@ plus qu'au rendu PDF local). Lit la base prod Airtable avec la clé AIRTABLE_API
 
 Usage :
   python3 cliniques_a_contacter.py                      # lecture seule, rapport sur stdout
-  python3 cliniques_a_contacter.py --attribuer          # écrit + attribue (lot 20 par recruteuse)
+  python3 cliniques_a_contacter.py --attribuer          # écrit + attribue (lot 10 par recruteuse)
   python3 cliniques_a_contacter.py --attribuer --lot 12 --dry-run
   options : --today YYYY-MM-DD  --cache DIR  --rapport fichier.md
 
@@ -29,7 +29,7 @@ import os, sys, json, re, collections, datetime as dt, urllib.request, urllib.pa
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--attribuer", action="store_true", help="écrit les scores et attribue le lot")
-ap.add_argument("--lot", type=int, default=20, help="taille du lot par recruteuse")
+ap.add_argument("--lot", type=int, default=10, help="taille du lot par recruteuse")
 ap.add_argument("--dry-run", action="store_true", help="avec --attribuer : calcule, n'écrit rien")
 ap.add_argument("--cache", default=None)
 ap.add_argument("--rapport", default=None)
