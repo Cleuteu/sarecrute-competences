@@ -1,4 +1,4 @@
-**creer-candidat — version 0.3.0 (2026-09-09)**
+**creer-candidat — version 0.4.0 (2026-09-10)**
 
 > Ce fichier est le corps de la compétence `creer-candidat` du plugin `sarecrute-recruteur`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -23,13 +23,14 @@ Prérequis : connecteur **Airtable**. Pour joindre un CV en pièce jointe, la va
 d'environnement `AIRTABLE_API_KEY` (le MCP ne sait pas téléverser de pièce jointe).
 
 Base **PROD** : `appP0W2ISytaNyAhG` · Candidats `tblPmkTaAjS9Yoovt` ·
-Compétences `tblH8Zym1DNu7PN3c` · Actes `tblt32Afmq6vQ6FJS`.
+Compétences `tblH8Zym1DNu7PN3c` · Actes `tblt32Afmq6vQ6FJS` · Posts scrappés `tblE8XF5PjgUd7PdP`
+(lecture, puis rattachement — ÉTAPE 4 bis).
 
 ## Ressources du snapshot
 
 | Fichier | Rôle |
 |---|---|
-| `references/champs-candidat.md` | champs à remplir, IDs, valeurs de select, **et ce que chaque champ fait au matching** ; table `Recruteurs` (ÉTAPE 1) |
+| `references/champs-candidat.md` | champs à remplir, IDs, valeurs de select, **et ce que chaque champ fait au matching** ; table `Recruteurs` (ÉTAPE 1) ; champs de **Posts scrappés** lus et écrits par le rattachement (ÉTAPE 4 bis) |
 | `references/compte-rendu.md` | compte rendu à deux niveaux (recruteur / `debug`) et procédure d'incident — **commun aux cinq compétences** |
 | `references/candidature.md` | l'offre visée : pratiques recopiées, contrôle du matching, création de la candidature (ÉTAPE 7) |
 | `scripts/routine.py` | télécharge la doctrine d'enrichissement depuis le dépôt (ÉTAPE 6) |
@@ -134,7 +135,8 @@ séparément et ne leur accorde pas le même crédit (la parole > le CV > l'anno
 | Un CV (PDF, DOCX, texte collé) | `CV text` + pièce jointe `CV` | étape 3 |
 | Une annonce de recherche du candidat (post Facebook, message, mail de candidature) | `Post` | verbatim **intégral**, jamais résumé |
 | Un transcript d'appel | `Transcripts` | verbatim intégral |
-| Rien, juste nom + prénom | — | fiche minimale, étape 6 sautée |
+| Le post scrappé du candidat, retrouvé à l'ÉTAPE 4 bis | `Post` | verbatim intégral, en-tête `[YYYY-MM-DD]` — s'ajoute aux autres sources |
+| Rien, juste nom + prénom | — | fiche minimale, étape 6 sautée — sauf si l'ÉTAPE 4 bis retrouve un post : il devient la source |
 
 Trois règles de tri :
 
@@ -243,6 +245,56 @@ personne. Deux personnes portent parfois le même nom — c'est son arbitrage, p
 - **Même personne** → enrichir la fiche existante (étape 5-bis), ne rien créer.
 - **Homonyme réel** → créer, et le dire dans le compte rendu pour que les deux fiches ne soient
   pas fusionnées plus tard par erreur.
+
+## Étape 4 bis — Chercher le post scrappé du candidat
+
+Le scrape Facebook (`scrape-veto`) a peut-être déjà rangé ce vétérinaire dans **Posts scrappés**
+(`tblE8XF5PjgUd7PdP`, type `Vétérinaire cherche poste`) — y compris quand le recruteur ne l'a
+jamais vu là : le candidat a envoyé un CV par mail, a appelé, ou a été recommandé. **Chercher,
+quelle que soit la source apportée.** Un post non rattaché continue de tourner dans le matching
+posts ↔ offres comme si personne ne connaissait cette personne, et sa parole publique — souvent la
+plus précise sur ce qu'elle cherche — manquerait à l'enrichissement.
+
+Chercher avec `search_records` sur `tblE8XF5PjgUd7PdP`, `fields` =
+`["fldWJMDHiSjZl4wEN","flduBF1szNLl8Hbtr","fldMuzJEYkcMB90bC","fldIoJRDRNdzWlbvq","fld03prjt8xTYQram"]`
+(prénom, nom, `auteur_key`, contenu, profil Facebook), une requête par clé, dans cet ordre, en
+s'arrêtant à la première qui trouve :
+
+1. **le nom normalisé** (`auteur_key` porte la même forme que `fullNameSearch` : minuscules, sans
+   diacritiques) — puis le nom tel qu'écrit, si la forme normalisée ne sort rien ;
+2. **le mail** et **le téléphone** que la source donne, dans le contenu du post ;
+3. **l'URL du profil Facebook** quand la source est un post ou un profil.
+
+Ne retenir que les résultats de type `Vétérinaire cherche poste` (`fldIy6iyrM0b9YrMN`) et
+**non archivés** (`fldxWMqDIu4hd7Ygc`). Une clé vide ne se cherche pas (piège du filtre vide,
+ÉTAPE 4). Puis lire ce que le post porte :
+
+- **`Candidat` (`fldWa55md6fo4nRes`) déjà rempli** → ce post a déjà été converti : la fiche existe,
+  et l'ÉTAPE 4 aurait dû la trouver. Repartir sur cette fiche (étape 5-bis), ne rien créer.
+- **Trouvé par mail, téléphone ou profil Facebook** → c'est la bonne personne, pas de question : le
+  post figure dans le récapitulatif de l'ÉTAPE 5 (« post Facebook n°… du 12/08 repris comme source
+  et rattaché »), le feu vert du recruteur couvre le rattachement.
+- **Trouvé par le nom seul** → homonymie possible, comme à l'ÉTAPE 4 : le montrer dans le
+  récapitulatif avec sa date, sa zone et ses trois premières lignes (« correspond probablement à …
+  — dites non si ce n'est pas la même personne »). Pas de question séparée.
+- **Plusieurs posts** de la même personne (republications, commentaires sous des annonces) → tous
+  la concernent : les rattacher tous, reprendre le texte du plus complet.
+- **Rien** → continuer normalement ; le dire dans le détail technique seulement.
+
+Le post trouvé devient une **source** à part entière, au même titre qu'un CV ou un transcript : son
+`Contenu complet` (`fldIoJRDRNdzWlbvq`) va dans `Post`, **verbatim et intégral**, sous un en-tête
+`[YYYY-MM-DD]` à la `Date du post` — la convention que la routine d'enrichissement découpe (ÉTAPE
+2, ÉTAPE 5-bis). Si la fiche existante porte déjà ce texte dans `Post` (candidat créé par le bouton
+« Convert post to candidat »), ne pas le dupliquer. Sa `Zone de recherche` (`fldvVgE1X5jLytx4b`)
+n'est pas une ville : elle nourrit l'enrichissement, jamais `Ville`.
+
+**Après la création de la fiche (ÉTAPE 5)**, rattacher le ou les posts dans l'état que produit le
+bouton d'interface : `update_records_for_table` sur `tblE8XF5PjgUd7PdP`, par ID —
+`Candidat` (`fldWa55md6fo4nRes`) = `["<recId du candidat>"]`, `Archivé` (`fldxWMqDIu4hd7Ygc`) =
+`true`, `Conversion` (`fldRTXGtIO1ubEQV9`) = `Candidat créé par creer-candidat <version> le
+<JJ/MM/AAAA> ; post repris comme source, rattaché et archivé`. Archiver le post déclenche
+l'automation qui supprime ses paires de « Potentiels posts candidats » : voulu, c'est désormais la
+fiche candidat qui est rapprochée des offres (ÉTAPE 8). Ne rien d'autre écrire sur le post.
 
 ## Étape 5 — Créer le candidat
 
@@ -420,7 +472,9 @@ Format et règles : `references/compte-rendu.md`. Ce que chaque bloc contient ic
 **Fait**
 - la fiche créée (ou la fiche existante enrichie), avec son lien, au nom de la recruteuse
   retenue ;
-- les sources déposées, en une ligne (« CV et transcript déposés ») — sans les réimprimer ;
+- les sources déposées, en une ligne (« CV et transcript déposés ») — sans les réimprimer ; le
+  post scrappé repris et rattaché, s'il y en avait un (« post Facebook n°… du 12/08 repris comme
+  source et rattaché à la fiche ») ;
 - si une offre était visée (ÉTAPE 7) : la candidature créée, avec son lien, ou celle qui
   existait déjà.
 
@@ -439,9 +493,9 @@ Format et règles : `references/compte-rendu.md`. Ce que chaque bloc contient ic
 - les actes non reconnus par la routine, nommés.
 
 **Détail technique** (mode `debug`, ou corps du mail d'incident) : version, identité et son
-origine, recordIds, coordonnées obtenues, le compte rendu de la routine tel qu'elle le formule
-(compétences créées / mises à jour / gelées, synonymes ajoutés), les pratiques posées depuis
-l'offre, les décisions prises seul.
+origine, recordIds, coordonnées obtenues, la clé qui a retrouvé le post scrappé (ou « aucun post
+trouvé »), le compte rendu de la routine tel qu'elle le formule (compétences créées / mises à jour /
+gelées, synonymes ajoutés), les pratiques posées depuis l'offre, les décisions prises seul.
 
 ## Pièges connus
 

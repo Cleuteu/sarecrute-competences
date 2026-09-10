@@ -191,6 +191,32 @@ scrape), `Appels`, `Candidat entièrement sourcé`, `Sourcing jusqu'au`, `Date p
 
 ---
 
+## Table Posts scrappés — `tblE8XF5PjgUd7PdP` (ÉTAPE 4 bis)
+
+Les annonces collectées par `scrape-veto`, dont celles des vétérinaires qui cherchent un poste. On
+y **cherche** le post du candidat, on en **reprend le texte** comme source, puis on le **rattache
+et l'archive** une fois la fiche créée. Rien d'autre ne s'y écrit.
+
+| Champ | ID | Type | Usage |
+|---|---|---|---|
+| Numéro | `fldvt7wDBCKynWQxD` | auto | le « n°… » cité dans le compte rendu |
+| Type de post | `fldIy6iyrM0b9YrMN` | select | ne retenir que `Vétérinaire cherche poste` |
+| Type d'entrée | `fldWGq3HUnqHLfRI1` | select | `Post` \| `Commentaire` — un commentaire du candidat sous une annonce se rattache aussi |
+| Archivé | `fldxWMqDIu4hd7Ygc` | case | lecture : ignorer les archivés ; écriture : `true` au rattachement |
+| Prénom / Nom | `fldWJMDHiSjZl4wEN` / `flduBF1szNLl8Hbtr` | texte | auteur du post — clé de recherche principale |
+| auteur_key | `fldMuzJEYkcMB90bC` | texte | nom normalisé par le scrape (minuscules, sans diacritiques) : même forme que `fullNameSearch` |
+| Contenu complet | `fldIoJRDRNdzWlbvq` | texte long | texte intégral, sections datées `[YYYY-MM-DD]` — clé de recherche (mail, téléphone) et **source à recopier dans `Post`** |
+| Profil Facebook | `fld03prjt8xTYQram` | url | clé de recherche quand la source est un post ou un profil |
+| Zone de recherche | `fldvVgE1X5jLytx4b` | texte | zone annoncée, tel qu'écrit |
+| Date du post | `fldpHNjzipmU9hy7r` | date | date de l'en-tête à poser dans `Post` |
+| Candidat | `fldWa55md6fo4nRes` | lien | **lecture** : rempli = post déjà converti, la fiche existe ; **écriture** : la fiche créée |
+| Conversion | `fldRTXGtIO1ubEQV9` | texte | compte rendu d'une ligne, daté, préfixé du nom de la compétence |
+
+Ne pas toucher : les champs de matching du post, `Canaux`, `Potentiels posts candidats`,
+`candidat_key`, `Offre d'emploi`, `Clinique`.
+
+---
+
 ## Champs collaborateur
 
 `Sourceur` (`fldECFOFPFdxzzFFP`) et `Ajouté au CRM par` (`fldq8pztsTZBa0IK4`) s'écrivent par

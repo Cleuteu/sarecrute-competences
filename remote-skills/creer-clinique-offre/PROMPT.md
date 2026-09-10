@@ -1,4 +1,4 @@
-**creer-clinique-offre — version 0.2.0 (2026-09-09)**
+**creer-clinique-offre — version 0.3.0 (2026-09-10)**
 
 > Ce fichier est le corps de la compétence `creer-clinique-offre` du plugin `sarecrute-recruteur`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -22,13 +22,14 @@ automatique** : le mail reste un brouillon, le message Messenger est rendu à co
 
 Prérequis : connecteur **Airtable** disponible ; connecteur **Gmail** pour le brouillon.
 
-Base **PROD** : `appP0W2ISytaNyAhG` · Cliniques `tblagWImxHH15rRAh` · Offres `tblVZva5yHSCnucsK`.
+Base **PROD** : `appP0W2ISytaNyAhG` · Cliniques `tblagWImxHH15rRAh` · Offres `tblVZva5yHSCnucsK` ·
+Posts scrappés `tblE8XF5PjgUd7PdP` (lecture, puis rattachement — ÉTAPES 4 bis et 6 bis).
 
 ## Ressources bundlées
 
 | Fichier | Rôle |
 |---|---|
-| `references/champs.md` | tous les champs à remplir, leurs IDs, les valeurs de select autorisées |
+| `references/champs.md` | tous les champs à remplir, leurs IDs, les valeurs de select autorisées ; en fin de fichier, les champs de **Posts scrappés** lus et écrits par le rattachement |
 | `references/matching.md` | **à lire avant de remplir l'offre** : comment chaque champ est lu par le moteur de rapprochement candidats / posts |
 | `references/compte-rendu.md` | compte rendu à deux niveaux (recruteur / `debug`) et procédure d'incident — **commun aux cinq compétences** |
 | `scripts/ville.py` | résout la ville en département + CP + coordonnées, avec la même règle que l'automation Airtable |
@@ -159,6 +160,54 @@ Si la clinique a déjà une offre non archivée, le signaler : soit l'annonce es
 jour l'offre existante plutôt que d'en créer une seconde), soit c'est un second poste et il faut
 alors renseigner `Second name` (`fldqXF6HUy6GRRUVi`) sur la nouvelle offre.
 
+## Étape 4 bis — Chercher le post scrappé d'origine
+
+Le scrape Facebook (`scrape-veto`) a très souvent déjà rangé cette annonce dans **Posts scrappés**
+(`tblE8XF5PjgUd7PdP`, type `Clinique cherche vétérinaire`) — y compris quand le recruteur ne l'a
+jamais vue là : il a reçu l'annonce par mail, l'a trouvée sur LinkedIn, ou la clinique lui a
+écrit. **Chercher, quelle que soit la provenance de l'annonce.** Un post qui reste non rattaché
+continue d'apparaître dans les listes « à contacter » comme si personne ne s'en était occupé, et
+la même clinique finit démarchée deux fois.
+
+Chercher avec `search_records` sur `tblE8XF5PjgUd7PdP`, `fields` =
+`["fldIoJRDRNdzWlbvq","fldFOr56HfMkHeQKx","fldWJMDHiSjZl4wEN","flduBF1szNLl8Hbtr","fldGTBOrxjEUr0cER"]`
+(contenu, nom de la clinique, prénom, nom, lien du post), une requête par clé, dans cet ordre, en
+s'arrêtant à la première qui trouve :
+
+1. **l'e-mail** de l'annonce — la clé la plus sûre, présente dans le texte de 44 % des posts ;
+2. **le téléphone**, sous ses formes usuelles (`06 12 34 56 78`, `0612345678`, `06.12.34.56.78`) ;
+3. **l'URL du post** si le recruteur l'a donnée ;
+4. **le mot distinctif du nom** de la structure (« Tilleuls », « Château Gombert »), jamais la raison
+   sociale entière ;
+5. **le nom du signataire** (prénom + nom de l'auteur).
+
+Ne retenir que les résultats de type `Clinique cherche vétérinaire` (`fldIy6iyrM0b9YrMN`) et
+**non archivés** (`fldxWMqDIu4hd7Ygc`). Une clé vide ne se cherche pas (voir le piège du filtre
+vide dans `creer-candidat`).
+
+Lire ce que le post trouvé porte déjà :
+
+- **`Offre d'emploi` (`fld6jPvoQT9UPs3Kz`) déjà rempli** → ce post a déjà été converti : l'offre
+  existe, et l'ÉTAPE 4 aurait dû trouver la clinique. S'arrêter, montrer l'offre liée au recruteur,
+  et ne rien créer sans son accord : c'est un doublon qu'on évite, pas un cas dégradé.
+- **Plusieurs posts** de la même clinique → regarder `auteur_key` (`fldMuzJEYkcMB90bC`) : le
+  suffixe `#…` distingue deux offres différentes d'une même structure. Retenir le post dont le texte
+  est l'annonce collée ; laisser les autres, ils décrivent d'autres postes. Un simple commentaire
+  de la clinique (`Type d'entrée` = `Commentaire`, `fldWGq3HUnqHLfRI1`) ne se rattache que s'il
+  est lui-même l'annonce.
+- **Trouvé par mail, téléphone ou URL** → c'est le bon post, pas de question à poser : il figure
+  dans le récapitulatif de l'ÉTAPE 5 (« post scrappé n°… rattaché et archivé »), le feu vert
+  du recruteur couvre le rattachement.
+- **Trouvé par le nom seul** → le nommer dans le récapitulatif en le disant (« correspond
+  probablement au post n°… du 12/08 — dites non si ce n'est pas la même clinique »). Pas de
+  question séparée.
+- **Rien** → continuer normalement ; le dire dans le détail technique seulement.
+
+Le post peut aussi **compléter l'annonce** : son `Contenu complet` (`fldIoJRDRNdzWlbvq`) est le
+texte intégral tel que publié, souvent plus complet que ce que le recruteur a collé, et sa `Zone de
+recherche` (`fldvVgE1X5jLytx4b`) donne la ville. S'en servir à l'ÉTAPE 2 si l'annonce collée est
+tronquée ; ne jamais s'en servir pour **deviner** un champ que ni l'un ni l'autre ne dit.
+
 ## Étape 5 — Créer la clinique
 
 Présenter d'abord au recruteur le récapitulatif de ce qui va être écrit (clinique + offre),
@@ -218,6 +267,30 @@ Ne pas remplir `Description du poste`, `Texte de publication`, `Image de publica
 
 **Puis relire l'offre créée** et vérifier `county`, `latitude`, `longitude` (lookups) : c'est la
 seule preuve que le matching pourra tourner.
+
+## Étape 6 bis — Rattacher et archiver le post scrappé
+
+Si l'ÉTAPE 4 bis a trouvé le post, le mettre dans l'état exact que produit le bouton d'interface
+« Convert post to clinique + offre » : `update_records_for_table` sur `tblE8XF5PjgUd7PdP`, une
+seule écriture, par ID :
+
+| Champ | ID | Valeur |
+|---|---|---|
+| `Offre d'emploi` | `fld6jPvoQT9UPs3Kz` | `["<recId de l'offre créée>"]` |
+| `Clinique` | `fldPk91u4duXSJJg0` | `["<recId de la clinique>"]` **seulement si la clinique vient d'être créée à l'ÉTAPE 5** |
+| `Archivé` | `fldxWMqDIu4hd7Ygc` | `true` |
+| `Conversion` | `fldRTXGtIO1ubEQV9` | `Clinique et offre créées par creer-clinique-offre <version> le <JJ/MM/AAAA> ; post rattaché et archivé` — ou `Offre créée…` si la clinique existait |
+
+⚠️ **Le lien `Clinique` signifie « cette fiche a été créée depuis ce post ».** Quand la clinique
+existait déjà (ÉTAPE 4), le laisser vide : il ne doit jamais suggérer qu'un post a produit une
+fiche sur laquelle un recruteur travaillait déjà. La trace passe alors par l'offre.
+
+Archiver le post déclenche l'automation qui supprime ses paires de « Potentiels posts candidats » :
+c'est voulu, l'annonce vit désormais comme offre et c'est l'offre qui sera rapprochée du vivier.
+Ne rien d'autre écrire sur le post — ni son texte, ni ses champs de matching.
+
+Si aucun post n'a été trouvé, il n'y a rien à faire ici : le prochain scrape qui rencontrerait
+cette annonce la reconnaîtra par la clinique (nom ou mail).
 
 ## Étape 7 — Lancer le matching
 
@@ -286,6 +359,8 @@ Format et règles : `references/compte-rendu.md`. Ce que chaque bloc contient ic
 **Fait**
 - la clinique créée (ou réutilisée) et l'offre créée, avec leurs liens, au nom de la recruteuse
   retenue ;
+- le post scrappé rattaché et archivé, s'il y en avait un (« post Facebook n°… du 12/08 rattaché
+  à l'offre, il ne réapparaîtra plus dans les listes à contacter ») ;
 - le premier contact préparé : « brouillon Gmail prêt dans vos brouillons », ou, sans adresse
   mail, le message Messenger à copier — le seul texte long que le compte rendu contient.
 
@@ -301,10 +376,12 @@ Format et règles : `references/compte-rendu.md`. Ce que chaque bloc contient ic
 **Pas fait**
 - rien n'a été envoyé — toujours le dire ;
 - `county` non résolu ;
-- l'offre non archivée qui existait déjà, si l'annonce était la même (ÉTAPE 4).
+- l'offre non archivée qui existait déjà, si l'annonce était la même (ÉTAPE 4) ;
+- le post scrappé déjà converti par quelqu'un d'autre, avec l'offre qu'il porte (ÉTAPE 4 bis).
 
 **Détail technique** (mode `debug`, ou corps du mail d'incident) : version, identité et son
-origine, recordIds, coordonnées obtenues, décisions prises seul.
+origine, recordIds, coordonnées obtenues, la clé qui a retrouvé le post scrappé (ou « aucun post
+trouvé »), décisions prises seul.
 
 ## Pièges connus
 

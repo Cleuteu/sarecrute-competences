@@ -58,6 +58,34 @@ create clinique »), `intro_at`, `reminder_at`, `Date propal`, `replied?`, `arch
 
 ---
 
+## Table Posts scrappés — `tblE8XF5PjgUd7PdP` (ÉTAPES 4 bis et 6 bis)
+
+Les annonces collectées par `scrape-veto`. On y **cherche** le post d'origine de l'annonce, puis on
+le **rattache et l'archive** une fois l'offre créée. Rien d'autre ne s'y écrit.
+
+| Champ | ID | Type | Usage |
+|---|---|---|---|
+| Numéro | `fldvt7wDBCKynWQxD` | auto | le « n°… » cité dans le compte rendu |
+| Type de post | `fldIy6iyrM0b9YrMN` | select | ne retenir que `Clinique cherche vétérinaire` |
+| Type d'entrée | `fldWGq3HUnqHLfRI1` | select | `Post` \| `Commentaire` — un commentaire ne se rattache que s'il est lui-même l'annonce |
+| Archivé | `fldxWMqDIu4hd7Ygc` | case | lecture : ignorer les archivés ; écriture : `true` au rattachement |
+| Contenu complet | `fldIoJRDRNdzWlbvq` | texte long | texte intégral publié, sections datées `[YYYY-MM-DD]` — clé de recherche (mail, téléphone) et complément d'annonce |
+| Nom de la clinique | `fldFOr56HfMkHeQKx` | texte | clé de recherche (mot distinctif) |
+| Prénom / Nom | `fldWJMDHiSjZl4wEN` / `flduBF1szNLl8Hbtr` | texte | auteur du post — clé de recherche |
+| Lien du post | `fldGTBOrxjEUr0cER` | url | clé de recherche quand le recruteur donne l'URL |
+| Zone de recherche | `fldvVgE1X5jLytx4b` | texte | lieu annoncé, tel qu'écrit (« Amilly (45) ») |
+| Date du post | `fldpHNjzipmU9hy7r` | date | |
+| auteur_key | `fldMuzJEYkcMB90bC` | texte | clé d'offre du scrape, `clinique#slug` : deux suffixes différents = deux offres |
+| Offre d'emploi | `fld6jPvoQT9UPs3Kz` | lien | **lecture** : rempli = post déjà converti ; **écriture** : l'offre créée |
+| Clinique | `fldPk91u4duXSJJg0` | lien | écriture **seulement si la clinique vient d'être créée** : ce lien signifie « fiche créée depuis ce post » |
+| Conversion | `fldRTXGtIO1ubEQV9` | texte | compte rendu d'une ligne, daté, préfixé du nom de la compétence |
+
+Ne pas toucher : les champs de matching du post (`Zones de recherche`, `Pratiques requises`,
+`Statuts contractuels`, …), `Canaux`, `Potentiels posts candidats`, `clinique_key` et les
+formules `conv_*`.
+
+---
+
 ## Table Offres d'emploi — `tblVZva5yHSCnucsK`
 
 Le champ primaire `Name` est une formule (nom de la clinique + `Second name`) : rien à écrire.
