@@ -41,34 +41,28 @@ suivi Mailsuite conservé), brouillon Gmail par la routine **après** validation
 écrit dans des champs réservés à l'IA** (`Mail IA - *`) et ne touche jamais aux champs de la
 recruteuse (`Mail de présentation - Sujet / Body`, existants).
 
-1. **Cinq champs sur `Candidatures`** (tbl3LnGoBxnheGI7v) : `Mail IA - Sujet` (texte court),
-   `Mail IA - Body` (texte long), `Mail IA - Note` (texte long), `Mail IA - Statut` (sélection
-   unique : En cours, Généré, Erreur), `Mail IA - Généré le` (date).
-2. **La routine cloud** sur claude.ai/code/routines : déclencheur API, dépôt
-   `Cleuteu/sarecrute-competences` attaché, connecteur **Airtable** coché (pas Gmail pour l'instant),
-   instructions = « Suis intégralement les instructions du fichier
-   routines/mail-presentation-candidature.md du dépôt Cleuteu/sarecrute-competences, en les appliquant
-   au candidatureId transmis au déclenchement. » Noter le `trig_…` et le reporter dans
-   `sarecrute/airtable/declencherMailPresentation.js`.
-3. **Trois automations, un seul script** (`declencherMailPresentation.js`, collé à la main, secret
-   `ANTHROPIC_KEY` coché) :
-   - **Bouton candidat** « Générer les mails de présentation » (bouton d'interface sur Candidats) :
-     Find records sur Candidatures — Candidat = déclencheur, Archivée décochée, `date_intro_clinic`
-     vide, `Mail IA - Body` vide, `Mail IA - Statut` ≠ En cours, `Mail de présentation - Body` vide,
-     et (Statut = Candidat intéressé OU Prochaine action = Proposer le candidat à la clinique) —
-     puis groupe répété : « Mettre à jour l'entrée » (Mail IA - Statut = En cours) puis le script avec
-     `candidatureId` = élément courant. Zéro candidature éligible = zéro déclenchement : chaque run
-     compte, la plateforme limite les déclenchements par jour. « Candidat postulé » est exclu : la
-     présentation est déjà faite.
-   - **Après enrichissement** : déclencheur « enregistrement modifié » sur Candidats, champ surveillé
-     Statut IA, condition Statut IA = Exécuté, puis exactement le même corps.
-   - **Bouton candidature** « Générer le mail de présentation » (bouton d'interface sur Candidatures) :
-     groupe conditionnel — si `date_intro_clinic` est renseigné ou `Mail IA - Statut` = En cours,
-     « Mettre à jour l'entrée » écrit seulement `Mail IA - Note` (« Déjà présenté le … » / « Génération
-     déjà en cours ») sans déclencher ; sinon « Mettre à jour l'entrée » (En cours) puis le script avec
-     `candidatureId` = Déclencheur > Record ID. C'est le seul chemin qui régénère un mail existant.
-   ⚠️ Un Find records dont une valeur de comparaison est vide est ignoré : la condition sur le
-   candidat reste en tête, et on vérifie le comptage avant d'activer.
+1. **Champs sur `Candidatures`** — FAIT le 10/09/2026 : `Mail IA - Sujet` fldssJ9lpjVphhFET, `Mail IA - Body`
+   fldBtOSybTvWyhZ5J, `Mail IA - Note` fldyMr27NmTQjWVqI, `Mail IA - Statut` fld2EEdsoXQhcJ2yt (En cours /
+   Généré / Erreur), `Mail IA - Généré le` fldfpiPZKDkLCuuDs, et la formule **`Mail IA - Éligible`**
+   fld6PHJNp2IUPdgr9 (« oui » si non archivée, date_intro_clinic vide, Mail IA - Body vide, Statut ≠ En
+   cours, Mail de présentation - Body vide, et statut Candidat intéressé OU prochaine action Proposer le
+   candidat à la clinique). L'éligibilité se règle dans cette formule : l'API n'accepte pas de groupe OU
+   dans un Find records.
+2. **La routine cloud** — FAITE par Alex : « Génération mail présentation candidat à clinique »,
+   `trig_01K582k1wWqi8BRpov5q7ueG`. Instructions = pointeur vers ce fichier (avec repli sur l'URL raw
+   si le dépôt n'est pas cloné), connecteur Airtable, modèle Opus 5.
+3. **Trois automations** — squelettes créés par API le 10/09/2026, désactivés, script à coller à la main
+   (`sarecrute/airtable/declencherMailPresentation.js`, variable `candidatureId`, secret `ANTHROPIC_KEY`) :
+   - `wfllefNfQ6O0BPcBu` **Mails de présentation après enrichissement** : Statut IA → Exécuté, Find records
+     (Candidat = déclencheur ET Éligible = oui), groupe répété : En cours puis script (candidatureId =
+     élément courant > Record ID).
+   - `wflM3niWGUbtwgbJi` **Générer les mails de présentation [bouton candidat]** : même corps ; poser le
+     bouton sur les pages Candidats.
+   - `wflvLDIQ0E826RrTj` **Générer le mail de présentation [bouton candidature]** : trois branches — déjà
+     présenté (note seule), génération en cours (note seule), sinon En cours puis script (candidatureId =
+     Déclencheur > Record ID). Seul chemin qui régénère un mail existant. Bouton sur « Détails des
+     Intéressés » et « Détails des Postulés ».
+   Une fois le script collé, ces automations ne sont plus modifiables par API.
 4. **Interface** : afficher `Mail IA - Sujet`, `Mail IA - Body`, `Mail IA - Note`, `Mail IA - Statut`
    sur les pages « Détails des Intéressés » et « Détails des Postulés », à côté des champs
    `Mail de présentation - *` de la recruteuse.
