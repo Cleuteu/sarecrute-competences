@@ -12,6 +12,7 @@ node tests/expansion_clic.test.js                   # jsdom aussi
 node tests/liens_markdown.test.mjs                  # aucune dépendance
 python3 tools/manifests.py --check                  # les MANIFEST des compétences distantes sont à jour
 python3 tests/compte_rendu_commun.test.py           # aucune dépendance
+python3 tests/stubs_recruteur.test.py               # aucune dépendance
 ```
 
 **`compte_rendu_commun.test.py`** — la doctrine « compte rendu à deux niveaux + mail d'incident »
@@ -19,6 +20,12 @@ python3 tests/compte_rendu_commun.test.py           # aucune dépendance
 commun téléchargeable par les stubs. Une copie qui dérive donne une consigne différente selon la
 compétence lancée, sans rien de visible. Le test exige cinq copies identiques et la présence des
 invariants (adresse d'Alex, préfixe d'objet du mail, les trois blocs, le mot-clé `debug`).
+
+**`stubs_recruteur.test.py`** — depuis la 0.14.0 (11/09/2026) les cinq stubs recruteur téléchargent
+leur corps par `git clone` de `stable` (proxy GitHub dédié de la sandbox Cowork — le seul chemin resté
+ouvert quand le proxy de sortie a coupé `raw`, npm et PyPI chez toutes les recruteuses) puis par `raw`
+en deuxième essai. Le test exige le même bloc dans les cinq stubs, chacun sous son propre nom de
+compétence, avec les deux chemins et l'arrêt net sans repli sur une copie locale.
 
 **`tools/manifests.py --check`** — depuis le 02/09/2026 les stubs téléchargent les compétences
 fichier par fichier depuis `raw.githubusercontent.com`, guidés par un `MANIFEST` par compétence

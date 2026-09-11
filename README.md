@@ -138,15 +138,21 @@ un **stub** qui télécharge à chaque exécution un snapshot de
   puis déployer en avançant la branche : `git push origin main:stable`. **Aucun bump de plugin,
   aucun `plugin update` chez personne** — la prochaine exécution tire la nouvelle version toute
   seule (l'exécution l'annonce, c'est la trace de ce qui a réellement tourné).
-- **Le téléchargement passe par `raw.githubusercontent.com`, fichier par fichier**, guidé par le
-  `MANIFEST` de chaque compétence (depuis le 02/09/2026). Le tarball `github.com/…/archive/…`
-  utilisé avant est filtré par le proxy de sortie de Cowork (403 « access to this repository is
-  not enabled for this session ») : les trois compétences recruteur y étaient inutilisables. Le
-  `MANIFEST` porte la version du `PROMPT.md` ; le stub compare les deux après téléchargement,
-  puisque `raw` ne garantit pas qu'un snapshot vienne d'un seul commit. **Un fichier ajouté à
-  `remote-skills/` qui n'est pas dans le `MANIFEST` n'arrive pas chez l'utilisateur** — d'où le
-  `python3 tools/manifests.py --check` des tests. Compter jusqu'à cinq minutes de cache côté `raw`
-  après un push sur `stable`.
+- **Le téléchargement se fait par `git clone --depth 1 --branch stable` du dépôt** (recruteur 0.14.0,
+  11/09/2026), puis `raw.githubusercontent.com` fichier par fichier en **deuxième essai** seulement,
+  guidé par le `MANIFEST` de chaque compétence. Pourquoi git : dans Cowork, le trafic `git` vers
+  `github.com` passe par le **proxy GitHub dédié** de la sandbox, indépendant de la liste des domaines
+  autorisés ; les requêtes HTTP brutes, elles, sont à la merci du proxy de sortie, qui a coupé
+  `raw` (et npm, PyPI) les 01/09, 10/09 et 11/09/2026 chez toutes les recruteuses à la fois, quel que
+  soit le réglage « Autoriser la sortie réseau » de leur compte — un domaine ajouté à la main n'y
+  change rien. Le tarball `github.com/…/archive/…` est lui aussi refusé (403 « access to this
+  repository is not enabled for this session ») : seul `git` emprunte le bon chemin, constaté sur un
+  compte recruteuse sans GitHub connecté. Un clone = un commit : l'atomicité du snapshot est
+  garantie sur ce chemin ; le `MANIFEST` (version du `PROMPT.md` + liste des fichiers) ne sert plus
+  qu'au chemin `raw`, mais reste obligatoire : **un fichier ajouté à `remote-skills/` qui n'est pas
+  dans le `MANIFEST` n'arrive pas par `raw`** — d'où le `python3 tools/manifests.py --check` des
+  tests. Compter jusqu'à cinq minutes de cache côté `raw` après un push sur `stable` ; par git,
+  c'est immédiat. Les stubs du plugin admin (Mac d'Alex, pas de sandbox) restent en `raw` seul.
 - `stable` est le cran de sûreté : on peut pousser sur `main` sans déployer. Ne jamais faire
   pointer le stub sur `main`.
 - En cas d'échec de téléchargement, le stub **s'arrête** — pas de repli sur une copie locale.
@@ -161,7 +167,8 @@ un **stub** qui télécharge à chaque exécution un snapshot de
   pas pointer vers un dossier commun). `tests/compte_rendu_commun.test.py` échoue dès qu'une copie
   dérive. Toute modification = les cinq copies + les cinq versions. Le stub, lui, porte une version
   courte de la procédure d'incident pour le cas où le snapshot ne se télécharge pas — c'est la seule
-  raison du bump 0.13.0 du plugin recruteur.
+  raison du bump 0.13.0 du plugin recruteur. Le bump 0.14.0 (11/09/2026) n'a lui aussi touché
+  que le stub : téléchargement par `git clone` d'abord, `raw` ensuite.
 - `creer-candidat` a une dépendance de plus : son `scripts/routine.py` télécharge la doctrine
   d'enrichissement depuis `routines/profil-ia-candidat.md` sur **`main`**, délibérément — c'est la
   branche que clone la routine cloud, et les deux chemins d'enrichissement doivent rester
