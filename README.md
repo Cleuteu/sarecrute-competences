@@ -152,7 +152,7 @@ un **stub** qui télécharge à chaque exécution un snapshot de
   qu'au chemin `raw`, mais reste obligatoire : **un fichier ajouté à `remote-skills/` qui n'est pas
   dans le `MANIFEST` n'arrive pas par `raw`** — d'où le `python3 tools/manifests.py --check` des
   tests. Compter jusqu'à cinq minutes de cache côté `raw` après un push sur `stable` ; par git,
-  c'est immédiat. Les stubs du plugin admin (Mac d'Alex, pas de sandbox) restent en `raw` seul.
+  c'est immédiat. Les trois stubs du plugin admin sont alignés (admin 0.18.0, même jour).
 - `stable` est le cran de sûreté : on peut pousser sur `main` sans déployer. Ne jamais faire
   pointer le stub sur `main`.
 - En cas d'échec de téléchargement, le stub **s'arrête** — pas de repli sur une copie locale.
@@ -168,7 +168,7 @@ un **stub** qui télécharge à chaque exécution un snapshot de
   dérive. Toute modification = les cinq copies + les cinq versions. Le stub, lui, porte une version
   courte de la procédure d'incident pour le cas où le snapshot ne se télécharge pas — c'est la seule
   raison du bump 0.13.0 du plugin recruteur. Le bump 0.14.0 (11/09/2026) n'a lui aussi touché
-  que le stub : téléchargement par `git clone` d'abord, `raw` ensuite.
+  que le stub : téléchargement par `git clone` d'abord, `raw` ensuite. Idem admin 0.18.0 pour ses trois stubs.
 - `creer-candidat` a une dépendance de plus : son `scripts/routine.py` télécharge la doctrine
   d'enrichissement depuis `routines/profil-ia-candidat.md` sur **`main`**, délibérément — c'est la
   branche que clone la routine cloud, et les deux chemins d'enrichissement doivent rester
