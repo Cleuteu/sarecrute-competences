@@ -8,8 +8,8 @@ work/ :
 
   airtable.json  — toutes les offres cibles, champs normalisés + textes sources
   todo.json      — celles qui ont besoin d'une description (nouvelle ou source modifiée)
-  diff.json      — résumé lisible : ajouts / retraits (avec titre et
-                   département, jamais la ref seule) / descriptions à revoir
+  diff.json      — résumé lisible : ajouts / retraits (avec nom de clinique,
+                   ville et titre, jamais la ref seule) / descriptions à revoir
 
 Aucune écriture dans Airtable, aucune écriture dans les fichiers du site.
 """
@@ -209,20 +209,25 @@ def pratiques_de(f):
 
 
 def libelle(r, clin, raison=None):
-    """Identité lisible d'une offre : ref + titre + département.
+    """Identité lisible d'une offre : ref, clinique, ville, titre, département.
 
     Sert au diff, y compris pour les offres SORTIES du périmètre (archivées,
     clinique plus « Signé ») : elles ne sont plus dans targets, et sans ce
     calcul le diff ne saurait en dire que la ref, ce qui ne désigne personne.
+
+    `_clinique` et `_ville` sont INTERNES — même convention que dans
+    airtable.json : ils servent à parler à l'utilisateur, jamais à publier.
     """
     f = r.get("fields", {})
     cf = clinique_de(f, clin)
-    _, dept = dept_de(f, cf)
+    cp, dept = dept_de(f, cf)
     out = {
         "ref": r["id"][-6:],
         "titre": titre(pratiques_de(f), names(f.get(F["spec_req"])),
                        names(f.get(F["contrat"]))),
         "departement": dept,
+        "_clinique": f.get(F["nom_clin"]) or cf.get(F_CLIN["nom"]),
+        "_ville": cf.get(F_CLIN["ville"]),
     }
     if raison:
         out["raison"] = raison
@@ -298,7 +303,9 @@ def main():
     by_ref = {t["ref"]: t for t in targets}
 
     added = [{"ref": ref, "titre": by_ref[ref]["titre"],
-              "departement": by_ref[ref]["departement"]}
+              "departement": by_ref[ref]["departement"],
+              "_clinique": by_ref[ref]["_clinique"],
+              "_ville": by_ref[ref]["_ville"]}
              for ref in sorted(target_refs - set(known))]
 
     # Une offre retirée est sortie du périmètre : elle n'est plus dans targets,
@@ -310,7 +317,8 @@ def main():
         r = par_ref.get(ref)
         if r is None:
             removed.append({"ref": ref, "titre": "(record supprimé d'Airtable)",
-                            "departement": None, "raison": "supprimée"})
+                            "departement": None, "_clinique": None,
+                            "_ville": None, "raison": "supprimée"})
             continue
         f = r.get("fields", {})
         raison = ("archivée" if f.get(F["archivee"])

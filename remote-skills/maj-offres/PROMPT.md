@@ -77,17 +77,21 @@ python3 <skill>/scripts/fetch_offres.py
 Écrit dans `~/.sarecrute/maj-offres/work/` (le script affiche le chemin) :
 - `airtable.json` — les offres publiables, champs normalisés + textes sources (`_src`) et identifiants internes (`_clinique`, `_ville`, `_veto`, `_cp`)
 - `todo.json` — celles qui ont besoin d'une description
-- `diff.json` — ajouts / retraits (chacun avec son titre et son département, et le motif du retrait) / descriptions à revoir
+- `diff.json` — ajouts / retraits (chacun avec son nom de clinique, sa ville, son titre, et le motif du retrait) / descriptions à revoir
 - `blocklist.json` — noms de cliniques, villes, personnes et domaines de toute la base (pour le contrôle)
 
 Annonce le diff à l'utilisateur avant de continuer.
 
-**Nomme chaque offre ajoutée ou retirée : titre + département, jamais la ref seule.** Une ref
-(`0u4DuJ`) ne désigne personne — l'utilisateur doit pouvoir reconnaître de quelle offre on parle
-sans aller la chercher dans Airtable. `diff.json` porte le titre et le département de chaque entrée,
-et pour les retraits le motif (`archivée`, `clinique plus « Signé »`, `supprimée`) : recopie-les.
-Une liste de plus de trois lignes se lit mieux en tableau. Vaut aussi pour le récapitulatif de
-l'étape 6.
+**Nomme chaque offre ajoutée ou retirée par le nom de sa clinique** (`_clinique`), avec sa ville
+(`_ville`) et son titre. Ni la ref (`0u4DuJ`) ni le titre seul ne désignent quoi que ce soit :
+« Vétérinaire canin — Finistère (29) » vaut pour plusieurs offres à la fois, et l'utilisateur
+reconnaît ses dossiers au nom de la clinique. `diff.json` porte tout cela, plus le motif de chaque
+retrait (`archivée`, `clinique plus « Signé »`, `supprimée`) : recopie-les. Une liste de plus de
+trois lignes se lit mieux en tableau. Vaut aussi pour le récapitulatif de l'étape 6.
+
+Ce n'est **pas** une entorse à la règle d'anonymat : elle porte sur ce qui est publié sur le site.
+Dans la conversation avec le recruteur, le nom de la clinique est l'identifiant naturel — c'est le
+sien. Il ne doit jamais atterrir dans une description ni dans le HTML, et le préfixe `_` le rappelle.
 
 Les offres retirées sont **hors périmètre** : elles ne sont ni dans `airtable.json` ni dans l'état
 après l'étape 4. Si tu as besoin de leur titre plus tard dans la session, prends-le dans `diff.json`
@@ -174,7 +178,7 @@ python3 -c "import json,os; a=json.load(open(os.path.expanduser('~/.sarecrute/ma
 ./deploy.sh
 ```
 
-**Ne déploie jamais sans que l'utilisateur l'ait demandé.** Présente d'abord le récapitulatif (ajouts, retraits, descriptions modifiées, offres taguées) et attends son feu vert. Ajouts et retraits y sont nommés par **titre + département**, comme à l'étape 1.
+**Ne déploie jamais sans que l'utilisateur l'ait demandé.** Présente d'abord le récapitulatif (ajouts, retraits, descriptions modifiées, offres taguées) et attends son feu vert. Ajouts et retraits y sont nommés par **clinique + ville + titre**, comme à l'étape 1.
 
 ### 7. Contrôler la mise en ligne
 
