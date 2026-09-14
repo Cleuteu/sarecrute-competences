@@ -5,13 +5,14 @@ Extrais la valeur après le préfixe "recordId:" — c'est le recordId du candid
 
 ⚠️ Règles strictes :
 - Le seul candidat que tu traites est celui du recordId fourni. Ne lis, ne modifie et ne compare JAMAIS un autre candidat, ni une offre, ni une clinique, ni une candidature.
-- Trois lectures seulement sont autorisées en dehors de ce record : le référentiel `Actes` (vocabulaire fermé, en entier), les lignes de la table `Compétences` déjà rattachées à CE candidat, et les schémas de tables. Rien d'autre.
+- Quatre lectures seulement sont autorisées en dehors de ce record : le référentiel `Actes` (vocabulaire fermé, en entier), les lignes de la table `Compétences` déjà rattachées à CE candidat, les lignes de la table `Expériences` déjà rattachées à CE candidat, et les schémas de tables. Rien d'autre.
 - N'ajoute JAMAIS de nouvelles valeurs à un champ singleSelect ou multipleSelect. Utilise UNIQUEMENT les valeurs récupérées dynamiquement depuis le schéma Airtable. Si une valeur ne correspond pas exactement à une option existante, ignore-la plutôt que de la créer.
 
-Utilise le MCP Airtable pour toutes les opérations. La base est appP0W2ISytaNyAhG. Trois tables sont concernées :
+Utilise le MCP Airtable pour toutes les opérations. La base est appP0W2ISytaNyAhG. Quatre tables sont concernées :
 - `Candidats` (tblPmkTaAjS9Yoovt) — le record à enrichir.
 - `Actes` (tblt32Afmq6vQ6FJS) — référentiel des actes et gestes techniques, un enregistrement par couple (acte, espèce). Lecture seule, sauf le champ `Synonymes` (voir ÉTAPE 3).
 - `Compétences` (tblH8Zym1DNu7PN3c) — table de liaison Acte × Candidat portant le niveau. C'est là que tu écris la grille de compétences du candidat.
+- `Expériences` (tblTYdApkiHqKeBVi) — une ligne par poste occupé par un candidat. C'est là que tu écris son parcours professionnel (ÉTAPE 3-bis).
 
 ## ÉTAPE 1 — Récupérer les schémas et le référentiel des actes
 
@@ -37,6 +38,8 @@ Champs à récupérer en priorité :
 
 Lis aussi le schéma de la table `Compétences` pour récupérer les options réelles des champs `Niveau` et `Source`. Les valeurs attendues sont « Autonome », « Ponctuel », « En apprentissage », « Jamais fait », « Non concerné » pour `Niveau`, et « Extraction IA » pour `Source` — mais fie-toi au schéma, pas à cette liste : si une option manque, n'écris pas la ligne concernée plutôt que de créer la valeur.
 
+Lis enfin le schéma de la table `Expériences` pour récupérer les options réelles de `Type de poste`, `Pratiques` et `Source`. Les valeurs attendues sont « Salarié », « Remplacement », « Collaborateur libéral », « Libéral installé / Associé », « Internat », « Résidanat / Assistanat », « Stage / Bénévolat », « Hors clinique » pour `Type de poste`, le vocabulaire de « Pratiques maitrisées » pour `Pratiques`, et « Extraction IA » pour `Source` — même règle : le schéma fait foi, une option absente ne se crée pas, le champ reste vide.
+
 **Puis charge le référentiel `Actes` en entier** (53 enregistrements environ, un par couple acte × espèce). Récupère pour chacun : le recordId, `Acte`, `Espèce`, `Famille`, `Synonymes`, `Notes`. C'est ton vocabulaire fermé pour l'ÉTAPE 3 : le champ `Synonymes` est le dictionnaire de reconnaissance (formulations alternatives et abréviations rencontrées dans les CV et les transcripts), le champ `Notes` précise ce que l'acte inclut ou exclut.
 
 ## ÉTAPE 2 — Récupérer les données du candidat
@@ -52,6 +55,7 @@ Lis le record du candidat. Les champs utiles sont :
 
   ⚠️ **Ne cote et n'extrais jamais rien à partir d'un texte qui n'est pas du candidat.** Les annonces de cliniques qui traînent dans ce champ décrivent un poste à pourvoir, pas son parcours : c'est exactement le piège du « plateau technique » de l'ÉTAPE 3 §C, sous une autre forme.
 - "Compétences candidat" : le lien vers les lignes de compétence DÉJÀ enregistrées pour ce candidat. Le lien seul ne suffit pas : **va lire ces enregistrements dans la table `Compétences`** pour récupérer, pour chacun, son recordId et ses champs `Acte`, `Niveau`, `Source`, `Commentaire` et **`Cotation gelée`**. L'ÉTAPE 3 en a besoin pour ne pas créer de doublon, ne pas écraser une correction humaine, et pouvoir mettre à jour la bonne ligne. Si le champ est vide, le candidat n'a encore aucune ligne — c'est le cas le plus fréquent.
+- "Expériences" : le lien vers les postes DÉJÀ enregistrés pour ce candidat. Même chose : **va lire ces enregistrements dans la table `Expériences`** pour récupérer, pour chacun, son recordId et ses champs `Poste`, `Type de poste`, `Structure`, `Ville`, `Date début`, `Date fin`, `En cours`, `Période (verbatim)`, `Source` et **`Gelée`**. L'ÉTAPE 3-bis en a besoin pour les mêmes raisons : pas de doublon, pas d'écrasement d'une correction humaine, mise à jour de la bonne ligne.
 
 ## ÉTAPE 3 — Grille de compétences par acte
 
@@ -155,6 +159,54 @@ La routine est rejouée à chaque nouvel entretien : elle doit converger, pas em
 ### G) Cette étape n'a pas le droit de faire échouer le run
 
 La grille est un complément ; le Profil IA et les champs du candidat sont le livrable principal. Si quelque chose échoue ici — référentiel illisible, écriture refusée, option de `Niveau` absente du schéma — **n'interromps pas la routine** : abandonne la ou les lignes concernées, poursuis aux étapes suivantes, et dis-le dans le message final. Ne passe pas `Statut IA` à « Erreur » pour un échec limité à la grille : ce serait masquer un profil parfaitement exploitable.
+
+## ÉTAPE 3-bis — Parcours professionnel (table `Expériences`)
+
+Reconstitue le parcours du candidat — les postes qu'il a occupés — à partir du "CV text", des "Transcripts" et du "Post", et écris-le dans la table `Expériences` : une ligne = « ce candidat a occupé ce poste, dans cette structure, à cette période ». Fais cette étape AVANT de rédiger le Profil IA : c'est la matière première de sa section « Parcours ».
+
+### A) Ce qui est une expérience — et ce qui n'en est pas
+
+- **Compte** tout poste en lien avec le métier vétérinaire : salarié (CDI, CDD, assistanat sous carte verte), remplacement, collaboration libérale, installation ou association, internat, résidanat ou assistanat hospitalier, stage ou bénévolat en clinique, en élevage ou en centre de faune, et les postes hors clinique du secteur (industrie, laboratoire, GDS, réseau de cliniques, recherche, essais cliniques).
+- **Ne compte pas** : la formation (diplôme, thèse, Erasmus, master, CEAV, DIE), les associations étudiantes, et les emplois sans lien avec le métier (facteur, agent hospitalier, serveur). Aucune ligne pour eux — la formation vit déjà dans `Ecole véto`, `Année de sortie`, `Internat`, `Diplôme supplémentaire`.
+- **Un internat est une expérience**, pas une formation : c'est un poste rémunéré dans une structure. Il donne une ligne (Type de poste = Internat) ET le champ `Internat` du candidat.
+- Les garde-fous de l'ÉTAPE 3 §C valent ici mot pour mot : ce que dit le recruteur n'est pas un poste du candidat ; une annonce de clinique recopiée dans `Post` décrit un employeur potentiel, pas un poste occupé ; et **le silence n'est pas une information** — n'invente ni structure, ni date, ni intitulé. Un CV donne typiquement 2 à 10 postes, un entretien 2 à 5, un post Facebook 0 à 2.
+
+### B) Remplir la ligne
+
+- `Candidat` = [le recordId du candidat traité]
+- `Poste` = l'intitulé court, tel que la source le dit : « Vétérinaire canin salariée », « Remplaçante », « Interne rotatoire équin », « Vétérinaire de production bovine ». Le contrat ou le rythme (CDI, CDD, temps partiel, week-ends) s'y ajoute s'il est dit.
+- `Type de poste` = une option du schéma, et une seule : **Salarié** (CDI, CDD, assistanat sous carte verte pendant les études), **Remplacement**, **Collaborateur libéral**, **Libéral installé / Associé** (clientèle propre, associé de la structure), **Internat**, **Résidanat / Assistanat** (hospitalier universitaire), **Stage / Bénévolat**, **Hors clinique**. Indéterminable → vide, jamais deviné : « j'ai travaillé cinq ans en Espagne » ne dit pas le statut.
+- `Structure` = le nom de l'établissement en clair, tel qu'écrit (« Clinique de l'Élorn », « SEVETYS Montmorillon », « GAEC de Tenuel »). Vide si la source ne le donne pas — c'est fréquent à l'oral. N'y mets jamais la ville à la place.
+- `Pratiques` = les espèces exercées **dans ce poste**, avec le vocabulaire du schéma (le même que `Pratiques maitrisées`) : « vétérinaire canin » → Canine ; « rural » → Bovins ; « mixte » → Canine + Bovins ; laitier, allaitant, ovin/caprin, équin, NAC, porcin, volailles quand ils sont dits. Les urgences, l'ophtalmologie, la faune sauvage ne sont pas des pratiques : elles vont dans `Poste` ou `Description`. Vide si la source ne permet pas de trancher.
+- `Ville`, `Département` (le numéro : « 69 », « 29 »), `Pays` = descriptifs, depuis la source. Le département se déduit de la ville quand c'est sans ambiguïté (Crozon → 29), sinon vide. `Pays` quand il est dit ou évident (« Metz, France », « Lalín, Galice » → Espagne). Ces champs ne déclenchent aucun géocodage.
+- `Date début`, `Date fin` au format YYYY-MM-DD, avec ces conventions : mois + année → le 1er du mois (« septembre 2018 » → 2018-09-01) ; année seule → le 1er janvier ; « fin 2017 » → 2017-12-01 ; « été 2019 » → 2019-07-01 ; « du 21/02/2017 au 12/03/2017 » → les dates exactes. **Une borne que la source ne donne pas reste vide.** `Date fin` vide veut dire « fin inconnue », pas « en cours ».
+- `En cours` = coché **uniquement** si la source dit que le poste est toujours occupé (« actuel », « aujourd'hui », « depuis 2025 », « je suis actuellement en… »). Attention à l'ancienneté de la source : un CV daté qui dit « aujourd'hui » parle du jour où il a été écrit — coche quand même, et cite la date de la source dans `Description`.
+- `Période (verbatim)` = **toujours rempli** : la période telle que la source l'écrit ou la dit (« OCTOBRE 2022 - JANVIER 2024 », « 4 mois en 2025-2026 », « hivers 2017-2018-2020 », « 5 ou 6 ans en Espagne, jusqu'à fin 2017 »). C'est lui qui dit à la recruteuse quelle précision accorder aux dates normalisées.
+- `Description` = les missions et le contexte en une à trois phrases factuelles, puis le verbatim court qui fonde la ligne et son origine entre parenthèses — comme le `Commentaire` des Compétences. Exemples : `Consultations et chirurgies générales, astreintes et gardes (CV)` ; `« j'ai enchaîné avec une année d'internat rotatoire à la clinique universitaire de Liège » (entretien du 03/09)`.
+- `Source` = **« Extraction IA »**, toujours — même raison qu'à l'ÉTAPE 3 §D : « Entretien », « CV », « Déclaratif candidat » et « Annuaire Roy » sont réservés à ce qu'un humain a saisi ou validé.
+- `Écrit par l'IA le` = l'instant courant du run en ISO 8601 UTC, **dans le même appel** que le reste de la ligne. Même rôle de signature qu'à l'ÉTAPE 3 §D ; une ligne sans signature est traitée comme créée à la main.
+
+N'écris pas `Désignation`, `Durée (mois)`, `Dernière modification (contenu)` ni `Gelée` : ce sont des formules.
+
+### C) Un poste, une ligne — et jamais deux fois le même
+
+- **Un poste = une ligne.** Deux passages dans la même structure séparés par un changement de statut ou une coupure (salariée de 2021 à 2025, puis collaboratrice libérale depuis 2025) font deux lignes. Une série de remplacements courts dans la même clinique fait une ligne, dont `Période (verbatim)` liste les périodes. Une mention groupée (« hivers 2017, 2018 et 2020 : prélèvements dans trois cabinets ») fait une ligne par cabinet nommé, dates vides, verbatim conservé sur chacune.
+- **La clé d'unicité** est le triplet (candidat, structure normalisée, année de début) — la structure normalisée étant le nom en minuscules, sans accents, débarrassé de « clinique vétérinaire », « cabinet », « SCP », etc. Structure inconnue → (candidat, ville, année de début) ; ville inconnue aussi → (candidat, année de début, `Poste`). Deux sources qui décrivent le même poste (le CV et un complément TemaVet recopié en fin de CV, le CV et l'entretien) donnent **une seule ligne, fusionnée** : la source la plus précise gagne sur les dates (« du 21/02/2017 au 12/03/2017 » bat « février, mars 2017 »), et la `Description` cite les deux origines.
+- **Le champ `Gelée` commande, comme `Cotation gelée` à l'ÉTAPE 3 §E**, et les trois cas sont les mêmes : ligne absente → crée-la ; `🔒 Gelée` → aucun appel de mise à jour, quoi que dise ton extraction ; `✏️ Routine` → mets à jour les champs et la signature. Le gel est intégral, `Source` ≠ « Extraction IA » vaut gel, le doute vaut gel, et **tu ne supprimes jamais une ligne** — ne pas retrouver un poste n'est pas l'infirmer.
+- En cas de contradiction entre sources sur un même poste, l'ordre est le même qu'à l'ÉTAPE 3 : **transcript > CV > post**, et la contradiction va dans `Description`.
+- Écris en lot : un `create` pour les nouvelles lignes, un `update` pour celles à corriger.
+
+### D) L'entretien donne un parcours flou — écris-le flou
+
+Un CV donne des noms, des villes et des mois ; un entretien donne « j'ai travaillé cinq ou six ans en Espagne dans des référés, fin 2017 je suis venu en France, à Châtellerault, puis 2021 à Pontchâteau jusqu'à fin 2022 ». Ça fait trois lignes, sans `Structure`, avec `Type de poste` vide quand le statut n'est pas dit, des dates aux conventions du §B et le verbatim dans `Période (verbatim)`. **Un parcours flou et vrai s'utilise ; un parcours précis et inventé fait perdre un rendez-vous.** L'oral ne donne pas les noms de cliniques : ne va pas les chercher ailleurs (rappel : aucune autre lecture n'est autorisée).
+
+Les transcripts sont de la reconnaissance vocale (ÉTAPE 3 §C-bis) et les noms propres y sont massacrés : « pont château » = Pontchâteau, « vêtisse » peut être un groupe ou rien du tout. N'écris une ville que si la lecture est sûre ; un nom de groupe ou de clinique douteux ne s'écrit pas dans `Structure` — il se cite dans `Description` avec la réserve (« nom du groupe incertain à l'oral, non retenu »).
+
+### E) Cette étape n'a pas le droit de faire échouer le run — et ne remplit pas « Années d'expérience »
+
+Même règle qu'à l'ÉTAPE 3 §G : si quelque chose échoue ici, abandonne les lignes concernées, continue, et dis-le dans le message final ; `Statut IA` ne passe pas à « Erreur » pour un échec limité au parcours.
+
+⚠️ **Ne déduis ni `Années d'expérience` ni `Expérience` de la somme des lignes.** Les stages ne comptent pas, les périodes se chevauchent, les remplacements sont en pointillé : la somme est fausse une fois sur trois, et l'automation « Expérience depuis les années d'expérience » écraserait derrière. Ces deux champs se remplissent selon l'ÉTAPE 4 §B, à partir de ce que le texte **dit** de la durée d'exercice.
 
 ## ÉTAPE 4 — Générer le profil et remplir les champs
 
@@ -264,7 +316,7 @@ ATTENTION : écris dans "Profil IA", PAS dans "Profil" (réservé au recruteur).
 Rédige un profil en français, à la 3e personne, sans accroche vers une clinique spécifique.
 Structure obligatoire :
 1. Identité : prénom nom, diplôme, école, année, situation actuelle
-2. Parcours : postes occupés, évolution, contexte
+2. Parcours : postes occupés, évolution, contexte. **Appuie-toi sur les lignes écrites à l'ÉTAPE 3-bis** — mêmes postes, mêmes périodes, mêmes structures ; n'écris ici aucun poste que la table `Expériences` ne porte pas, et inversement.
 3. Compétences techniques : ce qu'il/elle sait faire, niveau d'autonomie, points forts et points en développement. **Appuie-toi sur la grille construite à l'ÉTAPE 3** — les actes cotés « Autonome » sont les points forts, ceux cotés « En apprentissage » les points en développement. Reste en prose lisible par un recruteur : ne recopie pas la grille acte par acte, ne cite pas les noms d'échelon, et n'écris rien ici que la grille contredirait.
 4. Projet & attentes : type de poste, contrat, temps de travail, gardes, logement, rémunération, zone géographique, disponibilité
 5. Phrase de synthèse finale : jugement qualitatif (1 à 2 phrases)
@@ -282,7 +334,7 @@ Mets à jour le record du candidat avec TOUS les champs générés via le MCP Ai
 Pour les multipleSelects : tableau de valeurs. Pour les singleSelect : string. Pour "Profil IA" : texte brut.
 Ne touche PAS aux champs "Profil", "CV text", "Transcripts" et "Post" — ce dernier est le verbatim Facebook, il ne se réécrit ni ne se résume.
 
-Les lignes de la table `Compétences` ont déjà été écrites à l'ÉTAPE 3 : n'y reviens pas, et n'écris pas le champ de lien "Compétences candidat" du record candidat — il se remplit tout seul depuis les lignes créées.
+Les lignes des tables `Compétences` et `Expériences` ont déjà été écrites aux ÉTAPES 3 et 3-bis : n'y reviens pas, et n'écris pas les champs de lien "Compétences candidat" ni "Expériences" du record candidat — ils se remplissent tout seuls depuis les lignes créées.
 
 Inclus dans CE MÊME appel de mise à jour :
 - "Statut IA" = "Exécuté"
@@ -296,7 +348,7 @@ La valeur "En cours" est posée par la couche appelante avant l'envoi du webhook
 
 - **Succès** : "Statut IA" = "Exécuté", écrit dans l'appel de l'étape 5.
 - **Échec** : si quelque chose échoue à n'importe quelle étape (record introuvable, schéma illisible, CV, transcripts et post tous vides et inexploitables, refus d'écriture Airtable, valeur select impossible à résoudre sur un champ obligatoire), fais un dernier appel de mise à jour minimal avec "Statut IA" = "Erreur" et rien d'autre.
-- **Exception, rappelée depuis l'ÉTAPE 3 §G** : un échec limité à la grille de compétences ne fait pas passer le statut à "Erreur". Le run reste "Exécuté" et le problème est décrit dans le message final.
+- **Exception, rappelée depuis l'ÉTAPE 3 §G et l'ÉTAPE 3-bis §E** : un échec limité à la grille de compétences ou au parcours ne fait pas passer le statut à "Erreur". Le run reste "Exécuté" et le problème est décrit dans le message final.
 
 Le record ne doit JAMAIS rester en "En cours" à la sortie de la routine : tout chemin de sortie se termine soit par "Exécuté", soit par "Erreur".
 
@@ -307,6 +359,7 @@ Confirme à la fin :
 ```
 Profil IA généré et champs mis à jour pour [Prénom Nom].
 Compétences : [N] ligne(s) créée(s), [N] mise(s) à jour, [N] gelée(s) et respectée(s) (correction du recruteur).
+Expériences : [N] poste(s) créé(s), [N] mis à jour, [N] gelé(s) et respecté(s) ; [N] sans structure nommée, [N] sans dates.
 Synonymes ajoutés au référentiel : [acte (espèce) → formulation] ou « aucun ».
 Actes non reconnus, à ajouter au référentiel si pertinent : [geste — espèce probable, famille probable] ou « aucun ».
 ```

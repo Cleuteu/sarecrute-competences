@@ -1,4 +1,4 @@
-**creer-candidat — version 0.4.0 (2026-09-10)**
+**creer-candidat — version 0.5.0 (2026-09-14)**
 
 > Ce fichier est le corps de la compétence `creer-candidat` du plugin `sarecrute-recruteur`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -23,8 +23,8 @@ Prérequis : connecteur **Airtable**. Pour joindre un CV en pièce jointe, la va
 d'environnement `AIRTABLE_API_KEY` (le MCP ne sait pas téléverser de pièce jointe).
 
 Base **PROD** : `appP0W2ISytaNyAhG` · Candidats `tblPmkTaAjS9Yoovt` ·
-Compétences `tblH8Zym1DNu7PN3c` · Actes `tblt32Afmq6vQ6FJS` · Posts scrappés `tblE8XF5PjgUd7PdP`
-(lecture, puis rattachement — ÉTAPE 4 bis).
+Compétences `tblH8Zym1DNu7PN3c` · Expériences `tblTYdApkiHqKeBVi` · Actes `tblt32Afmq6vQ6FJS` ·
+Posts scrappés `tblE8XF5PjgUd7PdP` (lecture, puis rattachement — ÉTAPE 4 bis).
 
 ## Ressources du snapshot
 
@@ -409,8 +409,8 @@ Le prompt est écrit pour un run cloud déclenché par webhook. Six adaptations,
    ne le touche pas — elle écrit les champs de contact, les champs structurés, `Zones de recherche`
    et `Profil IA` — mais si une version future du prompt venait à l'inclure, cette règle-ci prime.
 
-Sur une fiche fraîchement créée il n'y a aucune ligne de `Compétences`, donc aucune cotation
-gelée : la logique de gel de la routine ne mord qu'à l'étape 5-bis, où elle est indispensable —
+Sur une fiche fraîchement créée il n'y a aucune ligne de `Compétences` ni d'`Expériences`, donc
+rien de gelé : la logique de gel de la routine ne mord qu'à l'étape 5-bis, où elle est indispensable —
 une correction de recruteur gagne toujours contre une extraction automatique.
 
 **Si le téléchargement échoue** (pas de réseau, dépôt injoignable, pas de cache) : ne pas
