@@ -6,8 +6,9 @@
  * clic qui part en permalink…), le window est vidé → RÉ-INJECTE ce fichier.
  *
  * Fournit sur window :
- *   __decodeTS(anchor)   -> string  : décode un timestamp de post (SVG, obfusqué
- *                          ou clair) ; s'appuie sur __decodeTSSvg / __decodeTSGeom
+ *   __decodeTS(anchor)   -> string  : décode un timestamp de post (aria-labelledby,
+ *                          SVG, obfusqué ou clair) ; s'appuie sur __decodeTSAria /
+ *                          __decodeTSSvg / __decodeTSGeom
  *   __isTsAnchor(anchor) -> bool    : cette ancre est-elle le timestamp d'un POST ?
  *                          (rejette les ancres de commentaire)
  *   __parseTS(str)       -> {iso, ageH} : "24 min" / "Le 20 juin à 19:41" -> date
@@ -97,14 +98,45 @@ window.__decodeTSSvg = function (a) {
   return null;
 };
 
-/* Essaie les trois régimes ; ne retient que ce que __parseTS sait dater.
+/* Régime aria-labelledby (apparu le 14 septembre 2026) : l'ancre ne contient
+ * plus qu'un <span aria-labelledby="_R_xxx"><span></span></span> VIDE, et le
+ * libellé (« 8 min », « 3 h », « 1 j ») vit dans l'élément d'id référencé,
+ * ailleurs dans le document.
+ * ⚠️ Aucun des trois régimes ci-dessous ne le lit : innerText est vide, il n'y a
+ * aucun <use> donc __decodeTSSvg renvoie null, et __decodeTSGeom renvoie ''.
+ * Résultat le 14/09/2026 : __isTsAnchor rejetait TOUTES les ancres des deux
+ * groupes, __harvestAll renvoyait 0 post et window.__store restait vide — SANS
+ * la moindre erreur. Le fil s'allongeait (scrollHeight grimpait) et __alive()
+ * disait frozen:false : ça ressemblait à un groupe sans publication récente.
+ * L'ancre elle-même peut porter l'attribut, et un aria-labelledby peut lister
+ * PLUSIEURS ids séparés par des espaces : on essaie tout, on retient le premier
+ * texte que __parseTS sait dater (les autres ids pointent des libellés comme
+ * « Learn More », qui ne datent rien et sont donc écartés naturellement). */
+window.__decodeTSAria = function (a) {
+  const ids = [];
+  if (a.getAttribute('aria-labelledby')) ids.push(a.getAttribute('aria-labelledby'));
+  for (const sp of a.querySelectorAll('[aria-labelledby]')) ids.push(sp.getAttribute('aria-labelledby'));
+  for (const group of ids) {
+    if (!group) continue;
+    for (const id of group.split(/\s+/)) {
+      const t = document.getElementById(id);
+      if (!t) continue;
+      const s = (t.textContent || '').replace(/[\u034f\u200b-\u200d\u2060\ufeff\u00ad]/g, '').replace(/\s+/g, ' ').trim();
+      if (s && window.__parseTS(s).iso) return s;
+    }
+  }
+  return null;
+};
+
+/* Essaie les quatre régimes ; ne retient que ce que __parseTS sait dater.
  * Cache les décodages POSITIFS (WeakMap) : __merge re-décode les mêmes ancres à
  * chaque cycle et le décodage géométrique coûte un getComputedStyle par nœud. */
 window.__tsCache = window.__tsCache || new WeakMap();
 window.__decodeTS = function (a) {
   const hit = window.__tsCache.get(a);
   if (hit) return hit;
-  let v = window.__decodeTSSvg(a);
+  let v = window.__decodeTSAria(a);
+  if (!v) v = window.__decodeTSSvg(a);
   if (!v) {
     const g = window.__decodeTSGeom(a);
     if (g && window.__parseTS(g).iso) v = g;

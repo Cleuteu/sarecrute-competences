@@ -1,4 +1,4 @@
-**scrape-veto — version 0.14.2 (2026-09-02)**
+**scrape-veto — version 0.14.3 (2026-09-14)**
 
 > Ce fichier est le corps de la compétence `scrape-veto` du plugin `sarecrute-admin`. Il n'est
 > **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -41,11 +41,21 @@ Scraper les posts des **groupes Facebook vétérinaires** (tri chronologique) su
 
 ## Ressources bundlées
 
-- **`scripts/scrape_helpers.js`** — Read ce fichier, injecte tout son contenu via `javascript_tool`. Fournit `__decodeTS`, `__parseTS`, `__harvestAll`, `__store`/`__merge`, `__expandPostText`, `__expandCommentText`, `__expandVisible` (expansion bornée au viewport, **obligatoire sur les fils longs**), `__commentFull`, `__truncated`, `__truncatedComments`, `__purgeStubs` / `__purgeCommentStubs` (appelés par `__exportBlocked`, pas à appeler soi-même), `__storyToken` (jeton `__cft__` = identité du post d'une ancre), `__isCommentArticle` / `__inComment` (frontière post ↔ commentaire, cf. §4), `__emptyBodies` (posts au corps vide), `__seenInit` / `__tailKnown` / `__unseen` (arrêt sur le déjà-scrappé, cf. §0 et §2), `__exportBlocked` (garde unique avant export), `__profileUrl`, `__gid` (id du groupe courant, jamais codé en dur), `__alive`, `__chrono` (contrôle du tri), `__orphanComments` (compteur). **Ré-injecte après toute navigation** (le window est vidé).
+- **`scripts/scrape_helpers.js`** — Read ce fichier, injecte tout son contenu via `javascript_tool`. Fournit `__decodeTS` (quatre régimes de rendu du timestamp, dont `aria-labelledby` depuis le 14/09/2026 — cf. ⚠️ ci-dessous), `__parseTS`, `__harvestAll`, `__store`/`__merge`, `__expandPostText`, `__expandCommentText`, `__expandVisible` (expansion bornée au viewport, **obligatoire sur les fils longs**), `__commentFull`, `__truncated`, `__truncatedComments`, `__purgeStubs` / `__purgeCommentStubs` (appelés par `__exportBlocked`, pas à appeler soi-même), `__storyToken` (jeton `__cft__` = identité du post d'une ancre), `__isCommentArticle` / `__inComment` (frontière post ↔ commentaire, cf. §4), `__emptyBodies` (posts au corps vide), `__seenInit` / `__tailKnown` / `__unseen` (arrêt sur le déjà-scrappé, cf. §0 et §2), `__exportBlocked` (garde unique avant export), `__profileUrl`, `__gid` (id du groupe courant, jamais codé en dur), `__alive`, `__chrono` (contrôle du tri), `__orphanComments` (compteur). **Ré-injecte après toute navigation** (le window est vidé).
 - **`scripts/airtable_push.py`** — pousse un `records.json` en upsert-merge. Voir §5.
 - **`scripts/focus_chrome.sh`** (macOS) / **`scripts/focus_chrome.ps1`** (Windows) — ramènent l'onglet du scrape au premier plan pour réveiller le rendu. Voir §1 bis.
 - **`scripts/keep_awake.sh`** (macOS) — empêche l'écran de s'éteindre pendant la collecte. À lancer **en préventif** dès §0 et à arrêter en §6. Voir §0.
 - **`references/matching_vocab.json`** — valeurs select valides (Zones/Statuts/Temps) + mapping `macro_regions` → départements. Source de vérité pour remplir les champs de matching (cf. §3). Régénérable depuis la base si le vocab change.
+> ⚠️ **Zéro post capté ≠ groupe sans publication.** Facebook change régulièrement la façon dont il
+> rend l'heure d'un post, et `__decodeTS` en connaît quatre régimes (`aria-labelledby`, SVG `<use>`,
+> géométrique, texte clair). Quand un nouveau régime apparaît, **aucun** garde-fou ne le signale :
+> `__isTsAnchor` rejette toutes les ancres, `__harvestAll` renvoie 0 et `window.__store` reste vide,
+> alors que le fil s'allonge et que `__alive()` répond `frozen: false`. Signature à reconnaître :
+> `stored` à 0 pendant que `document.body.scrollHeight` grimpe. Diagnostic : prendre une ancre dont
+> le `href` contient `__cft__` et regarder d'où sort son libellé (`innerText`, un `<use>`, un
+> `aria-labelledby`…), puis chaîner le nouveau décodeur **en tête** de `__decodeTS` et vider
+> `__tsCache`. Constaté le 14 septembre 2026 : les deux groupes remontaient 0 post sur 102.
+
 > ⚠️ **La blacklist n'est plus bundlée.** Depuis la 0.10.0 elle vit dans la table Airtable **« Auteurs posts exclus »** (`tblGBn2uKw7FmRJm8`), lue en §0 comme les canaux — Alex l'édite lui-même, sans republier le plugin. `references/auteurs_exclus.json` a été supprimé : ne le recrée pas, et ne rétablis pas de copie de secours (cf. §0).
 
 ## Étapes
