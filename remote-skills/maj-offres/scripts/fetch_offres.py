@@ -8,7 +8,8 @@ work/ :
 
   airtable.json  — toutes les offres cibles, champs normalisés + textes sources
   todo.json      — celles qui ont besoin d'une description (nouvelle ou source modifiée)
-  diff.json      — résumé lisible : ajouts / retraits / descriptions à revoir
+  diff.json      — résumé lisible : ajouts / retraits (avec titre et
+                   département, jamais la ref seule) / descriptions à revoir
 
 Aucune écriture dans Airtable, aucune écriture dans les fichiers du site.
 """
@@ -178,6 +179,56 @@ def titre(pratiques, spec_req, contrat):
     return base
 
 
+def clinique_de(f, clin):
+    link = f.get(F["clinique"]) or []
+    clin_id = link[0] if isinstance(link, list) and link else None
+    return clin.get(clin_id, {}) if clin_id else {}
+
+
+def dept_de(f, cf):
+    """Code postal brut et département publiable (ou pays hors France)."""
+    cp = one(f.get(F["cp"]))
+    dept = dept_from_cp(cp)
+    if not dept:
+        pays = cf.get(F_CLIN["pays"])
+        pays = pays.get("name") if isinstance(pays, dict) else pays
+        dept = pays or "France"
+    return cp, dept
+
+
+def pratiques_de(f):
+    # canonisation : la table Airtable contient des doublons et coquilles
+    # (« volailles »/« Vollaile », « Rurale »). On normalise ici pour que
+    # titres, filtre et libellés restent cohérents.
+    out = []
+    for p in names(f.get(F["pratiques"])):
+        c = PRATIQUE_CANON.get(p, p)
+        if c not in out:
+            out.append(c)
+    return out
+
+
+def libelle(r, clin, raison=None):
+    """Identité lisible d'une offre : ref + titre + département.
+
+    Sert au diff, y compris pour les offres SORTIES du périmètre (archivées,
+    clinique plus « Signé ») : elles ne sont plus dans targets, et sans ce
+    calcul le diff ne saurait en dire que la ref, ce qui ne désigne personne.
+    """
+    f = r.get("fields", {})
+    cf = clinique_de(f, clin)
+    _, dept = dept_de(f, cf)
+    out = {
+        "ref": r["id"][-6:],
+        "titre": titre(pratiques_de(f), names(f.get(F["spec_req"])),
+                       names(f.get(F["contrat"]))),
+        "departement": dept,
+    }
+    if raison:
+        out["raison"] = raison
+    return out
+
+
 def src_hash(annonce, notes_offre, notes_clin):
     blob = "\x00".join([(annonce or "").strip(), (notes_offre or "").strip(),
                         (notes_clin or "").strip()])
@@ -204,25 +255,9 @@ def main():
             skipped["non_signe"] += 1
             continue
 
-        link = f.get(F["clinique"]) or []
-        clin_id = link[0] if isinstance(link, list) and link else None
-        cf = clin.get(clin_id, {}) if clin_id else {}
-
-        cp = one(f.get(F["cp"]))
-        dept = dept_from_cp(cp)
-        if not dept:
-            pays = cf.get(F_CLIN["pays"])
-            pays = pays.get("name") if isinstance(pays, dict) else pays
-            dept = pays or "France"
-
-        # canonisation : la table Airtable contient des doublons et coquilles
-        # (« volailles »/« Vollaile », « Rurale »). On normalise ici pour que
-        # titres, filtre et libellés restent cohérents.
-        pratiques = []
-        for p in names(f.get(F["pratiques"])):
-            c = PRATIQUE_CANON.get(p, p)
-            if c not in pratiques:
-                pratiques.append(c)
+        cf = clinique_de(f, clin)
+        cp, dept = dept_de(f, cf)
+        pratiques = pratiques_de(f)
         spec_req = names(f.get(F["spec_req"]))
         contrat = names(f.get(F["contrat"]))
         targets.append({
@@ -259,8 +294,30 @@ def main():
                                 t["_src"]["notes_clinique"])
 
     target_refs = {t["ref"] for t in targets}
-    added = sorted(target_refs - set(known))
-    removed = sorted(set(known) - target_refs)
+    par_ref = {r["id"][-6:]: r for r in offre_recs}
+    by_ref = {t["ref"]: t for t in targets}
+
+    added = [{"ref": ref, "titre": by_ref[ref]["titre"],
+              "departement": by_ref[ref]["departement"]}
+             for ref in sorted(target_refs - set(known))]
+
+    # Une offre retirée est sortie du périmètre : elle n'est plus dans targets,
+    # d'où la relecture de son record brut pour en donner le titre. Le motif
+    # dit à l'utilisateur si elle a été archivée ou si sa clinique a changé de
+    # statut — deux décisions très différentes.
+    removed = []
+    for ref in sorted(set(known) - target_refs):
+        r = par_ref.get(ref)
+        if r is None:
+            removed.append({"ref": ref, "titre": "(record supprimé d'Airtable)",
+                            "departement": None, "raison": "supprimée"})
+            continue
+        f = r.get("fields", {})
+        raison = ("archivée" if f.get(F["archivee"])
+                  else "clinique plus « Signé »"
+                  if "Signé" not in names(f.get(F["statut_clin"]))
+                  else "hors périmètre")
+        removed.append(libelle(r, clin, raison))
 
     todo, changed, no_source = [], [], []
     for t in sorted(targets, key=lambda x: x["createdAt"], reverse=True):

@@ -1,4 +1,4 @@
-**maj-offres — version 0.1.1 (2026-09-02)**
+**maj-offres — version 0.2.0 (2026-09-14)**
 
 > Ce fichier est le corps de la compétence `maj-offres` du plugin `sarecrute-admin`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -77,10 +77,21 @@ python3 <skill>/scripts/fetch_offres.py
 Écrit dans `~/.sarecrute/maj-offres/work/` (le script affiche le chemin) :
 - `airtable.json` — les offres publiables, champs normalisés + textes sources (`_src`) et identifiants internes (`_clinique`, `_ville`, `_veto`, `_cp`)
 - `todo.json` — celles qui ont besoin d'une description
-- `diff.json` — ajouts / retraits / descriptions à revoir
+- `diff.json` — ajouts / retraits (chacun avec son titre et son département, et le motif du retrait) / descriptions à revoir
 - `blocklist.json` — noms de cliniques, villes, personnes et domaines de toute la base (pour le contrôle)
 
-Annonce le diff à l'utilisateur (combien d'ajouts, de retraits, de descriptions à écrire) avant de continuer.
+Annonce le diff à l'utilisateur avant de continuer.
+
+**Nomme chaque offre ajoutée ou retirée : titre + département, jamais la ref seule.** Une ref
+(`0u4DuJ`) ne désigne personne — l'utilisateur doit pouvoir reconnaître de quelle offre on parle
+sans aller la chercher dans Airtable. `diff.json` porte le titre et le département de chaque entrée,
+et pour les retraits le motif (`archivée`, `clinique plus « Signé »`, `supprimée`) : recopie-les.
+Une liste de plus de trois lignes se lit mieux en tableau. Vaut aussi pour le récapitulatif de
+l'étape 6.
+
+Les offres retirées sont **hors périmètre** : elles ne sont ni dans `airtable.json` ni dans l'état
+après l'étape 4. Si tu as besoin de leur titre plus tard dans la session, prends-le dans `diff.json`
+— le retrouver demanderait de relire la base entière.
 
 Si `diff.json` ne montre **aucun** changement et que `todo.json` est vide : dis-le et arrête-toi là, il n'y a rien à faire.
 
@@ -163,7 +174,7 @@ python3 -c "import json,os; a=json.load(open(os.path.expanduser('~/.sarecrute/ma
 ./deploy.sh
 ```
 
-**Ne déploie jamais sans que l'utilisateur l'ait demandé.** Présente d'abord le récapitulatif (ajouts, retraits, descriptions modifiées, offres taguées) et attends son feu vert.
+**Ne déploie jamais sans que l'utilisateur l'ait demandé.** Présente d'abord le récapitulatif (ajouts, retraits, descriptions modifiées, offres taguées) et attends son feu vert. Ajouts et retraits y sont nommés par **titre + département**, comme à l'étape 1.
 
 ### 7. Contrôler la mise en ligne
 
