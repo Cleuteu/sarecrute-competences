@@ -10,20 +10,30 @@ Seule implémentation du classement (l'ancien script local et son rendu PDF ont 
     accepté, champ Cliniques.Groupement, signal textuel), les annonces sans mail, les cliniques
     déjà en base — qui ne vont pas dans le lot mais gardent un score ;
   * avec --attribuer : écrit Score / Raisons / Clinique existante sur les posts évalués, puis
-    attribue un lot de N posts par recruteuse active (Attribué à, Attribué le, Attribué jusqu'au =
-    dimanche de la semaine), en alternant par rang pour que les lots soient de qualité égale.
-    Un post attribué il y a moins de 14 jours n'est pas réattribué.
+    attribue un lot de N cliniques par recruteuse active (Attribué à, Attribué le, Attribué
+    jusqu'au = dimanche de la semaine), à charge égale et par rang de score pour que les lots
+    soient de qualité comparable. La routine cloud tourne le lundi matin : le lot de la semaine
+    précédente a expiré la veille, un nouveau lot est régénéré chaque lundi.
+    Une clinique = une recruteuse (décision d'Alex, 14/09/2026) : les posts sont regroupés par
+    clinique (fiche liée, nom normalisé, mail, téléphone), un seul post par clinique part dans un
+    lot, et une clinique déjà attribuée revient toujours à la même recruteuse, semaine après
+    semaine — si son lot est plein, la clinique attend ; elle ne passe jamais à l'autre. Une
+    clinique attribuée il y a moins de 14 jours n'est pas réattribuée, par quelque post que ce soit.
 
 Usage :
   python3 cliniques_a_contacter.py                      # lecture seule, rapport sur stdout
   python3 cliniques_a_contacter.py --attribuer          # écrit + attribue (lot 10 par recruteuse)
   python3 cliniques_a_contacter.py --attribuer --lot 12 --dry-run
+  python3 cliniques_a_contacter.py --attribuer --force --rejouer   # recalcule le lot en cours
+      (--rejouer garde les attributions en cours tant que les données n'ont pas bougé : un post
+       mieux classé scrappé entre-temps peut déplacer et libérer le dernier post d'un lot)
   options : --today YYYY-MM-DD  --cache DIR  --rapport fichier.md
 
-Décisions d'Alex et des recruteuses (04 et 10/09/2026) : mail obligatoire pour le lot ; aucun
+Décisions d'Alex et des recruteuses (04, 10 et 14/09/2026) : mail obligatoire pour le lot ; aucun
 groupe, même « accepté » au scrape (autre process d'acquisition) ; fraîcheur ≤ 15 j = +4 ; les
 cliniques déjà en base relèvent du propriétaire du client, pas d'un nouveau contact ; le lot
-expire le dimanche, sans report ; jamais de nouvelle valeur de select.
+expire le dimanche, sans report ; une clinique n'est jamais partagée entre deux recruteuses (pas
+de doublon de communication) ; jamais de nouvelle valeur de select.
 """
 import os, sys, json, re, collections, datetime as dt, urllib.request, urllib.parse, time, argparse
 
@@ -36,8 +46,12 @@ ap.add_argument("--rapport", default=None)
 ap.add_argument("--today", default=None)
 ap.add_argument("--jusquau", default=None, help="fin de validité du lot (défaut : dimanche de la semaine)")
 ap.add_argument("--force", action="store_true", help="attribuer même si un lot est encore en cours")
+ap.add_argument("--rejouer", action="store_true", help="recalcule le lot de même date de fin au lieu d'en créer un second")
 A = ap.parse_args()
-today = dt.date.fromisoformat(A.today) if A.today else dt.date.today()
+# date « du jour » en heure de Paris : la routine cloud tourne en UTC, et un lundi 01:00 à Paris est
+# encore dimanche en UTC — le lot partirait avec la mauvaise date de fin et le garde-fou se tromperait.
+from zoneinfo import ZoneInfo
+today = dt.date.fromisoformat(A.today) if A.today else dt.datetime.now(ZoneInfo("Europe/Paris")).date()
 
 BASE = "appP0W2ISytaNyAhG"
 T_POSTS = "Posts scrappés"
@@ -300,6 +314,50 @@ ecart = [r for r in elig if not r["groupe"] and r["known"] and r["known"].get("S
 excl_count = collections.Counter(r["excl"].split(":")[0].split(" il y a")[0] for r in rows if r["excl"])
 
 
+# ---------- une clinique = une recruteuse : regrouper les posts d'une même clinique ----------
+def signaux_clinique(r):
+    """Ce qui identifie la clinique d'un post : fiche liée, nom normalisé, mails et téléphones du texte."""
+    s = set()
+    if r["known_id"]:
+        s.add(("fiche", r["known_id"]))
+    if r["f"].get("clinique_key"):
+        s.add(("nom", r["f"]["clinique_key"]))
+    for m in r["mails"]:
+        s.add(("mail", m))
+    for t in r["tels"]:
+        if len(norm_tel(t)) == 9:
+            s.add(("tel", norm_tel(t)))
+    return s
+
+
+_parent = {}
+
+
+def _find(x):
+    _parent.setdefault(x, x)
+    while _parent[x] != x:
+        _parent[x] = _parent[_parent[x]]
+        x = _parent[x]
+    return x
+
+
+def _union(a, b):
+    ra, rb = _find(a), _find(b)
+    if ra != rb:
+        _parent[ra] = rb
+
+
+_par_signal = collections.defaultdict(list)
+for r in rows:
+    for sig in signaux_clinique(r):
+        _par_signal[sig].append(r["id"])
+for _ids in _par_signal.values():  # deux posts qui partagent un signal sont la même clinique
+    for _i in _ids[1:]:
+        _union(_ids[0], _i)
+for r in rows:
+    r["clinique"] = _find(r["id"])
+
+
 def raisons(r):
     """Une ligne lisible par la recruteuse ; le score seul ne dit rien."""
     if r["excl"]:
@@ -323,34 +381,68 @@ def attribuer():
     recs = sorted([r["fields"] for r in recruteurs if r["fields"].get("Email")], key=lambda x: x.get("Nom", ""))
     if not recs:
         sys.exit("Aucune recruteuse active avec un e-mail dans la table Recruteurs : pas d'attribution.")
-    en_cours = [r for r in rows if r["f"].get("Attribué jusqu'au") and dt.date.fromisoformat(r["f"]["Attribué jusqu'au"]) >= today]
-    if en_cours and not A.force:
-        return recs, None, max(dt.date.fromisoformat(r["f"]["Attribué jusqu'au"]) for r in en_cours), 0, 0
-    limite = today - dt.timedelta(days=14)
-    pool = []
-    for r in sorted(new, key=lambda r: (-r["score"], r["age"])):
-        al = r["f"].get("Attribué le")
-        if al and dt.date.fromisoformat(al) > limite:
-            continue
-        pool.append(r)
-    lots = {x["Email"]: [] for x in recs}
-    for i, r in enumerate(pool[: A.lot * len(recs)]):
-        lots[recs[i % len(recs)]["Email"]].append(r)
     jusquau = dt.date.fromisoformat(A.jusquau) if A.jusquau else prochain_dimanche(today)
+    # --rejouer : le lot de même date de fin est recalculé, pas doublé — ses posts redeviennent libres
+    lot_courant = {r["id"] for r in rows if A.rejouer and r["f"].get("Attribué jusqu'au") == str(jusquau)}
+    en_cours = [r for r in rows if r["id"] not in lot_courant and r["f"].get("Attribué jusqu'au")
+                and dt.date.fromisoformat(r["f"]["Attribué jusqu'au"]) >= today]
+    if en_cours and not A.force:
+        return recs, None, max(dt.date.fromisoformat(r["f"]["Attribué jusqu'au"]) for r in en_cours), 0, 0, 0
+    limite = today - dt.timedelta(days=14)
+    rang = {r["id"]: i for i, r in enumerate(sorted(new, key=lambda r: (-r["score"], r["age"])))}
+    # une clinique appartient à la recruteuse qui l'a eue en dernier, et reste chaude 14 j
+    proprio, recentes = {}, set()
+    for r in sorted([x for x in rows if x["id"] not in lot_courant and x["f"].get("Attribué à") and x["f"].get("Attribué le")],
+                    key=lambda x: x["f"]["Attribué le"]):
+        proprio[r["clinique"]] = r["f"]["Attribué à"].get("email")
+        if dt.date.fromisoformat(r["f"]["Attribué le"]) > limite:
+            recentes.add(r["clinique"])
+    # --rejouer : le lot recalculé garde ses attributions (les recruteuses ont pu commencer à
+    # appeler) ; si deux se partagent une clinique, elle va à celle qui tient le post le mieux
+    # classé et l'autre post est libéré. Une clinique déjà détenue les semaines d'avant lui reste.
+    for r in sorted([x for x in rows if x["id"] in lot_courant and x["f"].get("Attribué à")],
+                    key=lambda x: rang.get(x["id"], len(rang))):
+        proprio.setdefault(r["clinique"], r["f"]["Attribué à"].get("email"))
+    actifs = {x["Email"] for x in recs}
+    pool, vues = [], set()
+    for r in sorted(new, key=lambda r: (-r["score"], r["age"])):
+        if r["clinique"] in recentes or r["clinique"] in vues:  # un seul post par clinique
+            continue
+        vues.add(r["clinique"])
+        pool.append(r)
+    ordre = [x["Email"] for x in recs]
+    lots = {e: [] for e in ordre}
+    for r in pool:
+        p = proprio.get(r["clinique"])
+        if p and p in actifs:
+            if len(lots[p]) >= A.lot:
+                continue  # sa recruteuse a son compte : la clinique attendra la semaine prochaine
+            cible = p
+        else:
+            libres = [e for e in ordre if len(lots[e]) < A.lot]
+            if not libres:
+                break
+            cible = min(libres, key=lambda e: (len(lots[e]), ordre.index(e)))
+        lots[cible].append(r)
     updates = {}
     for r in rows:
         upd = {F["score"]: r["score"] if r["excl"] is None else None, F["raisons"]: raisons(r),
                F["clinique_existante"]: [r["known_id"]] if r["known_id"] else []}
         updates[r["id"]] = upd
+    attribues = set()
     for email, lot in lots.items():
         for r in lot:
             updates[r["id"]].update({F["attribue_a"]: {"email": email}, F["attribue_le"]: str(today), F["attribue_jusquau"]: str(jusquau)})
+            attribues.add(r["id"])
+    liberes = lot_courant - attribues  # sortis du lot recalculé : on rend les posts au réservoir
+    for rid in liberes:
+        updates[rid].update({F["attribue_a"]: None, F["attribue_le"]: None, F["attribue_jusquau"]: None})
     if not A.dry_run:
         items = [{"id": rid, "fields": flds} for rid, flds in updates.items()]
         for i in range(0, len(items), 10):
             api("PATCH", T_POSTS, body={"records": items[i:i + 10]})
             time.sleep(0.21)
-    return recs, lots, jusquau, len(pool), len(updates)
+    return recs, lots, jusquau, len(pool), len(updates), len(liberes)
 
 
 # ---------- rapport ----------
@@ -364,14 +456,16 @@ out = [f"# Cliniques à contacter — {today.strftime('%d/%m/%Y')}", "",
        f"{len(rows)} posts clinique évalués, {len(elig)} éligibles : {len(new)} nouvelles avec mail, {len(groupes)} groupes, {len(sans_mail)} sans mail, {len(relance)} déjà en base en cours, {len(ecart)} Signé/Refusé.",
        "Exclus : " + ", ".join(f"{k} {v}" for k, v in excl_count.most_common()) + ".", ""]
 if A.attribuer:
-    recs, lots, jusquau, npool, nupd = attribuer()
+    recs, lots, jusquau, npool, nupd, nlib = attribuer()
     if lots is None:
         out.append(f"## Lot en cours jusqu'au {jusquau.strftime('%d/%m')} : pas de nouvelle attribution")
         out.append("Un lot hebdomadaire est encore valide ; les scores n'ont pas été réécrits non plus. Relancer après sa date de fin, ou avec --force pour attribuer quand même.")
         lots = {}
     else:
         out.append(f"## Lots de la semaine (jusqu'au {jusquau.strftime('%d/%m')}){' — SIMULATION, rien écrit' if A.dry_run else ''}")
-        out.append(f"Réservoir : {npool} posts attribuables (non attribués depuis 14 j). {nupd} posts {'auraient été' if A.dry_run else ''} mis à jour (Score, Raisons, Clinique existante).")
+        out.append(f"Réservoir : {npool} cliniques attribuables (une clinique = un post, aucune attribuée depuis 14 j). {nupd} posts {'auraient été' if A.dry_run else ''} mis à jour (Score, Raisons, Clinique existante).")
+        if nlib:
+            out.append(f"Lot recalculé : {nlib} post(s) {'auraient été' if A.dry_run else ''} libéré(s) de l'attribution précédente.")
         for x in recs:
             lot = lots[x["Email"]]
             out.append(f"\n### {x.get('Nom')} — {len(lot)} clinique(s)")

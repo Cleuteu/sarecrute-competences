@@ -12,7 +12,7 @@ pousse. Le formulaire web ne contient qu'un pointeur vers le fichier.
 | --- | --- | --- |
 | `profil-ia-candidat.md` | Enrichissement d'un candidat : champs structurés, Profil IA, et grille de compétences par acte (base `appP0W2ISytaNyAhG`, tables `Candidats`, `Actes`, `Compétences`) | API (`/fire`), `text` = `recordId:recXXXXXXXXXXXXXX` |
 | `mail-presentation-candidature.md` | Rédaction du mail de présentation d'un candidat à une clinique, enregistré dans la candidature (jamais envoyé par la routine). Lit `Candidatures`, `Candidats`, `Compétences`, `Offres d'emploi`, `Cliniques` ; écrit uniquement les champs `Mail de présentation - *` de la candidature. Exemples de ton dans `references/mails-presentation-exemples.md`. **Pas encore déployée** : routine cloud à créer, et trois champs à créer sur Candidatures (`Mail de présentation - Statut`, `- Généré le`, `- Note IA`). | API (`/fire`), `text` = `candidatureId:recXXXXXXXXXXXXXX` |
-| `cliniques-a-contacter.md` | Lot hebdomadaire de cliniques à contacter : lance `scripts/cliniques_a_contacter.py --attribuer`, qui score les posts « Clinique cherche vétérinaire » de `Posts scrappés`, écrit `Score` / `Raisons` / `Clinique existante`, et attribue 10 posts par recruteuse active (`Attribué à`, `Attribué le`, `Attribué jusqu'au` = dimanche). Les recruteuses lisent leur lot sur les pages « À contacter — Sarah / Pamela » de l'interface Posts scrappés. Un lot encore valide bloque la réattribution. **Pas encore déployée** (voir ci-dessous). | Planifiée : lundi 07:00 Europe/Paris |
+| `cliniques-a-contacter.md` | Lot hebdomadaire de cliniques à contacter : lance `scripts/cliniques_a_contacter.py --attribuer`, qui score les posts « Clinique cherche vétérinaire » de `Posts scrappés`, écrit `Score` / `Raisons` / `Clinique existante`, et attribue 10 **cliniques** par recruteuse active (`Attribué à`, `Attribué le`, `Attribué jusqu'au` = dimanche). **Une clinique = une recruteuse**, y compris de semaine en semaine (posts regroupés par fiche liée, nom normalisé, mail, téléphone). Les recruteuses lisent leur lot sur les pages « À contacter — Sarah / Pamela » de l'interface Posts scrappés. Un lot encore valide bloque la réattribution. Déployée le 10/09/2026, ouverte aux recruteuses le 14/09/2026. | Planifiée : lundi 07:00 Europe/Paris (`0 5 * * 1` UTC), routine `trig_01QQwayZkev8GB8am3yhrt8T` |
 
 ## Convention
 
@@ -93,12 +93,19 @@ mail obligatoire, fraîcheur ≤ 15 jours prioritaire ; le contact se trace dans
    dans l'UI** (l'API ne publie pas). Un compteur « x / 10 » en tête de page se pose dans l'UI aussi.
 3. **Premier lot** — ATTRIBUÉ le 10/09/2026 par Alex depuis sa machine, valable jusqu'au 20/09 (première
    semaine longue) ; d'abord 20 par recruteuse, **ramené à 10 le soir même** (décision d'Alex : on avait dit 10). Rapport : `sarecrute/docs/lot-cliniques-2026-09-10.md`.
-4. **La routine cloud** — À CRÉER : planifiée le lundi à 07:00 Europe/Paris, Instructions = pointeur vers
-   `routines/cliniques-a-contacter.md`, dépôt attaché (cloné sur `main`), **variable d'environnement
-   `AIRTABLE_API_KEY`** dans l'environnement de la routine (le script écrit par l'API REST, pas par le
-   MCP ; sans la clé il s'arrête sans rien écrire). Connecteur Airtable inutile. Premier lundi utile :
-   le 21/09 — le 14/09 le script verra le lot en cours et n'attribuera rien (garde-fou `--force`).
+4. **La routine cloud** — CRÉÉE le 10/09/2026 (`trig_01QQwayZkev8GB8am3yhrt8T`, environnement `sarecrute`,
+   Instructions = pointeur vers `routines/cliniques-a-contacter.md`, variable d'environnement
+   `AIRTABLE_API_KEY` ; le script écrit par l'API REST, pas par le MCP ; sans la clé il s'arrête sans rien
+   écrire). Cron passé le 14/09/2026 de `0 23 * * 0` (dimanche 23:00 UTC = lundi 01:00 Paris, mais encore
+   dimanche pour la date UTC du conteneur) à **`0 5 * * 1`** (lundi 07:00 Europe/Paris) ; le script calcule
+   de toute façon sa date « du jour » en heure de Paris.
 5. `git push origin main` du dépôt des compétences, avec l'accord d'Alex : la routine clone `main`.
+6. **Une clinique = une recruteuse** — décision d'Alex du 14/09/2026 après une collision (Cabinet des
+   Alouettes, Valmont, servi à Pamela et à Sarah par deux posts distincts). Le script regroupe les posts
+   par clinique, n'en met qu'un par clinique dans un lot, rend une clinique déjà attribuée à sa recruteuse
+   d'origine semaine après semaine, et répartit à charge égale. **Remise à zéro le 14/09/2026** : les
+   attributions des 10/09 et 14/09 ont été vidées et un seul lot de 10 cliniques par recruteuse a été
+   attribué, valable jusqu'au dimanche 20/09 ; la routine prend le relais le lundi 21/09.
 
 Réservoir mesuré le 10/09 : 113 posts attribuables pour 20 par semaine, et 15 à 25 nouveaux éligibles par
 semaine. Quand il manque, le script réduit les lots plutôt que de les gonfler d'annonces sans mail, et le
