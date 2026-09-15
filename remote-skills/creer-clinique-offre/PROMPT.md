@@ -328,6 +328,27 @@ soit tiré de `Rémunération` ou de `Notes`. Si l'annonce tient en trois lignes
 Ne pas réécrire le reste — mêmes paragraphes, même ordre, même question finale. La
 personnalisation est une poignée de mots à l'intérieur, pas une nouvelle version du message.
 
+### Signatures
+
+Mail comme Messenger se terminent **toujours** par le bloc de la recruteuse retenue à l'étape 1,
+ces trois lignes exactement, sans rien y ajouter :
+
+```
+Sarah Vanhersel
+Vétérinaire et consultante en recrutement
++33 6 75 08 38 86
+```
+
+```
+Pamela Martinez
+Vétérinaire et consultante en recrutement
++33 7 81 04 51 54
+```
+
+Une recruteuse qui n'a pas son bloc ici : lui demander son numéro et signer avec son nom et le
+même titre — jamais de numéro deviné, jamais celui d'une autre. Accorder le titre au masculin
+(« consultant ») s'il s'agit d'un recruteur.
+
 ### Si la clinique a une adresse mail → brouillon Gmail
 
 `create_draft` du connecteur Gmail, **sans jamais envoyer**. Le brouillon part dans la boîte du
@@ -351,13 +372,8 @@ compte Gmail connecté, donc celle du recruteur.
   > votre recherche et que je vous explique quelles seraient les modalités si je vous accompagne ?
   >
   > Cordialement,
-  > <Prénom Nom>
-
-  La signature s'arrête au prénom et au nom de la recruteuse de l'étape 1 : pas de titre ajouté
-  (il est déjà dans la première phrase), pas de numéro de téléphone — la compétence ne le connaît
-  pas, et Gmail ajoute la signature du compte à l'envoi.
-
-  Accorder au féminin ou au masculin selon la recruteuse (« consultante » / « consultant »).
+  >
+  > <bloc de signature de la recruteuse>
 
 Dire dans *À faire par vous* qu'une automation Airtable (« Mail intro clinique ») envoie déjà un
 mail d'intro depuis l'interface quand la clinique est en `A contacter` avec
@@ -376,7 +392,9 @@ Même propos, mais resserré et sans objet — Messenger n'en a pas :
 > j'accompagne des cliniques indépendantes et de petits groupes dans leur recrutement. J'ai vu que
 > vous cherchiez <le poste>. J'ai plusieurs profils avec lesquels j'échange, débutants ou
 > expérimentés, susceptibles d'être intéressés par votre clinique. Seriez-vous disponible
-> prochainement pour en échanger par téléphone ? Merci d'avance. <Prénom Nom>
+> prochainement pour en échanger par téléphone ? Merci d'avance.
+>
+> <les trois lignes de signature de la recruteuse>
 
 Ne pas ouvrir Messenger, ne pas envoyer : le recruteur colle lui-même.
 
