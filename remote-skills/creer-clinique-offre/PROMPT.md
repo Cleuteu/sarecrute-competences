@@ -1,4 +1,4 @@
-**creer-clinique-offre — version 0.3.0 (2026-09-10)**
+**creer-clinique-offre — version 0.4.0 (2026-09-15)**
 
 > Ce fichier est le corps de la compétence `creer-clinique-offre` du plugin `sarecrute-recruteur`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -305,6 +305,29 @@ toujours un `county` manquant ou un « requis » de trop.
 
 ## Étape 8 — Préparer le premier contact
 
+Le message de premier contact est un texte maison **déjà écrit** (ci-dessous). Le travail ici
+n'est pas de le rédiger, mais de l'adapter à la clinique par **une touche, deux au maximum**,
+prises dans l'annonce collée. Un mail entièrement générique se repère ; un mail trop enthousiaste
+ou trop détaillé se repère aussi, et sonne « écrit par une IA ». Entre les deux, le plus près du
+texte maison est le bon choix.
+
+### Ce qu'on personnalise, et rien d'autre
+
+- **Le poste cherché**, à la place de « un vétérinaire » : repris tel que l'annonce le formule,
+  en une demi-ligne (« un vétérinaire canin à temps plein », « un vétérinaire rurale »). C'est la
+  touche par défaut, celle qui suffit presque toujours.
+- **Au plus un second élément factuel** que l'annonce écrit noir sur blanc, glissé dans la même
+  phrase : la ville ou le département, le type de contrat, la date de prise de poste. Rien de
+  plus : pas d'inventaire de l'annonce.
+
+Jamais : un compliment sur la clinique, un superlatif, un candidat nommé ou compté, un détail que
+l'annonce ne dit pas (taille de l'équipe, plateau technique, ambiance, réputation), quoi que ce
+soit tiré de `Rémunération` ou de `Notes`. Si l'annonce tient en trois lignes et ne dit que
+« recherche véto canin », laisser la phrase générique : générique vaut mieux qu'inventé.
+
+Ne pas réécrire le reste — mêmes paragraphes, même ordre, même question finale. La
+personnalisation est une poignée de mots à l'intérieur, pas une nouvelle version du message.
+
 ### Si la clinique a une adresse mail → brouillon Gmail
 
 `create_draft` du connecteur Gmail, **sans jamais envoyer**. Le brouillon part dans la boîte du
@@ -312,43 +335,48 @@ compte Gmail connecté, donc celle du recruteur.
 
 - `to` : `Mail1`, et `Mail2` s'il existe.
 - `subject` : `Suite à votre annonce pour le poste vétérinaire`.
-- Corps : reprendre le message maison, signé par le recruteur de l'étape 1, et l'ancrer sur
-  **un ou deux éléments précis de l'annonce** (la pratique, la région, le type de contrat) pour
-  qu'il ne ressemble pas à un envoi en masse :
+- Corps :
 
   > Bonjour Docteur,
   >
-  > Je me présente, <Prénom Nom>, agent pour les vétérinaires. J'accompagne actuellement une
-  > cinquantaine de vétérinaires dans leur recherche de poste.
+  > Je me présente, je suis vétérinaire et consultante en recrutement. J'accompagne des cliniques
+  > indépendantes ou de petits groupes pour les aider à recruter, et des vétérinaires à trouver le
+  > poste qui correspond à leurs attentes.
   >
-  > Votre annonce pour <le poste, en une demi-ligne reprise de l'annonce> rassemble plusieurs
-  > critères qui intéressent certains des vétérinaires avec lesquels j'échange.
+  > J'ai vu que vous étiez en recherche de <le poste, en une demi-ligne reprise de l'annonce> pour
+  > votre structure. J'ai plusieurs profils avec lesquels j'échange susceptibles d'être intéressés
+  > par votre clinique, débutants ou expérimentés.
   >
-  > Je souhaiterais m'entretenir avec vous, notamment afin d'avoir plus d'informations sur le
-  > poste que vous proposez. Seriez-vous disponible pour en discuter prochainement par téléphone ?
+  > Seriez-vous disponible prochainement pour échanger par téléphone afin que j'en sache plus sur
+  > votre recherche et que je vous explique quelles seraient les modalités si je vous accompagne ?
   >
   > Cordialement,
-  > <Prénom Nom> — Agent de recrutement vétérinaire
+  > <Prénom Nom>
 
-  Registre : sobre et concret, comme le reste des échanges cliniques. Pas de superlatif
-  marketing, pas de promesse de candidats nommés.
+  La signature s'arrête au prénom et au nom de la recruteuse de l'étape 1 : pas de titre ajouté
+  (il est déjà dans la première phrase), pas de numéro de téléphone — la compétence ne le connaît
+  pas, et Gmail ajoute la signature du compte à l'envoi.
 
-Dire dans *À faire par vous* qu'une automation Airtable (« Mail intro clinique ») envoie déjà ce
-message depuis l'interface quand la clinique est en `A contacter` avec `Canal de contact = Mail` :
-il faut choisir l'une des deux voies, pas les deux. Si le recruteur envoie le brouillon à la main,
-c'est à lui de passer `Status commercial` à `En attente de 1ere réponse` et de renseigner
+  Accorder au féminin ou au masculin selon la recruteuse (« consultante » / « consultant »).
+
+Dire dans *À faire par vous* qu'une automation Airtable (« Mail intro clinique ») envoie déjà un
+mail d'intro depuis l'interface quand la clinique est en `A contacter` avec
+`Canal de contact = Mail` : il faut choisir l'une des deux voies, pas les deux — son texte est
+maintenu dans Airtable et n'est pas forcément celui d'ici. Si le recruteur envoie le brouillon à
+la main, c'est à lui de passer `Status commercial` à `En attente de 1ere réponse` et de renseigner
 `intro_at` — la compétence ne les touche pas.
 
 ### Sinon → message Messenger à copier-coller
 
 Rendre le message **dans la réponse**, dans un bloc de code pour qu'il se copie d'un geste, avec
 le lien du profil ou de la page Facebook de la clinique (`Profil Facebook`, ou le lien du post).
-Même contenu, mais plus court et sans objet — Messenger n'en a pas :
+Même propos, mais resserré et sans objet — Messenger n'en a pas :
 
-> Bonjour Docteur, je me présente, <Prénom Nom>, agent pour les vétérinaires. J'accompagne une
-> cinquantaine de vétérinaires dans leur recherche de poste et votre annonce pour <le poste>
-> correspond à plusieurs d'entre eux. Seriez-vous disponible prochainement pour en échanger par
-> téléphone ? Merci d'avance.
+> Bonjour Docteur, je me présente, je suis vétérinaire et consultante en recrutement :
+> j'accompagne des cliniques indépendantes et de petits groupes dans leur recrutement. J'ai vu que
+> vous cherchiez <le poste>. J'ai plusieurs profils avec lesquels j'échange, débutants ou
+> expérimentés, susceptibles d'être intéressés par votre clinique. Seriez-vous disponible
+> prochainement pour en échanger par téléphone ? Merci d'avance. <Prénom Nom>
 
 Ne pas ouvrir Messenger, ne pas envoyer : le recruteur colle lui-même.
 
