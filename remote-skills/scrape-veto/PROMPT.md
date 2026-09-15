@@ -1,4 +1,4 @@
-**scrape-veto — version 0.14.3 (2026-09-14)**
+**scrape-veto — version 0.14.4 (2026-09-15)**
 
 > Ce fichier est le corps de la compétence `scrape-veto` du plugin `sarecrute-admin`. Il n'est
 > **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -621,9 +621,50 @@ Les commentaires sont déjà récoltés par `__harvestAll`/`__merge` (champ `com
 ⚠️ **Sur un permalink, l'AUTEUR du post n'est pas capté de façon fiable** : l'en-tête `h2/h3` porte
 le nom du **groupe**, pas celui de l'auteur, et le repli sur les ancres de profil attrape
 l'indicateur de statut (testé le 31 août 2026 — n'essaie pas de le « réparer » par heuristique).
-Lis-le toi-même : la **première ancre `a[href*="/user/{uid}"]` de la page** est l'auteur du post.
 C'est un contrôle à faire systématiquement quand tu ouvres un permalink, parce qu'il décide de
-tout — dans le cas observé, l'auteur réel était **blacklisté**, ce que le nom capté ne disait pas.
+tout — dans un cas observé, l'auteur réel était **blacklisté**, ce que le nom capté ne disait pas.
+
+Lis-le toi-même, sur l'élément qui **nomme explicitement l'auteur de la publication** :
+
+```javascript
+(function(){
+  // 1) le corps attendu est-il bien celui de la page ? (cf. ⚠️ ci-dessous)
+  if (!/<extrait litteral du post>/i.test(document.body.innerText)) return 'AUTRE PAGE';
+  // 2) l'auteur, et lui seul
+  const out = [];
+  document.querySelectorAll('h1,h2,h3,[aria-label]').forEach(e => {
+    const t = (e.getAttribute('aria-label') || e.innerText || '').trim();
+    if (/^Publication de /i.test(t) && t.length < 80) out.push(t);
+  });
+  return JSON.stringify([...new Set(out)]);   // -> ["Publication de {auteur}"]
+})();
+```
+
+⛔ **N'utilise JAMAIS « la première ancre `a[href*="/user/{uid}"]` de la page »** — c'est ce que
+prescrivait ce fichier jusqu'à la 0.14.4, et c'est **faux deux fois** :
+- les **colonnes latérales** de Facebook (contacts, anniversaires, groupes suggérés) portent leurs
+  propres ancres `/user/`, souvent avant le post dans l'ordre DOM ;
+- après une navigation SPA d'un permalink à l'autre, **les ancres de la page précédente restent en
+  place** quelques secondes, même quand `document.title` a déjà changé.
+
+Le 15 septembre 2026 cette règle a attribué un post **anonyme** à un homonyme choisi au hasard dans
+la colonne latérale — un vrai tiers déjà en base, **profil Facebook compris**. L'entrée est partie
+en base sous son nom avant d'être corrigée à la main. Trois lectures successives ont renvoyé trois
+auteurs différents pour le même post sans qu'aucun garde-fou ne bronche : c'est le mode de panne à
+reconnaître.
+
+⚠️ **Toujours doubler d'une assertion sur le corps** (l'étape 1 ci-dessus) avant de retenir un nom.
+Sans elle, tu lis la page précédente et tu ne le sauras pas.
+
+⚠️ **`Publication de Membre anonyme` est une réponse, pas un échec.** Beaucoup de groupes
+autorisent la publication anonyme, et les candidats en usent : 7 posts sur 71 le 15/09/2026 dans
+« We need you ». Dans ce cas, applique la règle du §3 — **Prénom, Nom et Profil Facebook vides**,
+jamais un nom deviné — et laisse le push traiter l'entrée comme non fusible. Un corps vide côté
+`author` dans l'export n'est donc pas forcément une capture ratée : vérifie avant de partir en
+chasse.
+
+En dernier recours, une **capture d'écran** de l'en-tête tranche sans ambiguïté (« Publication de
+… » s'affiche en titre de la modale).
 
 #### La frontière post ↔ commentaire (corrigé en 0.10.1)
 
