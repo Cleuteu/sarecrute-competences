@@ -113,6 +113,7 @@ Le champ primaire `Name` est une formule (nom de la clinique + `Second name`) : 
 |---|---|---|---|
 | Annonce | `fldLIH3nwT4p9uhHC` | texte long | **texte intégral de l'annonce**, jamais tronqué |
 | Questions | `fldMw26Azh3ZyT0Cg` | texte long | questions à poser à la clinique (une par ligne, préfixées `- `) |
+| Poste | `fld0hbTRjWxTMwP6w` | texte | le poste en une demi-ligne qui **commence par « un » ou « une »** (« un vétérinaire canin à temps plein ») : c'est ce que lit le lien Gmail d'intro de la clinique à la place de « un vétérinaire ». Même touche que celle de l'ÉTAPE 8, rien de plus |
 | Lien de l'offre (FB/LinkedIn...) | `fldzuEBZkX6jQNeSS` | url | lien du post d'origine |
 | Date de publication | `fldH4usQBpHkdNQJ3` | date | `YYYY-MM-DD`, date de parution de l'annonce |
 | Date de démarrage | `fldm2dcrjrYxG8E3v` | date | prise de poste souhaitée |

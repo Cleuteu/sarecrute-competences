@@ -1,4 +1,4 @@
-**creer-clinique-offre — version 0.4.0 (2026-09-15)**
+**creer-clinique-offre — version 0.4.1 (2026-09-16)**
 
 > Ce fichier est le corps de la compétence `creer-clinique-offre` du plugin `sarecrute-recruteur`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -256,6 +256,10 @@ rapproche personne, dans l'ordre de fréquence :
 - `Emploi recherché` (`fldC1pPXhUzhDh6Qj`) = `Vétérinaire` ou `ASV` selon l'annonce ;
 - `Annonce` (`fldLIH3nwT4p9uhHC`) = **texte intégral**, jamais tronqué ;
 - `Questions` (`fldMw26Azh3ZyT0Cg`) = la liste préparée à l'étape 2 ;
+- `Poste` (`fld0hbTRjWxTMwP6w`) = la demi-ligne de l'ÉTAPE 8 (« un vétérinaire canin à temps plein »),
+  qui commence par « un » ou « une » : le bouton « Mail d'intro » de la fiche clinique (lien Gmail,
+  formule Airtable) la lit à la place de « un vétérinaire ». Sans elle, le bouton envoie le texte
+  générique ;
 - `Date de publication` (`fldH4usQBpHkdNQJ3`) = date de parution ; à défaut, la date du jour ;
 - `Lien de l'offre` (`fldzuEBZkX6jQNeSS`) = URL du post quand on l'a ;
 - `Responsable de l'offre` (`fldPqVh2fe65tIct2`) et `Propriétaire de l'offre` (`fldERU7fexhGsuZJ3`)

@@ -1,5 +1,5 @@
 {
- "note": "Valeurs select VALIDES pour Posts scrappés. N'écrire QUE ces valeurs (sinon Airtable créerait une nouvelle option). Généré depuis la base. « pratiques » et « specialites » servent chacune aux DEUX champs « Pratiques requises » et « Pratiques optionnelles » : ils partagent le vocabulaire, et il doit rester identique à celui des Candidats et des Offres — le matching compare des chaînes brutes, une valeur qui diverge d'un seul côté casse le rapprochement en silence.",
+ "note": "Valeurs select VALIDES pour Posts scrappés. N'écrire QUE ces valeurs (sinon Airtable créerait une nouvelle option). Généré depuis la base. « pratiques » et « specialites » servent chacune aux DEUX champs « Pratiques requises » et « Pratiques optionnelles » : ils partagent le vocabulaire, et il doit rester identique à celui des Candidats et des Offres — le matching compare des chaînes brutes, une valeur qui diverge d'un seul côté casse le rapprochement en silence. Depuis le 15/09/2026, « gardes », « logement », « emploi_recherche » et « langues » sont les valeurs des champs miroirs Gardes, Logement, Emploi recherché, Langues requises — copiées des Offres d'emploi, à garder identiques.",
  "zones_de_recherche": [
   "France",
   "Suisse",
@@ -515,5 +515,23 @@
    "Ile Maurice",
    "Nouvelle calédonie"
   ]
- }
+ },
+ "gardes": [
+  "Oui",
+  "Non"
+ ],
+ "logement": [
+  "Oui",
+  "Non"
+ ],
+ "emploi_recherche": [
+  "Vétérinaire",
+  "ASV"
+ ],
+ "langues": [
+  "Français",
+  "Espagnol",
+  "Anglais",
+  "Allemand"
+ ]
 }

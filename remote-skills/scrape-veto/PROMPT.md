@@ -1,4 +1,4 @@
-**scrape-veto — version 0.14.4 (2026-09-15)**
+**scrape-veto — version 0.15.0 (2026-09-16)**
 
 > Ce fichier est le corps de la compétence `scrape-veto` du plugin `sarecrute-admin`. Il n'est
 > **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -437,6 +437,12 @@ Le `Type de post` conditionne tout. Décide sur le **sens du texte**, pas sur l'
 - **Spécialités requises** et **Spécialités optionnelles**, toutes deux ⊆ {Chirurgie, Urgences, Echographie, Orthopédie, Ophtalmologie, Laboratoire, Ostéopathie, Management, Cardiologie, Reproduction, Oncologie, Neurologie, Médecine interne}. **Par défaut, une spécialité extraite d'un texte va en OPTIONNELLE** — voir la règle ci-dessous, elle est plus stricte que pour les pratiques.
 - **Type d'entrée** = `Post`. **Post source** vide. **Nom de la clinique** si type clinique.
 - **Expérience** (cf. règles ci-dessous).
+- **Champs miroirs** (depuis 0.15.0) : `Mail1`, `Mail2`, `Téléphone`, `Ville`, `CP` sur tout post ;
+  `Gardes`, `Fréquence des gardes`, `Logement`, `Rémunération`, `Date de fin (si CDD)`,
+  `Emploi recherché`, `Langues requises`, `Questions`, `Poste` sur un post **clinique**. Règles
+  dans la section « Champs miroirs » ci-dessous. Ce sont les champs de Cliniques / Offres /
+  Candidats à l'identique : les boutons de conversion les **recopient** sans rien relire, donc
+  c'est ICI, et nulle part ailleurs, que le texte est lu.
 
 ⚠️ **Ne jamais inventer de nouvelle valeur** de champ select (Pratiques/Spécialités/Type/Expérience). Si rien ne colle, laisse vide. Le vocabulaire des pratiques est **partagé à l'identique** par les Posts scrappés, les Candidats et les Offres : le matching compare des chaînes brutes, donc une valeur qui diverge d'un seul côté écarte silencieusement l'offre ou le candidat de tout rapprochement. Sept offres et quatre candidats ont vécu des mois dans cet état (« Ovin » contre « Ovin/Caprin », « volailles » contre « Volailles »), corrigé le 31/08/2026.
 
@@ -528,6 +534,76 @@ Pièges vérifiés sur les annonces réelles (août 2026) :
 > `Cleuteu/geo-data` fait foi (colonne `departement` déjà au format du vocab). C'est celui
 > qu'utilisent l'automation Airtable « Localisation Clinique » et `ville.py` de la compétence
 > `creer-clinique-offre` ; il se cache dans `~/.sarecrute/villes_france.csv`.
+
+#### Champs miroirs (Cliniques / Offres / Candidats) — depuis 0.15.0
+
+Le principe de la chaîne : **le scrape est la seule lecture du texte.** Les boutons Airtable
+« Convert post to clinique + offre » et « Convert post to candidat » recopient ces champs tels
+quels, et le mail d'intro (lien Gmail, sans IA) lit `Poste`. Un champ que tu laisses vide reste
+vide sur la clinique, l'offre ou le candidat — et c'est ce qu'on veut quand le post ne dit rien.
+**Vide plutôt que deviné**, comme pour les champs de matching. Aucune valeur select hors de
+`references/matching_vocab.json` (`gardes`, `logement`, `emploi_recherche`, `langues`).
+
+Sur **tout** post (candidat comme clinique) :
+- **`Mail1` / `Mail2`** : les adresses écrites dans le texte, telles quelles, en minuscules.
+  Deux adresses → `Mail1` la première (ou celle qui est présentée comme le contact), `Mail2` la
+  seconde. Une adresse abîmée par Facebook (`thomas.houet[@vetaubance.fr](mailto:contact@vetaubance.fr)`)
+  → prends celle du `mailto:`. Pas d'adresse déduite d'un site web, pas d'adresse d'un tiers cité.
+- **`Téléphone`** : tel qu'écrit (« 03.88.08.91.78 », « 06 78 16 78 81 »), un seul numéro ; si le
+  post en donne deux, garde celui présenté comme le contact et mets l'autre dans `Questions` côté
+  clinique (« second numéro : … »), nulle part côté candidat.
+- **`Ville`** : la commune **où l'on exerce** (clinique) ou **où habite** le candidat quand le texte
+  la donne, dans **l'orthographe exacte du CSV `villes_france`** (celle qu'utilise l'automation de
+  géocodage — un espace ou un accent d'écart et `county` reste vide). Un département seul, une
+  mention de proximité (« à 1h de Paris »), un « entre Rennes et la mer » → vide. `Zone de
+  recherche` garde le texte libre, `Zones de recherche` le département : `Ville` est un champ de
+  plus, pas un remplacement.
+- **`CP`** : seulement s'il est écrit. Ne le déduis pas de la ville.
+
+Sur un post **`Clinique cherche vétérinaire`** seulement :
+- **`Gardes`** (`Oui` | `Non`) : **uniquement si le post est explicite.** « Pas de garde, pas
+  d'astreinte », « sans gardes », « nous ne faisons pas de garde » → `Non`. « 1 soir de garde par
+  semaine », « astreintes 1 WE sur 3 », « gardes partagées » → `Oui`. Ambigu → vide : « plus de
+  garde à partir de janvier 2027 » avec des astreintes d'ici là, « gardes à discuter ».
+- **`Fréquence des gardes`** : le rythme tel que le post l'écrit, en une demi-ligne
+  (« 1 soir/semaine + 1 WE/5 », « 1 WE sur 3, soins des hospitalisés uniquement »). Vide si
+  `Gardes` est vide ou `Non`.
+- **`Logement`** (`Oui` | `Non`) : `Oui` si un logement est fourni ou possible (« logement fourni »,
+  « possibilité de logement », « gîtes sur place » ne suffit PAS — c'est une info touristique, pas
+  une offre de la clinique) ; `Non` seulement si le post le dit ; sinon vide. `Non` exclut les
+  candidats qui exigent un logement, vide ne les exclut pas.
+- **`Rémunération`** : ce que le post dit, court et tel quel (« CC majorée », « selon
+  expérience », « 4 000 € brut, 13e mois »). Champ interne : jamais recopié vers la clinique.
+- **`Date de fin (si CDD)`** : ISO, seulement pour une mission ou un CDD **daté** (« jusqu'au
+  30 novembre », « CDD de 6 mois à partir du 1er mars » → calcule). « 6 mois » sans départ → vide.
+- **`Emploi recherché`** (`Vétérinaire` | `ASV`) : `Vétérinaire` pour un poste de vétérinaire —
+  c'est le cas normal, et la conversion le pose par défaut si le champ est vide. `ASV` seulement si
+  le post recrute une ASV (ces posts sont le plus souvent exclus en amont ; s'il en passe un, c'est
+  ce champ qui le dit).
+- **`Langues requises`** : seulement une **exigence** (« anglais indispensable », « allemand
+  requis », clinique suisse alémanique qui l'écrit). Jamais `Français` par défaut, jamais une
+  langue « appréciée » : le critère n'élimine que si les deux côtés sont remplis.
+- **`Questions`** : ce que la recruteuse aura sous les yeux au téléphone — **une question par
+  ligne, préfixée `- `**, trois à six lignes, portant **exactement sur ce que le post laisse en
+  suspens** : taille et composition de l'équipe, contexte du recrutement (départ, création de
+  poste, croissance), rythme des gardes s'il n'est pas dit, profil junior accepté ?, ratio
+  canine/rurale, forfait heures ou jours, date de prise de poste, rémunération si absente, second
+  numéro de téléphone s'il y en avait un. **Jamais une question à laquelle le post répond déjà**
+  (« combien de vétérinaires ? » sous un post qui dit « équipe de 5 vétérinaires et 4 ASV »).
+  Formulation courte, tutoiement exclu, pas de politesse : ce sont des notes, pas un mail.
+- **`Poste`** : le poste cherché en **une demi-ligne qui commence par « un » ou « une »**, reprise
+  de la formulation du post : « un vétérinaire canin à temps plein », « un vétérinaire rurale en
+  CDI », « une vétérinaire pour un remplacement de congé maternité ». Elle remplace mot pour mot
+  « un vétérinaire » dans le mail d'intro (« J'ai vu que vous étiez en recherche d'<Poste> pour
+  votre structure »), donc : **rien d'autre** que le poste, éventuellement **un** second élément
+  factuel écrit noir sur blanc (contrat, temps de travail, date), pas de compliment, pas de ville
+  (elle est déjà dans la phrase suivante du mail), pas de détail sur l'équipe ou le plateau
+  technique. Un post qui dit seulement « recherche vétérinaire » → `un vétérinaire`. Le début par
+  « un/une » n'est pas décoratif : la formule écrit « d'» + `Poste`.
+
+Ces champs sont des **scalaires** au sens du push (§5) : une republication ne les vide jamais
+(une valeur vide ne chasse pas une valeur pleine) et le post le plus récent l'emporte quand les deux
+sont remplis. Un commentaire de la clinique ne fait que combler les trous.
 
 #### Commentaires pertinents (cf. §4 pour la capture)
 - Sous « Clinique cherche vétérinaire » → **candidat** (profil, dispo, zone, compétences) — y compris « MP envoyé » → contenu = `Candidature en MP`.
@@ -797,6 +873,9 @@ bash <dossier_skill>/scripts/keep_awake.sh stop
 - **Un décompte par groupe** (et les canaux cochés qui n'ont pas pu être scrapés, avec la raison).
 - Posts scrappés / retenus / exclus (avec raisons).
 - Commentaires pertinents (candidats / cliniques).
+- **Champs miroirs** : nombre de posts retenus avec un `Mail1`, avec une `Ville` résolue dans le CSV,
+  et, côté clinique, avec `Gardes` renseigné — trois chiffres, pour voir d'un coup d'œil si la lecture
+  a été faite.
 - Doublons ignorés (par le dédup).
 - **Rattachements d'offre ambigus** (posts clinique, §5 bis) : chaque entrée rattachée « à la
   plus plausible » de deux offres existantes, avec la clé retenue et l'alternative — jamais de

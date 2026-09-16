@@ -25,6 +25,12 @@ records.json = liste d'objets {"fields": {...}} au format Airtable.
   n'est créé ici, la table se gère dans Airtable.
   Champs matching (cf. references/matching_vocab.json) : Zones de recherche[], Statuts contractuels[],
   Type de temps de travail[], Date de disponibilité (YYYY-MM-DD), Rayon accepté (km).
+  Champs miroirs (15/09/2026), mêmes noms et mêmes valeurs que dans Cliniques / Offres /
+  Candidats, recopiés tels quels par les boutons de conversion : Mail1, Mail2, Téléphone,
+  Ville, CP, Gardes (Oui|Non), Fréquence des gardes, Logement (Oui|Non), Rémunération,
+  Date de fin (si CDD) (YYYY-MM-DD), Emploi recherché (Vétérinaire|ASV), Langues requises[],
+  Questions (texte, une question par ligne « - »), Poste (demi-ligne, commence par un/une).
+  Tous facultatifs : vide quand le post ne le dit pas, jamais deviné.
   Contrat court (bool) : à émettre EXPLICITEMENT (true ou false) sur toute entrée
   "Vétérinaire cherche poste", jamais omis — c'est un scalaire, donc le post le plus
   récent gagne à la fusion ; omis, l'ancienne valeur resterait figée.
@@ -101,7 +107,14 @@ SCALAR_FIELDS = ["Prénom", "Nom", "Profil Facebook", "Date du post", "Lien du p
                  "Spécialités requises", "Spécialités optionnelles", "Type d'entrée",
                  "Post source", "Expérience", "Nom de la clinique", "Archivé", "auteur_key",
                  "Zones de recherche", "Statuts contractuels", "Type de temps de travail",
-                 "Date de disponibilité", "Rayon accepté (km)", "Contrat court"]
+                 "Date de disponibilité", "Rayon accepté (km)", "Contrat court",
+                 # Champs miroirs de Cliniques / Offres / Candidats (15/09/2026) : remplis ici
+                 # par le scrape, recopiés tels quels par les boutons de conversion. Mêmes
+                 # règles de fusion que les autres scalaires (un vide ne chasse pas un plein).
+                 "Mail1", "Mail2", "Téléphone", "Ville", "CP",
+                 "Gardes", "Fréquence des gardes", "Logement", "Rémunération",
+                 "Date de fin (si CDD)", "Emploi recherché", "Langues requises",
+                 "Questions", "Poste"]
 
 # Champs fusionnés par UNION, jamais écrasés par le post le plus récent : un
 # candidat vu sur deux groupes doit garder les deux canaux. (Ne JAMAIS les mettre
@@ -117,7 +130,8 @@ UNION_FIELDS = ["Canaux"]
 # enregistrement porte un champ protégé (cf. check_vocab_loaded).
 GUARDED_FIELDS = ("Zones de recherche", "Statuts contractuels", "Type de temps de travail",
                   "Pratiques requises", "Pratiques optionnelles",
-                  "Spécialités requises", "Spécialités optionnelles")
+                  "Spécialités requises", "Spécialités optionnelles",
+                  "Gardes", "Logement", "Emploi recherché", "Langues requises")
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _VOCAB_PATHS = [os.path.join(_HERE, os.pardir, "references", "matching_vocab.json"),
                 os.path.join(_HERE, "matching_vocab.json")]
@@ -138,6 +152,12 @@ for _p in _VOCAB_PATHS:
         if _V.get("specialites"):
             ALLOWED["Spécialités requises"] = set(_V["specialites"])
             ALLOWED["Spécialités optionnelles"] = set(_V["specialites"])
+        # Champs miroirs des Offres (15/09/2026) — mêmes valeurs que dans Offres d'emploi.
+        # Gardes / Logement / Emploi recherché sont des selects SIMPLES (chaîne, pas liste).
+        for _fl, _key in (("Gardes", "gardes"), ("Logement", "logement"),
+                          ("Emploi recherché", "emploi_recherche"), ("Langues requises", "langues")):
+            if _V.get(_key):
+                ALLOWED[_fl] = set(_V[_key])
         VOCAB_ERROR = None
         break
     except Exception as e:
@@ -163,14 +183,23 @@ def check_vocab_loaded(records):
 
 
 def sanitize_selects(f):
-    """Retire les valeurs select hors vocabulaire (protège contre la création d'options)."""
+    """Retire les valeurs select hors vocabulaire (protège contre la création d'options).
+
+    Multi-select : la liste est filtrée. Select simple (Gardes, Logement, Emploi
+    recherché) : une chaîne hors vocab est retirée du record — le champ reste vide,
+    jamais une option nouvelle."""
     for field, allowed in ALLOWED.items():
-        if field in f and isinstance(f[field], list):
+        if field not in f:
+            continue
+        if isinstance(f[field], list):
             kept = [v for v in f[field] if v in allowed]
             dropped = [v for v in f[field] if v not in allowed]
             if dropped:
                 print("  ⚠️  %s : valeurs ignorées (hors vocab) : %s" % (field, dropped))
             f[field] = kept
+        elif isinstance(f[field], str) and f[field] and f[field] not in allowed:
+            print("  ⚠️  %s : valeur ignorée (hors vocab) : %r" % (field, f[field]))
+            del f[field]
     return f
 
 # Champs demandés au fetch (on a besoin du contenu pour merger la cible).
