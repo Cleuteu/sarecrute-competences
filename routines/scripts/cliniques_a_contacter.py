@@ -63,10 +63,10 @@ BASE = "appP0W2ISytaNyAhG"
 T_POSTS = "Posts scrappés"
 T_RECRUTEURS = "Recruteurs"
 F_RECHARGE = "Recharger 10 cliniques"  # case de Posts scrappés cochée par la recruteuse sur une de ses lignes, décochée ici
-F["recharge"] = "fldQ6xUd9NzwKRpWg"
 F = dict(  # champs de Posts scrappés écrits par ce script
     score="fldXYoTSgsiLIWeCt", raisons="fldZsPy6ohFUjoISj", clinique_existante="fldfPvYIlbDZ8V0sv",
     attribue_a="fld1F3kcHSc4j4i0M", attribue_le="fldcIiPZVcxFm67XS", attribue_jusquau="fld24nHYzT2JlNqgO",
+    recharge="fldQ6xUd9NzwKRpWg",  # case « Recharger 10 cliniques », cochée par la recruteuse, décochée ici
 )
 KEY = os.environ.get("AIRTABLE_API_KEY")
 if not KEY:
