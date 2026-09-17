@@ -4,7 +4,7 @@
 Seule implémentation du classement (l'ancien script local et son rendu PDF ont été supprimés le
 10/09/2026 : le score se lit dans Airtable). Lit la base prod avec la clé AIRTABLE_API_KEY (REST), et :
 
-  * calcule pour chaque post clinique un score /19 et ses raisons (voir score()) ;
+  * calcule pour chaque post clinique un score /23 et ses raisons (voir score()) ;
   * rapproche le post d'une clinique déjà en base (nom normalisé, mail, téléphone du texte) ;
   * écarte les groupes de cliniques (table « Auteurs posts exclus », types Groupe exclu ET Groupe
     accepté, champ Cliniques.Groupement, signal textuel), les annonces sans mail, les cliniques
@@ -32,7 +32,8 @@ Usage :
 Décisions d'Alex et des recruteuses (04, 10 et 14/09/2026) : mail obligatoire pour le lot ; aucun
 groupe, même « accepté » au scrape (autre process d'acquisition) ; fraîcheur ≤ 15 j = +4 ; les
 cliniques déjà en base relèvent du propriétaire du client, pas d'un nouveau contact ; le lot
-expire le dimanche, sans report ; une clinique n'est jamais partagée entre deux recruteuses (pas
+expire le dimanche, sans report ; cible des recruteuses (17/09/2026, message de Sarah) = bonus +2 poste
+ouvert aux débutants, +2 région demandée ou clinique de campagne/mixte/équine (voir cible()) ; une clinique n'est jamais partagée entre deux recruteuses (pas
 de doublon de communication) ; jamais de nouvelle valeur de select.
 """
 import os, sys, json, re, collections, datetime as dt, urllib.request, urllib.parse, time, argparse
@@ -106,6 +107,52 @@ recruteurs = load("recruteurs.json", "Recruteurs", {"filterByFormula": "{Actif}"
 
 COUNTRIES = {"France", "Suisse", "Espagne", "Luxembourg", "Belgique", "Polynésie française", "Ile Maurice", "Nouvelle calédonie"}
 ORDER = ["Etudiant", "Débutant", "1 à 2 ans", "Autonome", "Spécialiste"]
+
+
+# ---------- cible des recruteuses (retour de Sarah, 17/09/2026) ----------
+# « Viser les postes pour débutants dans des régions demandées (nord, bretagne, sud, frontière belge /
+# suisse, IDF, savoie / pyrénées, toulouse, sud-ouest, gironde) ou clinique de campagne : poste en mixte
+# ou rurale, ou équine 100 % / majoritaire équine. » C'est un bonus au score, pas un filtre : Sarah a
+# converti des cliniques hors cible (Bas-Rhin, Maine-et-Loire). La traduction des régions en
+# départements est une interprétation à faire valider par les recruteuses.
+REGIONS_DEMANDEES = {
+    "nord": {"59", "62", "80", "02", "60"},
+    "frontière belge": {"59", "02", "08", "55", "54"},
+    "bretagne": {"22", "29", "35", "56"},
+    "sud": {"04", "05", "06", "13", "83", "84", "11", "30", "34", "66"},
+    "frontière suisse": {"01", "25", "39", "68", "74", "90"},
+    "IDF": {"75", "77", "78", "91", "92", "93", "94", "95"},
+    "savoie": {"73", "74"},
+    "pyrénées": {"09", "31", "64", "65", "66"},
+    "toulouse": {"31", "81", "82", "32"},
+    "sud-ouest": {"33", "40", "47", "24", "64", "65", "32", "31", "81", "82", "46"},
+    "gironde": {"33"},
+}
+RURAL = {"Bovins", "Allaitant", "Laitier", "Ovin/Caprin", "Porcin", "Volailles"}
+DEB_RX = re.compile(r"jeunes? dipl[ôo]m\w+|d[ée]butant\w*|sortie? d'?[ée]cole|premi[èe]re? (?:expérience|poste)|junior", re.I)
+DEB_NEG_RX = re.compile(r"(?:pas|non|aucun|sans)\s+(?:de\s+|d')?(?:profils?\s+)?(?:jeunes? dipl[ôo]m|d[ée]butant|junior)", re.I)
+CAMP_RX = re.compile(r"\b(?:mixte|rural\w*|campagne|[ée]quins?|chevaux|bovins?)\b", re.I)
+
+
+def cible(f, t):
+    """Bonus « cible des recruteuses » : +2 poste ouvert aux débutants, +2 région demandée ou clinique de campagne."""
+    pts, why = 0, []
+    e = f.get("Expérience")
+    if e in ("Débutant", "Etudiant"):
+        pts += 2; why.append("ouvert aux débutants")
+    elif not e and DEB_RX.search(t) and not DEB_NEG_RX.search(t):
+        pts += 2; why.append(f"ouvert aux débutants (« {DEB_RX.search(t).group(0)} »)")
+    depts = {z[:2] for z in f.get("Zones de recherche", []) if z[:2].isdigit()}
+    regions = [k for k, v in REGIONS_DEMANDEES.items() if depts & v]
+    prat = set(f.get("Pratiques requises", [])) | set(f.get("Pratiques optionnelles", []))
+    camp = sorted(prat & (RURAL | {"Equine"}))
+    if regions:
+        pts += 2; why.append("région demandée : " + ", ".join(regions))
+    elif camp:
+        pts += 2; why.append("clinique de campagne : " + ", ".join(camp))
+    elif CAMP_RX.search(t):
+        pts += 2; why.append(f"clinique de campagne (« {CAMP_RX.search(t).group(0)} »)")
+    return pts, why
 
 
 def country_of(z):
@@ -286,6 +333,7 @@ def score(f):
     if mails: s += 1; j.append("mail")
     if tels: s += 1; j.append("tél")
     if j: why.append("joignable : " + ", ".join(j))
+    pc, cw = cible(f, t); s += pc; why += cw
     if age <= 15: s += 4; why.append(f"dernière publication il y a {age} j")
     elif age <= 30: s += 2; why.append(f"dernière publication il y a {age} j")
     else: why.append(f"dernière publication il y a {age} j")
@@ -449,7 +497,7 @@ def attribuer():
 def ligne(r):
     f = r["f"]; zone = f.get("Zone de recherche") or f.get("conv_county") or "?"
     contact = ", ".join(r["mails"] + r["tels"]) or "pas de contact dans le texte"
-    return f"- **{f.get('conv_nom_clinique')}** — {zone} · score {r['score']}/19 · post n°{f.get('Numéro')} · {contact}\n  {' ; '.join(r['why'])}"
+    return f"- **{f.get('conv_nom_clinique')}** — {zone} · score {r['score']}/23 · post n°{f.get('Numéro')} · {contact}\n  {' ; '.join(r['why'])}"
 
 
 out = [f"# Cliniques à contacter — {today.strftime('%d/%m/%Y')}", "",
