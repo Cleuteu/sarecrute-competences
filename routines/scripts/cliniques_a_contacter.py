@@ -27,7 +27,8 @@ Usage :
   python3 cliniques_a_contacter.py --attribuer --force --rejouer   # recalcule le lot en cours
   python3 cliniques_a_contacter.py --attribuer --recharger --lot 10   # commande de la routine :
       lot du lundi si aucun lot n'est en cours, puis recharge de N cliniques pour chaque recruteuse
-      qui a coché « Recharger 10 cliniques » dans Recruteurs (case décochée ensuite). Sans plafond.
+      qui a coché « Recharger 10 cliniques » sur l'une de ses lignes de Posts scrappés (la demande est
+      lue sur « Attribué à » ; case décochée ensuite). Sans plafond.
       (--rejouer garde les attributions en cours tant que les données n'ont pas bougé : un post
        mieux classé scrappé entre-temps peut déplacer et libérer le dernier post d'un lot)
   options : --today YYYY-MM-DD  --cache DIR  --rapport fichier.md
@@ -51,7 +52,7 @@ ap.add_argument("--today", default=None)
 ap.add_argument("--jusquau", default=None, help="fin de validité du lot (défaut : dimanche de la semaine)")
 ap.add_argument("--force", action="store_true", help="attribuer même si un lot est encore en cours")
 ap.add_argument("--rejouer", action="store_true", help="recalcule le lot de même date de fin au lieu d'en créer un second")
-ap.add_argument("--recharger", action="store_true", help="sert N cliniques de plus à chaque recruteuse qui a coché « Recharger 10 cliniques »")
+ap.add_argument("--recharger", action="store_true", help="sert N cliniques de plus à chaque recruteuse qui a coché « Recharger 10 cliniques » sur une de ses lignes")
 A = ap.parse_args()
 # date « du jour » en heure de Paris : la routine cloud tourne en UTC, et un lundi 01:00 à Paris est
 # encore dimanche en UTC — le lot partirait avec la mauvaise date de fin et le garde-fou se tromperait.
@@ -61,7 +62,8 @@ today = dt.date.fromisoformat(A.today) if A.today else dt.datetime.now(ZoneInfo(
 BASE = "appP0W2ISytaNyAhG"
 T_POSTS = "Posts scrappés"
 T_RECRUTEURS = "Recruteurs"
-F_RECHARGE = "Recharger 10 cliniques"  # case de Recruteurs cochée par le bouton de la page, décochée par ce script
+F_RECHARGE = "Recharger 10 cliniques"  # case de Posts scrappés cochée par la recruteuse sur une de ses lignes, décochée ici
+F["recharge"] = "fldQ6xUd9NzwKRpWg"
 F = dict(  # champs de Posts scrappés écrits par ce script
     score="fldXYoTSgsiLIWeCt", raisons="fldZsPy6ohFUjoISj", clinique_existante="fldfPvYIlbDZ8V0sv",
     attribue_a="fld1F3kcHSc4j4i0M", attribue_le="fldcIiPZVcxFm67XS", attribue_jusquau="fld24nHYzT2JlNqgO",
@@ -109,7 +111,7 @@ cand = load("candidats.json", "Candidats", {"fields[]": ["Statut Recherche", "Zo
 cl = load("cliniques.json", "Cliniques", {"fields[]": ["Nom de la clinique", "Status commercial", "cliniqueSearch", "county", "Mail1", "Mail2", "Téléphone", "Profil Facebook", "archived", "Propriétaires du client", "Groupement"]})
 cands = load("candidatures.json", "Candidatures", {"fields[]": ["Statut candidature", "Candidat"]})
 exclus = load("exclus.json", "Auteurs posts exclus", {})
-recruteurs = load("recruteurs.json", T_RECRUTEURS, {"filterByFormula": "{Actif}", "fields[]": ["Nom", "Email", "Actif", F_RECHARGE]})
+recruteurs = load("recruteurs.json", T_RECRUTEURS, {"filterByFormula": "{Actif}", "fields[]": ["Nom", "Email", "Actif"]})
 
 COUNTRIES = {"France", "Suisse", "Espagne", "Luxembourg", "Belgique", "Polynésie française", "Ile Maurice", "Nouvelle calédonie"}
 ORDER = ["Etudiant", "Débutant", "1 à 2 ans", "Autonome", "Spécialiste"]
@@ -546,17 +548,28 @@ def attribuer():
 
 
 def recharger():
-    """Recharge à la demande (décision d'Alex, 17/09/2026, sans plafond) : chaque recruteuse active qui a coché
-    « Recharger 10 cliniques » dans Recruteurs reçoit N cliniques de plus, valables jusqu'à la fin du lot en
-    cours (sinon dimanche). Le lot en cours n'est pas touché ; mêmes règles que le lot : réservoir avec mail,
+    """Recharge à la demande (décision d'Alex, 17/09/2026, sans plafond) : une recruteuse coche « Recharger 10
+    cliniques » sur n'importe laquelle de ses lignes de la page (la page liste ne permet ni bouton d'automation
+    ni case sur Recruteurs) ; « Attribué à » de la ligne cochée dit qui demande. Chaque recruteuse active ayant
+    au moins une ligne cochée reçoit N cliniques de plus, valables jusqu'à la fin du lot en cours (sinon dimanche).
+    Une ligne cochée sans « Attribué à », ou par une recruteuse inactive, est décochée et signalée. Le lot en cours n'est pas touché ; mêmes règles que le lot : réservoir avec mail,
     une clinique = une recruteuse (une clinique servie à l'autre recruteuse ne change jamais de main), rien
     de servi depuis 14 j. Les posts servis reçoivent aussi Score/Raisons (un post scrappé en semaine n'en a
     pas encore). La case est décochée à la fin, une demande = une recharge."""
     recs = sorted([r for r in recruteurs if r["fields"].get("Email")], key=lambda x: x["fields"].get("Nom", ""))
-    demandes = [r for r in recs if r["fields"].get(F_RECHARGE)]
-    if not demandes:
+    coches = [r for r in rows if r["f"].get(F_RECHARGE)]
+    if not coches:
         return None
     actifs = {r["fields"]["Email"] for r in recs}
+    par_email = {r["fields"]["Email"]: r for r in recs}
+    demandes, ignorees = [], []
+    for r in coches:
+        email = (r["f"].get("Attribué à") or {}).get("email")
+        if email in actifs and par_email[email] not in demandes:
+            demandes.append(par_email[email])
+        elif email not in actifs:
+            ignorees.append(f"n°{r['f'].get('Numéro')} ({'sans « Attribué à »' if not email else 'recruteuse inactive ' + email})")
+    demandes.sort(key=lambda x: x["fields"].get("Nom", ""))
     fins = [dt.date.fromisoformat(r["f"]["Attribué jusqu'au"]) for r in rows if r["f"].get("Attribué jusqu'au")
             and dt.date.fromisoformat(r["f"]["Attribué jusqu'au"]) >= today]
     jusquau = max(fins) if fins else prochain_dimanche(today)
@@ -582,10 +595,12 @@ def recharger():
                                 F["clinique_existante"]: [r["known_id"]] if r["known_id"] else [],
                                 F["attribue_a"]: {"email": email}, F["attribue_le"]: str(today), F["attribue_jusquau"]: str(jusquau)}
     _memoriser(updates)
+    for r in coches:  # une demande = une recharge : on décoche toutes les lignes cochées
+        updates.setdefault(r["id"], {})[F["recharge"]] = False
+        r["f"][F_RECHARGE] = False
     if not A.dry_run:
         _patch(T_POSTS, updates)
-        _patch(T_RECRUTEURS, {rec["id"]: {F_RECHARGE: False} for rec in demandes})
-    return demandes, lots, jusquau, len(pool)
+    return demandes, lots, jusquau, len(pool), ignorees
 
 
 # ---------- rapport ----------
@@ -618,11 +633,13 @@ if A.attribuer:
 if A.recharger:
     res = recharger()
     if res is None:
-        out.append(f"\n## Recharge : aucune demande (case « {F_RECHARGE} » non cochée dans Recruteurs)")
+        out.append(f"\n## Recharge : aucune demande (aucune ligne de Posts scrappés cochée « {F_RECHARGE} »)")
     else:
-        demandes, rlots, rjusquau, rpool = res
+        demandes, rlots, rjusquau, rpool, ignorees = res
         out.append(f"\n## Recharge à la demande (jusqu'au {rjusquau.strftime('%d/%m')}){' — SIMULATION, rien écrit' if A.dry_run else ''}")
-        out.append(f"Réservoir : {rpool} cliniques attribuables. Case « {F_RECHARGE} » {'à décocher' if A.dry_run else 'décochée'} pour : " + ", ".join(d["fields"].get("Nom", d["fields"]["Email"]) for d in demandes) + ".")
+        out.append(f"Réservoir : {rpool} cliniques attribuables. Demande(s) de : " + (", ".join(d["fields"].get("Nom", d["fields"]["Email"]) for d in demandes) or "personne") + f". Cases « {F_RECHARGE} » {'à décocher' if A.dry_run else 'décochées'}.")
+        if ignorees:
+            out.append("Ligne(s) cochée(s) ignorée(s) : " + ", ".join(ignorees) + ".")
         for d in demandes:
             lot = rlots[d["fields"]["Email"]]
             out.append(f"\n### {d['fields'].get('Nom')} — {len(lot)} clinique(s) de plus")
