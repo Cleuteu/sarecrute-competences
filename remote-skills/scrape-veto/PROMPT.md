@@ -1,4 +1,4 @@
-**scrape-veto — version 0.15.0 (2026-09-16)**
+**scrape-veto — version 0.16.0 (2026-09-18)**
 
 > Ce fichier est le corps de la compétence `scrape-veto` du plugin `sarecrute-admin`. Il n'est
 > **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -19,7 +19,7 @@
 
 Scraper les posts des **groupes Facebook vétérinaires** (tri chronologique) sur une **fenêtre temporelle**, en extraire les commentaires pertinents, et pousser chaque entrée dans Airtable **sans créer de doublon**, **rattachée au groupe d'où elle vient**.
 
-**Sources** : elles ne sont **pas** dans ce fichier. Ce sont les enregistrements de la table **« Canaux de diffusion »** (`tbluH5M2sogAN85dl`, base `appP0W2ISytaNyAhG`) dont la case **`Scraper les posts`** est cochée **et** dont l'`Url` contient `/groups/<id>`. On peut donc ajouter une source sans republier le plugin. Un argument nommant un groupe (« scrape veto emploi véto 48h ») restreint à celui-là.
+**Sources** : elles ne sont **pas** dans ce fichier. Ce sont les enregistrements de la table **« Canaux de diffusion »** (`tbluH5M2sogAN85dl`, base `appP0W2ISytaNyAhG`) dont la case **`Scraper les posts`** est cochée **et** dont l'`Url` contient `/groups/<id>` (groupe Facebook) **ou `gstsvs.ch`** (le marché de l'emploi de la SVS, traité en §7 sans Chrome, depuis 0.16.0). On peut donc ajouter une source sans republier le plugin. Un argument nommant un groupe (« scrape veto emploi véto 48h ») restreint à celui-là ; « scrape veto svs » ne fait que le portail.
 
 **Fenêtre** : par défaut, **depuis le dernier post déjà scrappé** — la borne se calcule en §0 depuis la base, canal par canal, on ne la demande pas à l'utilisateur. Un argument explicite la remplace (`aujourd'hui`, `48h`, `2 derniers jours`, `6h`). L'horloge de référence est celle du **navigateur** (`new Date()` dans la page), pas la date système — vérifie-la au début.
 
@@ -43,6 +43,7 @@ Scraper les posts des **groupes Facebook vétérinaires** (tri chronologique) su
 
 - **`scripts/scrape_helpers.js`** — Read ce fichier, injecte tout son contenu via `javascript_tool`. Fournit `__decodeTS` (quatre régimes de rendu du timestamp, dont `aria-labelledby` depuis le 14/09/2026 — cf. ⚠️ ci-dessous), `__parseTS`, `__harvestAll`, `__store`/`__merge`, `__expandPostText`, `__expandCommentText`, `__expandVisible` (expansion bornée au viewport, **obligatoire sur les fils longs**), `__commentFull`, `__truncated`, `__truncatedComments`, `__purgeStubs` / `__purgeCommentStubs` (appelés par `__exportBlocked`, pas à appeler soi-même), `__storyToken` (jeton `__cft__` = identité du post d'une ancre), `__isCommentArticle` / `__inComment` (frontière post ↔ commentaire, cf. §4), `__emptyBodies` (posts au corps vide), `__seenInit` / `__tailKnown` / `__unseen` (arrêt sur le déjà-scrappé, cf. §0 et §2), `__exportBlocked` (garde unique avant export), `__profileUrl`, `__gid` (id du groupe courant, jamais codé en dur), `__alive`, `__chrono` (contrôle du tri), `__orphanComments` (compteur). **Ré-injecte après toute navigation** (le window est vidé).
 - **`scripts/airtable_push.py`** — pousse un `records.json` en upsert-merge. Voir §5.
+- **`scripts/svs_portail.py`** — collecteur du marché de l'emploi de la SVS (HTML, sans Chrome) : liste les annonces, lit chaque fiche et son contact, détecte la langue, compare avec la base et prépare un squelette de champs. Voir §7.
 - **`scripts/focus_chrome.sh`** (macOS) / **`scripts/focus_chrome.ps1`** (Windows) — ramènent l'onglet du scrape au premier plan pour réveiller le rendu. Voir §1 bis.
 - **`scripts/keep_awake.sh`** (macOS) — empêche l'écran de s'éteindre pendant la collecte. À lancer **en préventif** dès §0 et à arrêter en §6. Voir §0.
 - **`references/matching_vocab.json`** — valeurs select valides (Zones/Statuts/Temps) + mapping `macro_regions` → départements. Source de vérité pour remplir les champs de matching (cf. §3). Régénérable depuis la base si le vocab change.
@@ -69,13 +70,16 @@ curl -s -H "Authorization: Bearer $AIRTABLE_API_KEY" \
   "https://api.airtable.com/v0/appP0W2ISytaNyAhG/tbluH5M2sogAN85dl?pageSize=100" \
   | python3 -c 'import json,re,sys
 for r in json.load(sys.stdin)["records"]:
-    f=r["fields"]; g=re.search(r"/groups/(\d+)", f.get("Url","") or "")
+    f=r["fields"]; u=f.get("Url","") or ""; g=re.search(r"/groups/(\d+)", u)
     if f.get("Scraper les posts") and g:
-        print(r["id"], g.group(1), f.get("Name"), sep="\t")'
+        print(r["id"], "facebook", g.group(1), f.get("Name"), sep="\t")
+    elif f.get("Scraper les posts") and "gstsvs.ch" in u:
+        print(r["id"], "svs", "-", f.get("Name"), sep="\t")'
 ```
 
-Tu obtiens `recId`, id de groupe et nom pour chaque source. L'`Url` du canal n'est **jamais** l'URL de scrape : elle décrit où l'on publie, on n'en extrait que l'id (cf. §1). Règles :
-- **Ne scrape que ce qui sort de cette requête.** Un canal coché sans `/groups/<id>` (Instagram, LinkedIn, `facebook.com/me`, une page) n'est pas scrapable : **signale-le et passe**, ne tente pas de deviner une URL.
+Tu obtiens `recId`, type de source (`facebook` ou `svs`), id de groupe et nom pour chaque source. L'`Url` du canal n'est **jamais** l'URL de scrape : elle décrit où l'on publie, on n'en extrait que l'id (cf. §1) ; pour le portail SVS c'est le script de §7 qui connaît les URL. Règles :
+- **Ne scrape que ce qui sort de cette requête.** Un canal coché qui n'est ni un groupe Facebook ni le portail SVS (Instagram, LinkedIn, `facebook.com/me`, une page) n'est pas scrapable : **signale-le et passe**, ne tente pas de deviner une URL.
+- Les canaux `svs` se traitent **après** tous les groupes Facebook, en §7, sans Chrome ; les étapes §1 à §4 ne les concernent pas (ni helpers, ni empreintes, ni fenêtre : le portail se relit en entier, la dédup se fait par numéro d'annonce).
 - Si un argument nomme un groupe, filtre sur son `Name` (insensible à la casse, sous-chaîne) ; si rien ne matche, dis-le et arrête plutôt que de tout scraper.
 - Si la liste est vide, arrête et explique qu'aucun canal n'est coché.
 - Annonce à l'utilisateur les groupes retenus **avant** de commencer (Chrome va passer devant, cf. §1 bis).
@@ -582,7 +586,12 @@ Sur un post **`Clinique cherche vétérinaire`** seulement :
   ce champ qui le dit).
 - **`Langues requises`** : seulement une **exigence** (« anglais indispensable », « allemand
   requis », clinique suisse alémanique qui l'écrit). Jamais `Français` par défaut, jamais une
-  langue « appréciée » : le critère n'élimine que si les deux côtés sont remplis.
+  langue « appréciée » : le critère n'élimine que si les deux côtés sont remplis. **Exception,
+  décidée par Alex le 18/09/2026 : sur le portail SVS (§7), le champ porte la langue de
+  l'annonce** (`Français` ou `Allemand`, posée par le collecteur) — sur le marché suisse, la
+  langue dans laquelle la clinique écrit est la langue de travail du poste, et le lot hebdo des
+  recruteuses écarte les annonces en allemand. Une annonce en italien n'a pas de valeur select :
+  champ vide, à signaler au résumé.
 - **`Questions`** : ce que la recruteuse aura sous les yeux au téléphone — **une question par
   ligne, préfixée `- `**, trois à six lignes, portant **exactement sur ce que le post laisse en
   suspens** : taille et composition de l'équipe, contexte du recrutement (départ, création de
@@ -857,6 +866,71 @@ la base est entièrement « par offre » côté clinique, et ce régime est le s
 
 ⚠️ **Le script s'arrête si `references/matching_vocab.json` est introuvable** et que `records.json` porte un champ select protégé (`Zones de recherche`, `Statuts contractuels`, `Type de temps de travail`) : sans vocabulaire, une valeur mal orthographiée créerait une option Airtable. Ne « répare » jamais ça en retirant le contrôle — corrige le chemin. (Avant le 10 août 2026 un `except` silencieux désactivait le garde-fou sans le dire.)
 
+### 7. Portail emploi SVS (source hors Facebook, depuis 0.16.0)
+
+Le canal de type `svs` sorti de §0 (« Portail emploi SVS », `Url` sur gstsvs.ch) se traite **après
+les groupes Facebook, sans Chrome** : le marché de l'emploi de la Société des Vétérinaires Suisses est
+un site HTML classique, sans session. Même doctrine qu'ailleurs : le script **capture**, tu **juges**,
+`airtable_push.py` **écrit**.
+
+**1. Collecter** (dans le scratchpad, jamais dans le dossier de la compétence) :
+
+```bash
+python3 <dossier_skill>/scripts/svs_portail.py collect --canal <recId du canal svs> --out svs_raw.json
+```
+
+Le script parcourt toutes les annonces « Vétérinaire », lit chaque fiche (titre, n°, date de
+publication, canton, taux d'activité, date de prise de poste, « Jeunes professionnels bienvenus »,
+texte intégral, bloc contact : entreprise, civilité, nom, adresse, téléphone, mail, site), détecte la
+langue (texte, puis canton), compare avec les posts déjà en base (`Lien du post` sur `/annonce/<n°>`)
+et écrit `svs_raw.json` : `annonces` (nouvelles, ou **modifiées** : même n°, texte différent), chacune
+avec un `squelette` de champs Airtable ; `connues_inchangees` ; `disparues` (en base, plus en ligne).
+Sa seule écriture Airtable : `Vu en ligne le` = aujourd'hui sur les posts déjà en base encore
+affichés — c'est ce qui dit au score hebdo qu'une annonce de juillet toujours en ligne est un poste
+toujours ouvert. Pas de fenêtre temporelle ici : le portail se relit en entier, la dédup par n° fait
+le reste.
+
+**2. Juger chaque annonce**, avec les règles de §3 telles quelles (Exclure, intermédiaire, groupes,
+blacklist de §0), et ces cas propres au portail :
+- **hors périmètre** : administrations et services vétérinaires officiels (« Kanton », « Amt für »,
+  « Veterinärdienst », « service de la consommation et des affaires vétérinaires », armée),
+  universités et instituts (Vetsuisse, laboratoires cantonaux), industrie et commerciaux (MSD,
+  représentants), internships, FVH-Ausbildungsstellen et assistanats universitaires (`Internat`),
+  postes d'ASV passés au travers du filtre ;
+- **intermédiaires** : agences de remplacement et de locum (BackupVets et consorts), cabinets de
+  recrutement → exclure et signaler comme en §Détecter un intermédiaire ;
+- **groupes de cliniques** (VetTrust, IVC Evidensia, SwissVets, MeikoVet, Marigin, Vetmint,
+  Vetplatform…) : la table « Auteurs posts exclus » décide ; un groupe absent des deux types est
+  **signalé comme non arbitré**, jamais exclu ni accepté en silence ;
+- un post `Clinique cherche vétérinaire` **seulement** : le filtre du portail ne renvoie que des
+  offres vétérinaires, mais vérifie.
+
+**3. Compléter le squelette** de chaque annonce retenue, comme pour un post Facebook (§3 Champs de
+matching et Champs miroirs) : `Pratiques requises` / `optionnelles`, `Spécialités`, `Expérience`
+(« Jeunes professionnels bienvenus » ou « Berufsanfänger willkommen » ⇒ `Débutant` ; « expérience
+exigée », « mehrjährige Berufserfahrung » ⇒ `Autonome` ; « minimum deux ans » ⇒ `1 à 2 ans`), `Poste`
+(demi-ligne « un/une … », dans la langue de l'annonce), `Gardes`, `Fréquence des gardes`,
+`Logement`, `Rémunération`, `Date de fin (si CDD)`, `Questions`. Ce que le script a posé ne se
+retouche pas : `Langues requises` (langue de l'annonce, cf. §3), `Zones de recherche` (« Suisse » +
+le canton s'il est dans le vocabulaire), `Statuts contractuels` (`CDI` pour « Emploi permanent »),
+`Type de temps de travail` (depuis le taux d'activité), `Date de disponibilité`, `Mail1`, `Téléphone`,
+`Ville`, `CP`, `Nom de la clinique`, `Prénom`/`Nom` du contact. Les clés `_…` du squelette
+(`_cle_nue`, `_langue`, `_pensum`, `_site`, `_civilite`, `_titre`, `_canton`, `_jeunes_bienvenus`,
+`_des`) sont des aides à la lecture : **retire-les** avant le push.
+
+**4. Clé d'offre** (§5 bis, obligatoire) : `auteur_key` = `<_cle_nue>#<slug>`, après
+`airtable_push.py --offres "<clé nue>"` et le test d'extinction. Une annonce **modifiée**
+(`rec_existant` renseigné) republie l'offre du record existant : réutilise sa clé telle quelle. Deux
+annonces d'une même entreprise pour deux cantons (Vetoadom Genève et Vaud) sont deux offres si les
+postes sont distincts, une seule si c'est la même équipe qui recrute pour les deux.
+
+**5. Pousser** : `records.json` avec les `fields` complétés (le `Contenu complet` est le corps tel que
+collecté, le push pose l'en-tête `[date] lien · Portail emploi SVS`), puis §5 : `--dry`, relire le
+plan, pousser. `Canaux` = le recId du canal svs sur chaque ligne.
+
+**6. Les disparues** ne se touchent pas : liste-les au résumé avec le n° de post et la clinique (le
+poste est sans doute pourvu). Archiver est le geste de la recruteuse, pas du scrape.
+
 ### 6. Résumé final
 
 **Avant de rédiger** : rends la main à la gestion d'énergie et ferme l'onglet du scrape.
@@ -891,3 +965,6 @@ bash <dossier_skill>/scripts/keep_awake.sh stop
   (domaine mail, site carrière, mention « membre du groupe ») et le nombre d'annonces concernées.
   Demande l'arbitrage : exclure ou accepter. Ne re-signale pas les groupes déjà arbitrés.
 - Mentionne si la couverture commentaires est partielle (défaut) ou exhaustive.
+- **Portail SVS** (§7), un bloc à part : annonces en ligne, nouvelles poussées (par langue),
+  modifiées, inchangées, **disparues** (n° de post et clinique), exclues avec la raison, annonces en
+  italien laissées sans `Langues requises`, et les groupes non arbitrés rencontrés.

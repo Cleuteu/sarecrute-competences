@@ -187,6 +187,29 @@ def cible(f, t):
     return pts, why
 
 
+# ---------- langue de l'annonce (décision d'Alex, 18/09/2026 : pas de clinique germanophone ni italophone dans le lot) ----------
+DE_RX = re.compile(r"\b(?:wir|und|für|mit|eine[nr]?|unsere[rn]?|suchen|Tierärztin|Tierarzt|Praxis|Stelle|Bewerbung|gesucht|Kleintier\w*|Grosstier\w*|Gemischtpraxis|Verstärkung|Team)\b", re.I)
+IT_RX = re.compile(r"\b(?:cerchiamo|veterinari[oa]|clinica|ambulatorio|assunzione|candidatura|lavoro|siamo|nostro|nostra|per il|della|degli)\b", re.I)
+FR_RX = re.compile(r"\b(?:nous|vous|pour|avec|recherch\w+|vétérinaire|cabinet|clinique|poste|équipe|candidature|recrut\w+)\b", re.I)
+
+
+def langue_annonce(f, t):
+    """« de », « it » ou « fr ». D'abord l'exigence posée par le scrape (Langues requises sans Français), puis le texte."""
+    lr = set(f.get("Langues requises", []))
+    if lr and "Français" not in lr:
+        if "Allemand" in lr:
+            return "de"
+        if "Italien" in lr:
+            return "it"
+    corps = t[:3000]
+    de, it, fr = len(DE_RX.findall(corps)), len(IT_RX.findall(corps)), len(FR_RX.findall(corps))
+    if de >= 8 and de > 2 * fr:
+        return "de"
+    if it >= 8 and it > 2 * fr:
+        return "it"
+    return "fr"
+
+
 def country_of(z):
     if z in COUNTRIES:
         return z
@@ -385,6 +408,8 @@ def score(f):
     dates = sorted(set(re.findall(r"^\[(\d{4}-\d{2}-\d{2})\]", t, re.M)))
     if f.get("Date du post"):
         dates = sorted(set(dates + [f["Date du post"]]))
+    if f.get("Vu en ligne le"):  # sources hors Facebook (portail SVS) : encore affichée = encore ouverte
+        dates = sorted(set(dates + [f["Vu en ligne le"][:10]]))
     if not dates:
         dates = [f.get("Date de création", str(today))[:10]]
     last = dt.date.fromisoformat(dates[-1]); first = dt.date.fromisoformat(dates[0])
@@ -398,6 +423,8 @@ def score(f):
         excl = "mission < 1 mois"
     elif age > 60:
         excl = f"dernière publication il y a {age} j"
+    elif langue_annonce(f, t) != "fr":
+        excl = "annonce en " + {"de": "allemand", "it": "italien"}[langue_annonce(f, t)]
     m = vivier(f)
     if excl is None and m == 0:
         excl = "aucun candidat compatible au vivier"
