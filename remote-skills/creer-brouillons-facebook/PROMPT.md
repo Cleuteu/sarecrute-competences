@@ -1,4 +1,4 @@
-**creer-brouillons-facebook — version 0.2.0 (2026-09-09)**
+**creer-brouillons-facebook — version 0.2.1 (2026-09-18)**
 
 > Ce fichier est le corps de la compétence `creer-brouillons-facebook` du plugin `sarecrute-recruteur`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -557,10 +557,14 @@ const f = () => [...document.querySelectorAll('div[role="dialog"]')]
                   .find(d => d.querySelector('div[contenteditable="true"]'));
 let dlg = f();
 if (!dlg) {
-  const rx = /Exprimez-vous|Écrivez quelque chose|Créez une publication/i;
-  const t = [...document.querySelectorAll('div[role="button"]')]
-              .find(e => rx.test(e.textContent || '') && (e.textContent || '').length < 80);
-  if (!t) throw new Error('COMPOSEUR_INTROUVABLE');
+  // Le libellé du déclencheur suit la langue du COMPTE Facebook, pas celle du recruteur.
+  const rx = /Exprimez-vous|Écrivez quelque chose|Créez une publication|Escribe algo|Crea una publicación|Write something|Create post/i;
+  const lab = e => (e.getAttribute('aria-label') || '') + ' ' + (e.textContent || '');
+  const btns = [...document.querySelectorAll('div[role="button"]')];
+  const t = btns.find(e => (e.textContent || '').length < 80 && rx.test(lab(e)));
+  if (!t) throw new Error('COMPOSEUR_INTROUVABLE :: lang=' + document.documentElement.lang + ' :: '
+            + btns.map(e => (e.textContent || '').trim())
+                  .filter(x => x && x.length < 40).slice(0, 12).join(' | '));
   t.scrollIntoView({block: 'center'});
   t.click();
   await new Promise(r => setTimeout(r, 2500));
@@ -605,6 +609,12 @@ Ce script porte lui-même les trois garde-fous, et c'est ce qui les rend fiables
   le mauvais nœud.
 - Ce chemin ne peut **pas** taper dans une zone de commentaire : on part du dialogue, jamais d'un
   `find` de textbox à l'échelle de la page.
+- Le déclencheur du composeur est cherché en **français, espagnol et anglais**, sur l'`aria-label`
+  autant que sur le texte visible. La langue de l'interface est celle du **compte Facebook**, pas
+  celle du recruteur : un compte configuré en espagnol affiche « Escribe algo… » et « Crear
+  publicación ». Constaté le 18/09/2026 sur le compte de Pamela, où la regex franco-seulement
+  levait `COMPOSEUR_INTROUVABLE` sur **tous** les groupes alors qu'elle en était membre. Une autre
+  langue encore : ajouter son libellé ici plutôt que de contourner dans la session.
 
 Puis, dans le **même appel**, un `find` par onglet :
 `find(query: "input type=file du dialogue Créer une publication")`. Il renvoie 2 ou 3 candidats et
@@ -675,12 +685,19 @@ Le curseur doit être dans la zone de texte : appeler le script juste après le 
 synthétique : elle ne porte pas le presse-papiers, l'outil répond « Pressed 1 key » et rien n'est
 collé.
 
-### Absence d'accès à un groupe
+### `COMPOSEUR_INTROUVABLE` — lire le diagnostic avant de conclure
 
-Si le script lève `COMPOSEUR_INTROUVABLE`, c'est en général que le compte n'est pas membre du
-groupe (bouton « Rejoindre le groupe » à la place du composeur). Ne pas insister : fermer
-l'onglet, noter le canal comme **« accès manquant »** pour le compte rendu, et continuer. C'est le
-cas le plus fréquent quand un nouveau recruteur démarre.
+L'exception porte la langue de la page (`lang=`) et les libellés des boutons courts trouvés.
+Les lire avant de trancher, les deux causes ne se traitent pas pareil :
+
+- **Un bouton d'adhésion dans la liste** (« Rejoindre le groupe », « Unirse al grupo », « Join
+  group ») : le compte n'est pas membre. Ne pas insister : fermer l'onglet, noter le canal comme
+  **« accès manquant »** pour le compte rendu, et continuer. C'est le cas le plus fréquent quand un
+  nouveau recruteur démarre.
+- **Un `lang=` autre que `fr`, avec un libellé de composeur visible dans la liste** : la langue du
+  compte n'est pas couverte par la regex. L'échec touche alors **tous** les groupes d'un coup —
+  signe qui ne trompe pas. Arrêter le run, le signaler, et faire ajouter le libellé à la regex
+  ci-dessus : c'est une correction de la compétence, pas un contournement de session.
 
 ### Ne jamais publier
 
