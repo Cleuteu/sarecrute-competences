@@ -38,8 +38,27 @@ cliniques déjà en base relèvent du propriétaire du client, pas d'un nouveau 
 expire le dimanche, sans report ; cible des recruteuses (17/09/2026, message de Sarah) = bonus +2 poste
 ouvert aux débutants, +2 région demandée ou clinique de campagne/mixte/équine (voir cible()) ; une clinique n'est jamais partagée entre deux recruteuses (pas
 de doublon de communication) ; jamais de nouvelle valeur de select.
+
+Adhérents Vetcoop (décision d'Alex, 18/09/2026) : SaRecrute est partenaire recrutement du groupement
+d'achat Vetcoop (tarifs membres, commission d'apport d'affaires, non-sollicitation). Le script lit la
+table « Adhérents Vetcoop » et reconnaît un post d'adhérent par la case « Membre Vetcoop » du post ou de
+la fiche Clinique rapprochée, par mail, par domaine de mail (hors domaines génériques) ou par nom
+normalisé ; il coche alors « Membre Vetcoop » sur le post (jamais décoché). Un post d'adhérent est
+retenu même sans candidat compatible au vivier, lourdement pondéré (« +10 adhérent Vetcoop », score
+/33), passe en tête du réservoir, revient dans le réservoir chaque semaine tant qu'il n'est ni converti
+ni archivé (la règle des 14 jours ne le retient pas), et ne part QU'À la recruteuse VETCOOP_RECRUTEUSE
+(Sarah) : si la clinique appartient déjà à l'autre recruteuse, ou si Sarah n'est pas active, le post
+n'est pas attribué et le rapport le signale en « arbitrage ». Avec --vetcoop-immediat (dans la commande
+de la routine), un adhérent nouvellement détecté entre dans le lot EN COURS de Sarah sans attendre le
+lundi. Les autres exclusions (commentaire, hors périmètre, > 60 j, intermédiaire) s'appliquent.
+
+Mails d'intro (même décision) : avec --dossier-mails fichier.json, le script exporte les posts du lot en
+cours (Attribué jusqu'au ≥ aujourd'hui, ni archivés ni convertis) dont « Mail intro proposé » est vide,
+avec tout ce que la routine peut lire pour rédiger (champs de scrape-veto, texte, recruteuse, Vetcoop).
+La routine rédige, puis ecrire_mails_intro.py écrit le champ avec ses garde-fous. Ce script-ci ne
+rédige rien.
 """
-import os, sys, json, re, collections, datetime as dt, urllib.request, urllib.parse, time, argparse
+import os, sys, json, re, collections, datetime as dt, urllib.request, urllib.parse, time, argparse, unicodedata
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--attribuer", action="store_true", help="écrit les scores et attribue le lot")
@@ -52,6 +71,8 @@ ap.add_argument("--jusquau", default=None, help="fin de validité du lot (défau
 ap.add_argument("--force", action="store_true", help="attribuer même si un lot est encore en cours")
 ap.add_argument("--rejouer", action="store_true", help="recalcule le lot de même date de fin au lieu d'en créer un second")
 ap.add_argument("--recharger", action="store_true", help="sert N cliniques de plus à chaque recruteuse dont le lot en cours est épuisé")
+ap.add_argument("--dossier-mails", default=None, help="exporte en JSON les posts du lot en cours sans « Mail intro proposé », pour la rédaction par la routine")
+ap.add_argument("--vetcoop-immediat", action="store_true", help="ajoute au lot en cours de Sarah les adhérents Vetcoop pas encore attribués, sans attendre le lundi")
 A = ap.parse_args()
 # date « du jour » en heure de Paris : la routine cloud tourne en UTC, et un lundi 01:00 à Paris est
 # encore dimanche en UTC — le lot partirait avec la mauvaise date de fin et le garde-fou se tromperait.
@@ -64,7 +85,10 @@ T_RECRUTEURS = "Recruteurs"
 F = dict(  # champs de Posts scrappés écrits par ce script
     score="fldXYoTSgsiLIWeCt", raisons="fldZsPy6ohFUjoISj", clinique_existante="fldfPvYIlbDZ8V0sv",
     attribue_a="fld1F3kcHSc4j4i0M", attribue_le="fldcIiPZVcxFm67XS", attribue_jusquau="fld24nHYzT2JlNqgO",
+    membre_vetcoop="fld7UJUNeJ4nlxDlO",
 )
+F_MAIL_INTRO = "fldrOglkyBQ6grgGo"  # Posts scrappés.« Mail intro proposé » : écrit par ecrire_mails_intro.py, jamais ici
+VETCOOP_RECRUTEUSE = "Sarah"  # prénom dans Recruteurs.Nom : les adhérents Vetcoop ne partent qu'à elle
 KEY = os.environ.get("AIRTABLE_API_KEY")
 if not KEY:
     sys.exit("AIRTABLE_API_KEY absente de l'environnement : rien n'est lu ni écrit. Arrêt.")
@@ -105,10 +129,13 @@ def load(name, table, params):
 
 posts = load("posts.json", T_POSTS, {"filterByFormula": "{Type de post}='Clinique cherche vétérinaire'"})
 cand = load("candidats.json", "Candidats", {"fields[]": ["Statut Recherche", "Zones de recherche", "county", "Pratiques maitrisées", "Années d'expérience", "Expérience", "Mail", "Téléphone", "Statuts contractuels souhaités", "Type de temps de travail", "Contrat court", "Candidature"], "filterByFormula": "{Statut Recherche}='En recherche active'"})
-cl = load("cliniques.json", "Cliniques", {"fields[]": ["Nom de la clinique", "Status commercial", "cliniqueSearch", "county", "Mail1", "Mail2", "Téléphone", "Profil Facebook", "archived", "Propriétaires du client", "Groupement"]})
+cl = load("cliniques.json", "Cliniques", {"fields[]": ["Nom de la clinique", "Status commercial", "cliniqueSearch", "county", "Mail1", "Mail2", "Téléphone", "Profil Facebook", "archived", "Propriétaires du client", "Groupement", "Membre Vetcoop"]})
 cands = load("candidatures.json", "Candidatures", {"fields[]": ["Statut candidature", "Candidat"]})
 exclus = load("exclus.json", "Auteurs posts exclus", {})
 recruteurs = load("recruteurs.json", T_RECRUTEURS, {"filterByFormula": "{Actif}", "fields[]": ["Nom", "Email", "Actif"]})
+adherents = load("adherents_vetcoop.json", "Adhérents Vetcoop", {"filterByFormula": "NOT({Sorti})", "fields[]": ["Nom adhérent", "Email 1", "Email 2"]})
+canaux = {r["id"]: r["fields"].get("Name", "") for r in load("canaux.json", "Canaux de diffusion", {"fields[]": ["Name"]})}
+NOMS = {r["fields"]["Email"]: r["fields"].get("Nom", r["fields"]["Email"]) for r in recruteurs if r["fields"].get("Email")}
 
 COUNTRIES = {"France", "Suisse", "Espagne", "Luxembourg", "Belgique", "Polynésie française", "Ile Maurice", "Nouvelle calédonie"}
 ORDER = ["Etudiant", "Débutant", "1 à 2 ans", "Autonome", "Spécialiste"]
@@ -259,6 +286,55 @@ def known(f):
     return None, None
 
 
+# ---------- adhérents Vetcoop ----------
+GENERIQUES = {"gmail.com", "googlemail.com", "hotmail.com", "hotmail.ch", "hotmail.fr", "yahoo.fr", "yahoo.com", "bluewin.ch",
+              "gmx.ch", "gmx.net", "gmx.de", "outlook.com", "outlook.fr", "icloud.com", "me.com", "sunrise.ch", "protonmail.com",
+              "proton.me", "live.fr", "live.com", "orange.fr", "wanadoo.fr", "free.fr", "laposte.net", "sfr.fr", "hispeed.ch"}
+_NOM_STOP = re.compile(r"\b(?:sarl|sàrl|sa|ag|gmbh|sàrl\.|dr|dre|med|méd|vet|vét|cabinet|clinique|veterinaire|vétérinaire|tierarztpraxis|tierarzt|tierärzte|praxis|kleintierpraxis|tierklinik|centre|le|la|les|du|de|des|d)\b")
+
+
+def norm_nom(s):
+    s = unicodedata.normalize("NFKD", (s or "").lower())
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    s = _NOM_STOP.sub(" ", re.sub(r"[^a-z0-9]+", " ", s))
+    return re.sub(r"\s+", " ", s).strip()
+
+
+AD_MAILS, AD_DOM, AD_NOMS = {}, {}, {}
+for _r in adherents:
+    _g = _r["fields"]; _nom = _g.get("Nom adhérent", "")
+    for _m in (_g.get("Email 1"), _g.get("Email 2")):
+        if _m:
+            AD_MAILS[norm_mail(_m)] = _nom
+            _d = norm_mail(_m).split("@")[-1]
+            if _d and _d not in GENERIQUES:
+                AD_DOM[_d] = _nom
+    _k = norm_nom(_nom)
+    if len(_k) >= 6:  # un nom trop court (« mutts ») matcherait n'importe quoi
+        AD_NOMS[_k] = _nom
+
+
+def vetcoop(f, t, kf):
+    """Le post vient-il d'un adhérent Vetcoop ? Renvoie le motif (lisible dans Raisons) ou None.
+    Ordre : case du post, fiche Clinique rapprochée, mail exact, domaine non générique, nom normalisé."""
+    if f.get("Membre Vetcoop"):
+        return "case cochée sur le post"
+    if kf and kf.get("Membre Vetcoop"):
+        return "fiche Clinique cochée"
+    ms = [norm_mail(m) for m in mails_de(f, t)]
+    for m in ms:
+        if m in AD_MAILS:
+            return f"mail de l'adhérent « {AD_MAILS[m]} »"
+    for m in ms:
+        d = m.split("@")[-1]
+        if d in AD_DOM:
+            return f"domaine de l'adhérent « {AD_DOM[d]} »"
+    k = norm_nom(f.get("Nom de la clinique"))
+    if k and k in AD_NOMS:
+        return f"nom de l'adhérent « {AD_NOMS[k]} »"
+    return None
+
+
 # ---------- groupes et intermédiaires ----------
 EX = {"Auteur": [], "Groupe exclu": [], "Groupe accepté": []}
 for r in exclus:
@@ -357,12 +433,19 @@ def score(f):
     glabel, gwhy = groupe(f, t, kf)
     if glabel == "intermédiaire":
         excl = excl or gwhy
+    vc = vetcoop(f, t, kf)
+    if vc:
+        # un adhérent qui cherche est retenu même si le vivier ne donne rien aujourd'hui : c'est Sarah qui décide
+        if excl in ("aucun candidat compatible au vivier", "pas de département exploitable"):
+            why.append(f"adhérent Vetcoop : retenu malgré « {excl} »"); excl = None
+        s += 10; why.append(f"adhérent Vetcoop ({vc})")
     has_mail = bool(mails) or bool(kf and (kf.get("Mail1") or kf.get("Mail2")))
     tels_n = {}
     for tl in tels:
         tels_n.setdefault(norm_tel(tl), re.sub(r"[ .-]", "", tl))
     return dict(score=s, excl=excl, why=why, age=age, n=n, span=span, m=m, mails=sorted({norm_mail(x) for x in mails}),
-                tels=sorted(tels_n.values()), known_id=kid, known=kf, how=how, groupe=glabel, groupe_why=gwhy, has_mail=has_mail)
+                tels=sorted(tels_n.values()), known_id=kid, known=kf, how=how, groupe=glabel, groupe_why=gwhy, has_mail=has_mail,
+                vetcoop=vc)
 
 
 rows = []
@@ -452,12 +535,24 @@ def _proprio_recentes(exclure=frozenset()):
     return proprio, recentes
 
 
+def ordre_pool(r):
+    """Adhérents Vetcoop d'abord (ils doivent partir), puis score décroissant, puis fraîcheur."""
+    return (not r["vetcoop"], -r["score"], r["age"])
+
+
+def sarah_email(recs_fields):
+    """E-mail de la recruteuse Vetcoop parmi les recruteuses actives, None si absente."""
+    return next((x["Email"] for x in recs_fields if VETCOOP_RECRUTEUSE.lower() in (x.get("Nom") or "").lower()), None)
+
+
 def _pool(recentes):
-    """Réservoir : nouvelles cliniques avec mail, par score, un seul post par clinique, hors cliniques chaudes."""
+    """Réservoir : nouvelles cliniques avec mail, adhérents Vetcoop en tête puis par score, un seul post par clinique, hors cliniques chaudes."""
     pool, vues = [], set()
-    for r in sorted(new, key=lambda r: (-r["score"], r["age"])):
-        if r["clinique"] in recentes or r["clinique"] in vues:
+    for r in sorted(new, key=ordre_pool):
+        if r["clinique"] in vues:
             continue
+        if r["clinique"] in recentes and not r["vetcoop"]:
+            continue  # un adhérent Vetcoop revient chaque semaine tant qu'il n'est pas traité
         vues.add(r["clinique"])
         pool.append(r)
     return pool
@@ -499,8 +594,8 @@ def attribuer():
     en_cours = [r for r in rows if r["id"] not in lot_courant and r["f"].get("Attribué jusqu'au")
                 and dt.date.fromisoformat(r["f"]["Attribué jusqu'au"]) >= today]
     if en_cours and not A.force:
-        return recs, None, max(dt.date.fromisoformat(r["f"]["Attribué jusqu'au"]) for r in en_cours), 0, 0, 0
-    rang = {r["id"]: i for i, r in enumerate(sorted(new, key=lambda r: (-r["score"], r["age"])))}
+        return recs, None, max(dt.date.fromisoformat(r["f"]["Attribué jusqu'au"]) for r in en_cours), 0, 0, 0, []
+    rang = {r["id"]: i for i, r in enumerate(sorted(new, key=ordre_pool))}
     # une clinique appartient à la recruteuse qui l'a eue en dernier, et reste chaude 14 j
     proprio, recentes = _proprio_recentes(lot_courant)
     # --rejouer : le lot recalculé garde ses attributions (les recruteuses ont pu commencer à
@@ -513,9 +608,20 @@ def attribuer():
     pool = _pool(recentes)
     ordre = [x["Email"] for x in recs]
     lots = {e: [] for e in ordre}
+    sarah = sarah_email(recs)
+    arbitrages = []  # adhérents Vetcoop qu'on ne peut pas donner à Sarah sans décision humaine
     for r in pool:
         p = proprio.get(r["clinique"])
-        if p and p in actifs:
+        if r["vetcoop"]:
+            # un adhérent Vetcoop ne part qu'à Sarah (décision d'Alex, 18/09/2026)
+            if not sarah:
+                arbitrages.append((r, f"{VETCOOP_RECRUTEUSE} absente des recruteuses actives")); continue
+            if p and p in actifs and p != sarah:
+                arbitrages.append((r, f"clinique déjà attribuée à {NOMS.get(p, p)} : ne change pas de main sans arbitrage")); continue
+            if len(lots[sarah]) >= A.lot:
+                arbitrages.append((r, f"lot de {NOMS.get(sarah, sarah)} complet : attendra la semaine prochaine")); continue
+            cible = sarah
+        elif p and p in actifs:
             if len(lots[p]) >= A.lot:
                 continue  # sa recruteuse a son compte : la clinique attendra la semaine prochaine
             cible = p
@@ -529,6 +635,8 @@ def attribuer():
     for r in rows:
         upd = {F["score"]: r["score"] if r["excl"] is None else None, F["raisons"]: raisons(r),
                F["clinique_existante"]: [r["known_id"]] if r["known_id"] else []}
+        if r["vetcoop"] and not r["f"].get("Membre Vetcoop"):
+            upd[F["membre_vetcoop"]] = True  # on coche, on ne décoche jamais
         updates[r["id"]] = upd
     attribues = set()
     for email, lot in lots.items():
@@ -541,7 +649,7 @@ def attribuer():
     _memoriser(updates)  # recharger() tourne dans le même run et doit voir le lot du jour, même en dry-run
     if not A.dry_run:
         _patch(T_POSTS, updates)
-    return recs, lots, jusquau, len(pool), len(updates), len(liberes)
+    return recs, lots, jusquau, len(pool), len(updates), len(liberes), arbitrages
 
 
 def recharger():
@@ -571,6 +679,7 @@ def recharger():
     jusquau = max(fins) if fins else prochain_dimanche(today)
     proprio, recentes = _proprio_recentes()
     pool = _pool(recentes)
+    sarah = sarah_email([r["fields"] for r in recs])
     lots, pris = {}, set()
     for rec in demandes:
         email = rec["fields"]["Email"]; lot = []
@@ -580,6 +689,8 @@ def recharger():
             p = proprio.get(r["clinique"])
             if p and p in actifs and p != email:
                 continue  # clinique de l'autre recruteuse : elle ne change pas de main
+            if r["vetcoop"] and email != sarah:
+                continue  # adhérent Vetcoop : Sarah seulement
             lot.append(r); pris.add(r["id"])
             if len(lot) >= A.lot:
                 break
@@ -590,24 +701,66 @@ def recharger():
             updates[r["id"]] = {F["score"]: r["score"], F["raisons"]: raisons(r),
                                 F["clinique_existante"]: [r["known_id"]] if r["known_id"] else [],
                                 F["attribue_a"]: {"email": email}, F["attribue_le"]: str(today), F["attribue_jusquau"]: str(jusquau)}
+            if r["vetcoop"] and not r["f"].get("Membre Vetcoop"):
+                updates[r["id"]][F["membre_vetcoop"]] = True
     _memoriser(updates)
     if not A.dry_run:
         _patch(T_POSTS, updates)
     return (demandes, lots, jusquau, len(pool)), etat
 
 
+def vetcoop_immediat():
+    """Adhérents Vetcoop dans le lot EN COURS de Sarah, tout de suite (décision d'Alex, 18/09/2026 : « lourdement
+    pondéré pour sortir directement dans les résultats hebdomadaires »). Ne touche à aucune autre attribution.
+    Candidats : posts éligibles, nouveaux (pas déjà en base), avec mail, adhérents, pas dans un lot en cours,
+    un seul post par clinique. Une clinique de l'autre recruteuse n'est pas déplacée (arbitrage). Valables
+    jusqu'à la fin du lot en cours, puis le lundi les reprend (ils ne sont pas retenus par la règle des 14 j)."""
+    recs = [r["fields"] for r in recruteurs if r["fields"].get("Email")]
+    actifs = {x["Email"] for x in recs}
+    sarah = sarah_email(recs)
+    if not sarah:
+        return None, f"{VETCOOP_RECRUTEUSE} absente des recruteuses actives : aucun adhérent ajouté"
+    proprio, _ = _proprio_recentes()
+    fins = [dt.date.fromisoformat(r["f"]["Attribué jusqu'au"]) for r in rows if r["f"].get("Attribué jusqu'au")
+            and dt.date.fromisoformat(r["f"]["Attribué jusqu'au"]) >= today]
+    jusquau = max(fins) if fins else prochain_dimanche(today)
+    ajout, arbitrages, vues = [], [], set()
+    for r in sorted([x for x in new if x["vetcoop"]], key=ordre_pool):
+        if r["f"].get("Attribué à") and r["f"].get("Attribué jusqu'au") and dt.date.fromisoformat(r["f"]["Attribué jusqu'au"]) >= today:
+            vues.add(r["clinique"]); continue  # déjà dans un lot en cours
+        if r["clinique"] in vues:
+            continue
+        vues.add(r["clinique"])
+        p = proprio.get(r["clinique"])
+        if p and p in actifs and p != sarah:
+            arbitrages.append((r, f"clinique déjà attribuée à {NOMS.get(p, p)} : ne change pas de main sans arbitrage")); continue
+        ajout.append(r)
+    updates = {}
+    for r in ajout:
+        updates[r["id"]] = {F["score"]: r["score"], F["raisons"]: raisons(r),
+                            F["clinique_existante"]: [r["known_id"]] if r["known_id"] else [],
+                            F["attribue_a"]: {"email": sarah}, F["attribue_le"]: str(today), F["attribue_jusquau"]: str(jusquau)}
+        if not r["f"].get("Membre Vetcoop"):
+            updates[r["id"]][F["membre_vetcoop"]] = True
+    _memoriser(updates)
+    if updates and not A.dry_run:
+        _patch(T_POSTS, updates)
+    return (ajout, arbitrages, jusquau, sarah), None
+
+
 # ---------- rapport ----------
 def ligne(r):
     f = r["f"]; zone = f.get("Zone de recherche") or f.get("conv_county") or "?"
     contact = ", ".join(r["mails"] + r["tels"]) or "pas de contact dans le texte"
-    return f"- **{f.get('conv_nom_clinique')}** — {zone} · score {r['score']}/23 · post n°{f.get('Numéro')} · {contact}\n  {' ; '.join(r['why'])}"
+    vc = " · **adhérent Vetcoop**" if r.get("vetcoop") else ""
+    return f"- **{f.get('conv_nom_clinique')}** — {zone} · score {r['score']}/33 · post n°{f.get('Numéro')}{vc} · {contact}\n  {' ; '.join(r['why'])}"
 
 
 out = [f"# Cliniques à contacter — {today.strftime('%d/%m/%Y')}", "",
        f"{len(rows)} posts clinique évalués, {len(elig)} éligibles : {len(new)} nouvelles avec mail, {len(groupes)} groupes, {len(sans_mail)} sans mail, {len(relance)} déjà en base en cours, {len(ecart)} Signé/Refusé.",
        "Exclus : " + ", ".join(f"{k} {v}" for k, v in excl_count.most_common()) + ".", ""]
 if A.attribuer:
-    recs, lots, jusquau, npool, nupd, nlib = attribuer()
+    recs, lots, jusquau, npool, nupd, nlib, arbitrages = attribuer()
     if lots is None:
         out.append(f"## Lot en cours jusqu'au {jusquau.strftime('%d/%m')} : pas de nouvelle attribution")
         out.append("Un lot hebdomadaire est encore valide ; les scores n'ont pas été réécrits non plus. Relancer après sa date de fin, ou avec --force pour attribuer quand même.")
@@ -623,9 +776,12 @@ if A.attribuer:
             out += [ligne(r) for r in lot]
         if npool < A.lot * len(recs):
             out.append(f"\n⚠️ Réservoir insuffisant pour {A.lot} par recruteuse : lots réduits plutôt que gonflés avec des annonces sans mail.")
+        if arbitrages:
+            out.append(f"\n### Adhérents Vetcoop non attribués — arbitrage d'Alex")
+            out += [f"- post n°{r['f'].get('Numéro')} {r['f'].get('conv_nom_clinique')} : {motif}" for r, motif in arbitrages]
 if A.recharger:
     res, etat = recharger()
-    noms = {r["fields"]["Email"]: r["fields"].get("Nom", r["fields"]["Email"]) for r in recruteurs if r["fields"].get("Email")}
+    noms = NOMS
     bilan = " ; ".join(f"{noms[e]} : {n - k} sur {n} traitée(s)" if n else f"{noms[e]} : pas de lot en cours" for e, (n, k) in etat.items())
     if res is None:
         out.append(f"\n## Recharge automatique : aucun lot épuisé ({bilan})")
@@ -639,13 +795,70 @@ if A.recharger:
             out += [ligne(r) for r in lot]
             if len(lot) < A.lot:
                 out.append(f"\n⚠️ Réservoir insuffisant : {len(lot)} clinique(s) au lieu de {A.lot}.")
-if not A.attribuer and not A.recharger:
+if A.vetcoop_immediat:
+    res, err = vetcoop_immediat()
+    if err:
+        out.append(f"\n## Adhérents Vetcoop, entrée immédiate : {err}")
+    else:
+        ajout, varb, vjusquau, vsarah = res
+        out.append(f"\n## Adhérents Vetcoop, entrée immédiate dans le lot de {NOMS.get(vsarah, vsarah)} (jusqu'au {vjusquau.strftime('%d/%m')}){' — SIMULATION, rien écrit' if A.dry_run else ''}")
+        out.append("Aucun adhérent nouveau à ajouter : ceux détectés sont déjà dans un lot en cours, déjà en base, ou sans mail." if not ajout else f"{len(ajout)} clinique(s) ajoutée(s) :")
+        out += [ligne(r) for r in ajout]
+        if varb:
+            out.append("\n### Adhérents Vetcoop non ajoutés — arbitrage d'Alex")
+            out += [f"- post n°{r['f'].get('Numéro')} {r['f'].get('conv_nom_clinique')} : {motif}" for r, motif in varb]
+if not A.attribuer and not A.recharger and not A.vetcoop_immediat:
     out.append("## Top 20 nouvelles cliniques avec mail (lecture seule)")
     out += [ligne(r) for r in sorted(new, key=lambda r: (-r["score"], r["age"]))[:20]]
 probables = [r for r in groupes if r["groupe"] == "probable"]
 if probables:
     out.append("\n## Groupes probables à faire arbitrer par Alex (blacklist scrape-veto)")
     out += [f"- n°{r['f'].get('Numéro')} {r['f'].get('conv_nom_clinique')} ({r['f'].get('conv_county')}) : {r['groupe_why']}" for r in probables]
+
+
+# ---------- dossier pour la rédaction des mails d'intro ----------
+def dossier_mails(path):
+    """Les posts du lot en cours (toutes recruteuses) qui n'ont pas encore de « Mail intro proposé » :
+    ce que la routine a le droit de lire pour rédiger. Le texte est celui de l'annonce (public, écrit par la
+    clinique) ; les champs structurés sont ceux posés par scrape-veto ou la recruteuse. Rien d'autre."""
+    recs_by_email = {r["fields"]["Email"]: r["fields"] for r in recruteurs if r["fields"].get("Email")}
+    dossier = []
+    for r in rows:
+        f = r["f"]
+        if not (f.get("Attribué à") and f.get("Attribué jusqu'au")):
+            continue
+        if dt.date.fromisoformat(f["Attribué jusqu'au"]) < today or f.get("Archivé") or f.get("Offre d'emploi"):
+            continue
+        if (f.get("Mail intro proposé") or "").strip():
+            continue
+        email = (f.get("Attribué à") or {}).get("email"); rec = recs_by_email.get(email, {})
+        dossier.append({
+            "post_id": r["id"], "numero": f.get("Numéro"),
+            "recruteuse": {"nom": rec.get("Nom"), "email": email},
+            "membre_vetcoop": bool(r.get("vetcoop")), "vetcoop_motif": r.get("vetcoop"),
+            "clinique": f.get("conv_nom_clinique"), "nom_clinique_brut": f.get("Nom de la clinique"),
+            "contact": (f.get("Prénom", "") + " " + f.get("Nom", "")).strip(),
+            "mails": r["mails"], "telephones": r["tels"], "canaux": [canaux.get(c, c) for c in f.get("Canaux", [])],
+            "ville": f.get("Ville"), "cp": f.get("CP"), "zone": f.get("Zone de recherche"), "county": f.get("conv_county"), "pays": f.get("conv_pays"),
+            "poste": f.get("Poste"), "emploi": f.get("Emploi recherché"), "experience": f.get("Expérience"),
+            "pratiques_requises": f.get("Pratiques requises", []), "pratiques_optionnelles": f.get("Pratiques optionnelles", []),
+            "specialites_requises": f.get("Spécialités requises", []), "specialites_optionnelles": f.get("Spécialités optionnelles", []),
+            "statuts": f.get("Statuts contractuels", []), "temps": f.get("Type de temps de travail", []), "contrat_court": bool(f.get("Contrat court")),
+            "gardes": f.get("Gardes"), "frequence_gardes": f.get("Fréquence des gardes"), "logement": f.get("Logement"),
+            "remuneration": f.get("Rémunération"), "date_disponibilite": f.get("Date de disponibilité"),
+            "langues": f.get("Langues requises", []), "questions": f.get("Questions"),
+            "date_post": f.get("Date du post"), "score": r["score"], "raisons": raisons(r),
+            "contenu": body(f)[:6000],
+        })
+    json.dump(dossier, open(path, "w"), ensure_ascii=False, indent=1)
+    return dossier
+
+
+if A.dossier_mails:
+    d = dossier_mails(A.dossier_mails)
+    par = collections.Counter(x["recruteuse"]["nom"] or x["recruteuse"]["email"] for x in d)
+    out.append(f"\n## Mails d'intro à rédiger : {len(d)} post(s) du lot en cours sans « Mail intro proposé » → {A.dossier_mails}"
+               + (" (" + ", ".join(f"{k} : {v}" for k, v in par.items()) + ")" if par else ""))
 txt = "\n".join(out)
 print(txt)
 if A.rapport:
