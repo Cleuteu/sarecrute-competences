@@ -1,6 +1,6 @@
 # Mails de présentation — exemples de référence
 
-Trois mails réellement envoyés par la recruteuse entre juillet et septembre 2026, **anonymisés** : noms de candidats, de cliniques, de villes et d'écoles remplacés, chiffres conservés. Ils servent de gabarit de ton et de découpage à la routine `mail-presentation-candidature`. Les faits qu'ils contiennent ne concernent personne et ne doivent jamais être réutilisés.
+Trois mails nominatifs réellement envoyés par la recruteuse entre juillet et septembre 2026, puis deux mails du **format anonyme** réservé au groupe suisse (exemples 4 et 5), tous **anonymisés** : noms de candidats, de cliniques, de villes et d'écoles remplacés, chiffres et durées modifiés là où ils identifieraient quelqu'un. Ils servent de gabarit de ton et de découpage à la routine `mail-presentation-candidature`. Les faits qu'ils contiennent ne concernent personne et ne doivent jamais être réutilisés.
 
 Ce que ces trois mails ont en commun, et que la routine doit reproduire :
 
@@ -138,3 +138,92 @@ Vétérinaire et consultante en recrutement
 - **Accroche selon le rang** : « Je vous propose ce jour un premier profil pour votre projet » / « Je vous propose ce jour une autre candidature, en canine. » / « Voici une nouvelle candidature pour le Groupe Porhoët si elle peut intéresser la clinique. »
 - **Sans CV** : « Elle va me transmettre son CV actualisé prochainement, en attendant voici ses coordonnées si vous souhaitez échanger avec elle : »
 - **CV faible, annoncé** : « Vous trouverez son CV en pièce jointe (il est succinct, il m'a dit lui-même que l'informatique n'était pas une compétence où il excelle, mais son contact au téléphone est très sympathique). A noter qu'il n'est pas à jour. »
+
+---
+
+## Le format anonyme (12 mails au groupe suisse Vetmint / Vetplatform, février–septembre 2026)
+
+La recruteuse présente les candidats à ce groupe sans les nommer : le contrat fait entrer un candidat dans la collaboration quand la clinique demande ses coordonnées ou ouvre son CV. Ce que ces 12 mails fixent :
+
+- **Sujet** : « Candidature anonyme urgentiste du 18-09-26 », « Candidature anonyme du 03-09-26 », « Candidature Anonyme Chirurgien ». Depuis avril 2026 la forme stable est `Candidature anonyme <poste> du JJ-MM-AA`.
+- **Salutation** : « Bonjour à tous, » (7 mails sur 12), « Bonjour à tous les deux, », ou les prénoms des interlocuteurs quand ils sont connus. Vouvoiement.
+- **Désignation** : « Il s'agit d'un vétérinaire diplômé en 2026 d'une université vétérinaire européenne », « C'est une vétérinaire diplômée d'une école vétérinaire française, qui soutiendra sa thèse fin octobre », « diplômée de cette année au Portugal ». Depuis août 2026 l'école n'est plus nommée, même par sa ville.
+- **Lieux** : « dans le Tarn », « une clinique proche de Paris », « 7 ans en Outre-Mer », « du côté de Lausanne », « une grande clinique dans une grande ville du sud de la France ». Jamais la ville de résidence.
+- **Employeurs** : « une maison des urgences en France », « une même clinique (six mois cumulés, où deux spécialistes l'ont encadré) », « un internat en faune sauvage dans un zoo en France », « en poste d'assistant vétérinaire pendant ses études ».
+- **Le rapport à la Suisse se dit** : « Son conjoint va exercer en Suisse et elle recherche donc un poste à proximité, à 100 % », « Il a de la famille en Suisse et il souhaite s'installer durablement », « Elle a démarré les démarches de reconnaissance de diplôme mais n'a pas encore de visibilité sur sa date de disponibilité », « doit encore réaliser les démarches pour exercer en Suisse ».
+- **Temps de travail en pourcentage** : « un poste à 100 % », « de 80 à 100 % d'activité », « un poste de 80 - 100 % ».
+- **Rémunération** : « n'a pas d'attente particulière en terme de rémunération », « une rémunération suivant la grille SVS (elle vient de passer les deux ans d'expérience) », « ne m'a pas indiqué de salaire attendu en particulier ».
+- **Profil sous le besoin, dit d'entrée puis argumenté** : « Voici une nouvelle candidature pour le poste d'urgentiste, mais il s'agit d'un profil sorti d'école » … « Je sais que vous privilégiez les profils ayant déjà une première expérience en urgence, et je le lui ai dit. Je vous le propose tout de même car c'est un jeune diplômé sérieux, lucide sur ses limites et réellement motivé pour se former chez vous. »
+- **Clause de collaboration, formule fixe en clôture** : « Vous trouverez son CV ci-dessous s'il vous intéresse et que vous souhaitez qu'il fasse partie de notre collaboration : » suivi du lien suivi vers un CV anonymisé (« CV anonyme du 18-09-26.pdf ») ; variante ancienne : « comme auparavant, une fois le CV consulté, le candidat rentrerait donc dans notre collaboration s'il était embauché dans une de vos structures ». Sans CV : « Si c'est le cas je vous transmettrai ses coordonnées puis par la suite son CV qu'elle est en train de mettre à jour. »
+- **Clôture** : « Qu'en pensez-vous ? », parfois précédé de « Si son profil vous intéresse il serait ravi d'échanger avec vous. »
+- **Longueur** : 180 à 450 mots.
+- **Anonymat à la demande du candidat, hors groupe suisse (1 mail)** : « Voici une candidature proposée de manière anonyme car le candidat ne souhaite pour le moment pas interférer avec son emploi actuel qui lui convient, avant d'avoir la réponse à certains éléments. » — la raison se dit, le mail liste les questions du candidat et propose d'envoyer les coordonnées « selon les conditions proposées et si son profil vous intéresse ».
+
+## Exemple 4 — candidature anonyme, jeune diplômé, poste d'urgentiste dans le groupe suisse
+
+Objet : Candidature anonyme urgentiste du 18-09-26
+
+```
+Bonjour à tous,
+
+Voici une nouvelle candidature pour le poste d'urgentiste, mais il s'agit d'un profil sorti d'école : pour le moment les candidats plus expérimentés ne souhaitent pas postuler, car les gardes de nuit ne correspondent plus à ce qu'ils recherchent.
+
+Il s'agit d'un vétérinaire diplômé en 2026 d'une université vétérinaire européenne, après une prépa et une licence en France. Il a de la famille en Suisse et souhaite s'installer durablement.
+
+Sa formation clinique s'est faite avec l'hôpital d'urgence de l'école : gardes du soir, beaucoup d'accidents de la voie publique, hospitalisations et suivis de cas.
+
+En France, son parcours s'est construit dans l'Aveyron, avec des stages répétés entre 2023 et 2026 dans une même clinique (cinq mois cumulés, où deux spécialistes l'ont encadré) et plusieurs autres structures, ainsi qu'un poste d'assistant vétérinaire pendant ses études. Au début de 2026, encore étudiant de dernière année, il a mené seul une campagne de vaccination d'urgence en bovins : plusieurs milliers d'animaux, avec toute la relation aux éleveurs et l'administratif que cela suppose.
+
+Sur le plan technique, il est autonome sur les consultations vaccinales du chien et du chat, sur la convenance féline (castration et stérilisation) et sur la prophylaxie bovine. Il doit encore se former pour le reste de la chirurgie et la médecine interne ou d'urgence.
+
+Il recherche un poste à 100 % pour du long terme, est tout à fait motivé pour les gardes, souhaite se former à l'urgence, et les NAC comme la dermatologie l'intéressent particulièrement. Il parle français, anglais et espagnol.
+
+Je sais que vous privilégiez les profils ayant déjà une première expérience en urgence, et je le lui ai dit. Je vous le propose tout de même car c'est un jeune diplômé sérieux, lucide sur ses limites et réellement motivé pour se former chez vous : les conditions du poste et l'encadrement que vous proposez correspondent à ce qu'il recherche.
+
+Vous trouverez son CV ci-dessous s'il vous intéresse et que vous souhaitez qu'il fasse partie de notre collaboration :
+
+[CV anonymisé — lien Mailsuite à insérer]
+
+Si son profil vous intéresse il serait ravi d'échanger avec vous. Qu'en pensez-vous ?
+
+Bien cordialement,
+
+Sarah Vanhersel
+Vétérinaire et consultante en recrutement
++33 6 75 08 38 86
+```
+
+## Exemple 5 — candidature anonyme, profil expérimenté, sans CV, poste d'urgentiste dans le groupe suisse
+
+Objet : Candidature anonyme urgentiste du 19-08-26
+
+```
+Bonjour à tous,
+
+Je vous propose ce jour une nouvelle candidature pour le poste d'urgentiste qui me semble très intéressante.
+
+Il s'agit d'une vétérinaire diplômée en 2018 d'une faculté européenne. Elle a ensuite effectué un remplacement de deux mois en Bretagne puis six ans en Outre-Mer :
+- 1 an en CDD dans une clinique ouverte 24h/24 : urgences exclusives, gardes de nuit, week-ends
+- 2 ans en CDI : alternance de semaines de consultations et de semaines d'urgences
+- 3 ans à la tête d'une structure plus petite ouverte en périphérie, qu'elle a gérée et développée seule en tant que salariée (consultations, chirurgies sur place, visites à domicile, plus de gardes)
+
+Elle a démissionné récemment, fait une pause cet été et recherche à présent un poste pour début 2027, de 80 à 100 % d'activité, son conjoint souhaitant s'installer en Suisse également.
+
+Concernant ses compétences :
+- Urgences : socle solide acquis sur trois ans de gardes de nuit et de week-end en autonomie complète, y compris seule sans ASV. Chirurgie d'urgence : pyomètres et césariennes en autonomie, mais appel de l'associé au-delà (SDTE, chirurgies lourdes)
+- Chirurgie de convenance : autonomie totale, toutes espèces
+- Médecine générale, médecine interne et consultations courantes : autonomie complète
+- Forte autonomie décisionnelle et capacité à gérer une structure de A à Z
+
+Elle souhaite tout de même trouver une structure formatrice : elle a beaucoup appris par elle-même et voudrait à présent progresser en échangeant sur les cas les plus complexes, ainsi que par des formations internes et externes.
+
+Elle est très intéressée par votre structure et souhaiterait en savoir plus sur le fonctionnement prévu du service d'urgences, notamment s'il y aura des AMV ou des doublons de vétérinaires pour travailler en équipe, car elle a déjà beaucoup travaillé seule.
+
+Que pensez-vous de son profil ? Si son profil vous intéresse, je vous transmettrai ses coordonnées puis son CV.
+
+Bien cordialement,
+
+Sarah Vanhersel
+Vétérinaire et consultante en recrutement
++33 6 75 08 38 86
+```
