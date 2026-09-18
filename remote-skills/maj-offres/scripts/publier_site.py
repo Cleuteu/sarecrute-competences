@@ -23,13 +23,27 @@ qui publie — ce script refuse d'y tourner.
       prénom donné, « Sarah » par défaut) — champ « Email compte Claude », l'adresse
       sarecrute, jamais le champ « Email » (gmail collaborateur Airtable). Alex est en copie :
       c'est l'adresse du compte du connecteur Gmail, la routine la connaît, pas ce script.
-      Écrit work/recap.json : destinataire, copie, sujet, corps. Ce mail est INTERNE : il nomme les cliniques, c'est voulu — c'est ainsi que
-      la recruteuse reconnaît ses dossiers. Rien de tout cela n'est commité.
+      Écrit work/recap.json : destinataire, copie, sujet, corps. Ce message est INTERNE : il
+      nomme les cliniques, c'est voulu — c'est ainsi que la recruteuse reconnaît ses dossiers.
+      Rien de tout cela n'est commité.
 
-Codes de sortie : 0 ok · 1 usage/environnement · 2 anonymat bloquant · 3 git/push.
+  telegram [--echec TEXTE]
+      Envoie work/recap.json par l'API Bot Telegram (variable TELEGRAM_BOT_TOKEN) à la
+      recruteuse (champ « Telegram chat ID » de sa fiche Recruteurs) et à Alex
+      (variable TELEGRAM_CHAT_ALEX). Décision d'Alex du 18/09/2026 : Telegram remplace le
+      mail, le connecteur Gmail des routines ne sachant que créer des brouillons.
+      --echec TEXTE : envoie TEXTE à Alex seul (compte rendu d'incident), sans recap.json.
+      Sans jeton : code 1 et rien d'envoyé — la routine se rabat sur un brouillon Gmail.
+
+  telegram --decouvrir
+      Affiche les chat ID des personnes qui ont écrit au bot (getUpdates), pour remplir
+      « Telegram chat ID » dans Recruteurs et TELEGRAM_CHAT_ALEX. À lancer en local.
+
+Codes de sortie : 0 ok · 1 usage/environnement · 2 anonymat bloquant · 3 git/push · 4 Telegram refusé.
 """
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -47,6 +61,8 @@ FICHIERS_PUBLIES = ("offres.html", "index.html", ".offres-state.json")
 T_RECRUTEURS = "tblDUpPwkuHYnAPyt"
 F_REC_NOM, F_REC_ACTIF = "fldwLiZVl731wiI4o", "fldscrgHc1n9M60XZ"
 F_REC_EMAIL = "fldaxrZ7PftpZQQfl"   # « Email compte Claude » = adresse sarecrute (décision d'Alex, 18/09/2026)
+F_REC_TELEGRAM = "fldxtWfHEbPeYUPJG"  # « Telegram chat ID »
+TELEGRAM_API = "https://api.telegram.org/bot{token}/{method}"
 COPIE = "l'adresse du compte du connecteur Gmail (Alex)"
 
 
@@ -151,14 +167,21 @@ def cmd_publier(args):
 
 # ---------------------------------------------------------------- recap
 
-def destinataire(prenom):
+def fiche_recruteuse(prenom):
+    """Fiche Recruteurs de la première recruteuse active dont le nom commence par `prenom`."""
     from fetch_offres import fetch_table  # lit AIRTABLE_API_KEY à l'import
-    for r in fetch_table(T_RECRUTEURS, [F_REC_NOM, F_REC_EMAIL, F_REC_ACTIF]):
+    for r in fetch_table(T_RECRUTEURS, [F_REC_NOM, F_REC_EMAIL, F_REC_ACTIF, F_REC_TELEGRAM]):
         f = r.get("fields", {})
         if f.get(F_REC_ACTIF) and str(f.get(F_REC_NOM, "")).strip().lower().startswith(prenom.lower()):
-            if f.get(F_REC_EMAIL):
-                return str(f[F_REC_NOM]).strip(), str(f[F_REC_EMAIL]).strip()
-    raise SystemExit(f"Aucune recruteuse active « {prenom}… » avec e-mail dans Recruteurs.")
+            return {k: (str(f[k]).strip() if f.get(k) else "") for k in (F_REC_NOM, F_REC_EMAIL, F_REC_TELEGRAM)}
+    raise SystemExit(f"Aucune recruteuse active « {prenom}… » dans Recruteurs.")
+
+
+def destinataire(prenom):
+    f = fiche_recruteuse(prenom)
+    if not f[F_REC_EMAIL]:
+        raise SystemExit(f"Pas d'« Email compte Claude » sur la fiche de {f[F_REC_NOM]}.")
+    return f[F_REC_NOM], f[F_REC_EMAIL]
 
 
 def libelle(o):
@@ -223,7 +246,7 @@ def cmd_recap(args):
     else:
         L.append(f"Attention : statut de publication « {pub.get('statut')} ».")
     L += ["", "Les noms de cliniques ci-dessus sont pour toi : sur le site, seul le département apparaît.",
-          "", "— Routine SaRecrute (automatique, tous les jours à 2h)"]
+          "", "— Routine SaRecrute (automatique, tous les jours à 2h ; questions et corrections : Alex)"]
 
     n = len(ajouts) + len(retraits)
     sujet = (f"Site SaRecrute — {len(ajouts)} publiée(s), {len(retraits)} dépubliée(s) — {date}"
@@ -237,6 +260,95 @@ def cmd_recap(args):
     return 0
 
 
+# ---------------------------------------------------------------- telegram
+
+def tg(token, method, **params):
+    data = json.dumps(params).encode("utf-8")
+    req = urllib.request.Request(TELEGRAM_API.format(token=token, method=method), data=data,
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:
+        return {"ok": False, "description": f"HTTP {e.code} {e.read().decode('utf-8', 'replace')[:300]}"}
+    except urllib.error.URLError as e:
+        return {"ok": False, "description": f"réseau : {e}"}
+
+
+def tg_envoyer(token, chat_id, texte):
+    """Envoie en texte brut, découpé sous la limite Telegram (4096 caractères)."""
+    morceaux, courant = [], ""
+    for ligne in texte.split("\n"):
+        if len(courant) + len(ligne) + 1 > 3900:
+            morceaux.append(courant); courant = ""
+        courant += ("\n" if courant else "") + ligne
+    morceaux.append(courant)
+    for m in morceaux:
+        r = tg(token, "sendMessage", chat_id=chat_id, text=m, disable_web_page_preview=True)
+        if not r.get("ok"):
+            return r.get("description", "refus inconnu")
+    return None
+
+
+def cmd_telegram(args):
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+    if not token:
+        print("TELEGRAM_BOT_TOKEN absent : rien n'est envoyé.")
+        return 1
+
+    if args.decouvrir:
+        r = tg(token, "getUpdates")
+        if not r.get("ok"):
+            print(f"⛔ Telegram : {r.get('description')}")
+            return 4
+        vus = {}
+        for u in r.get("result", []):
+            m = u.get("message") or {}
+            chat, de = m.get("chat", {}), m.get("from", {})
+            if chat.get("id"):
+                vus[chat["id"]] = (f'{de.get("first_name", "")} {de.get("last_name", "")} '
+                                   f'@{de.get("username", "")}  ({chat.get("type")})')
+        if not vus:
+            print("Aucun message reçu par le bot : chaque destinataire doit d'abord lui écrire (bouton Démarrer).")
+        for cid, qui in vus.items():
+            print(f"{cid}\t{qui}")
+        return 0
+
+    alex = os.environ.get("TELEGRAM_CHAT_ALEX", "").strip()
+    if args.echec:
+        if not alex:
+            print("TELEGRAM_CHAT_ALEX absent : incident non envoyé.")
+            return 1
+        err = tg_envoyer(token, alex, f"ÉCHEC routine maj-offres-site — {heure_paris():%d/%m/%Y %H:%M}\n\n{args.echec}")
+        print("✔ Incident envoyé à Alex." if not err else f"⛔ Telegram : {err}")
+        return 0 if not err else 4
+
+    recap = lire(WORK / "recap.json", None)
+    if recap is None:
+        print("work/recap.json absent — lance d'abord `recap`.")
+        return 1
+    fiche = fiche_recruteuse(args.destinataire)
+    cibles = []
+    if fiche[F_REC_TELEGRAM]:
+        cibles.append((fiche[F_REC_NOM], fiche[F_REC_TELEGRAM]))
+    else:
+        print(f"⚠ Pas de « Telegram chat ID » sur la fiche de {fiche[F_REC_NOM]} : elle ne recevra rien.")
+    if alex:
+        cibles.append(("Alex", alex))
+    else:
+        print("⚠ TELEGRAM_CHAT_ALEX absent : Alex ne recevra rien.")
+    if not cibles:
+        return 1
+
+    texte = f"{recap['sujet']}\n\n{recap['corps']}"
+    code = 0
+    for nom, cid in cibles:
+        err = tg_envoyer(token, cid, texte)
+        print(f"✔ Envoyé à {nom}." if not err else f"⛔ {nom} : {err}")
+        code = code or (4 if err else 0)
+    return code
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -247,6 +359,11 @@ def main():
     r = sub.add_parser("recap")
     r.add_argument("--destinataire", default="Sarah", help="prénom dans la table Recruteurs")
     r.set_defaults(fn=cmd_recap)
+    t = sub.add_parser("telegram")
+    t.add_argument("--destinataire", default="Sarah", help="prénom dans la table Recruteurs")
+    t.add_argument("--echec", metavar="TEXTE", help="envoyer un compte rendu d'incident à Alex seul")
+    t.add_argument("--decouvrir", action="store_true", help="lister les chat ID vus par le bot")
+    t.set_defaults(fn=cmd_telegram)
     args = ap.parse_args()
     return args.fn(args)
 

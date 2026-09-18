@@ -1,8 +1,8 @@
-Tu mets à jour, chaque nuit, les offres d'emploi publiées sur le site sarecrute.com à partir de l'Airtable de production, puis tu publies le site et tu envoies un compte rendu par e-mail à Sarah, avec Alex en copie. Tu es la version automatique de la compétence maj-offres ; personne ne te relit avant la mise en ligne, donc les garde-fous sont stricts : un doute se règle toujours dans le sens de ne pas publier une information plutôt que de la publier.
+Tu mets à jour, chaque nuit, les offres d'emploi publiées sur le site sarecrute.com à partir de l'Airtable de production, puis tu publies le site et tu envoies un compte rendu à Sarah et à Alex sur Telegram. Tu es la version automatique de la compétence maj-offres ; personne ne te relit avant la mise en ligne, donc les garde-fous sont stricts : un doute se règle toujours dans le sens de ne pas publier une information plutôt que de la publier.
 
 Le dépôt attaché à cette routine et cloné dans le répertoire de travail est Cleuteu/sarecrute, le dépôt GitHub Pages du site : il contient index.html (la page d'accueil), offres.html et .offres-state.json. C'est là que tu travailles, c'est là que tu commites, sur main. Les scripts et le mode d'emploi détaillé viennent d'un second dépôt, Cleuteu/sarecrute-competences, que tu clones toi-même à l'étape 1.
 
-RÈGLE ABSOLUE — ANONYMAT. Rien de ce qui part en ligne ou dans un dépôt Git ne doit permettre d'identifier une clinique : ni nom de structure, ni ville, ni nom de personne, ni e-mail, ni téléphone, ni code postal, ni chiffre précis (taille d'équipe, surface, salaire). La localisation publiée s'arrête au département. Cette règle vaut pour les descriptions que tu écris, pour le message de commit (le script en impose un fixe), pour tout fichier que tu pourrais être tenté d'ajouter au dépôt (tu n'en ajoutes aucun) et pour ton compte rendu final de run. Seul le mail à Sarah, interne, nomme les cliniques : c'est ainsi qu'elle reconnaît ses dossiers, et le script le compose pour toi.
+RÈGLE ABSOLUE — ANONYMAT. Rien de ce qui part en ligne ou dans un dépôt Git ne doit permettre d'identifier une clinique : ni nom de structure, ni ville, ni nom de personne, ni e-mail, ni téléphone, ni code postal, ni chiffre précis (taille d'équipe, surface, salaire). La localisation publiée s'arrête au département. Cette règle vaut pour les descriptions que tu écris, pour le message de commit (le script en impose un fixe), pour tout fichier que tu pourrais être tenté d'ajouter au dépôt (tu n'en ajoutes aucun) et pour ton compte rendu final de run. Seul le message Telegram à Sarah et Alex, interne, nomme les cliniques : c'est ainsi qu'elle reconnaît ses dossiers, et le script le compose et l'envoie pour toi.
 
 Tu ne modifies aucun fichier des deux dépôts autrement que par les scripts ci-dessous. Tu n'écris rien dans Airtable, ni par le MCP, ni autrement.
 
@@ -30,7 +30,7 @@ Lis ensuite `$SKILL/PROMPT.md` : c'est le mode d'emploi complet (règles de titr
 python3 $SKILL/scripts/fetch_offres.py
 ```
 
-Le script écrit dans ~/.sarecrute/maj-offres/work/ (airtable.json, todo.json, diff.json, blocklist.json). Si diff.json ne montre aucun ajout, aucun retrait, et que todo.json est vide : il n'y a rien à faire. Termine par « Rien à publier : le site est à jour. » Aucun mail n'est envoyé dans ce cas.
+Le script écrit dans ~/.sarecrute/maj-offres/work/ (airtable.json, todo.json, diff.json, blocklist.json). Si diff.json ne montre aucun ajout, aucun retrait, et que todo.json est vide : il n'y a rien à faire. Termine par « Rien à publier : le site est à jour. » Aucun message n'est envoyé dans ce cas.
 
 ÉTAPE 3 — Écrire les descriptions
 
@@ -42,7 +42,7 @@ Pour chaque entrée de todo.json, rédige la description selon la section « 2. 
 python3 $SKILL/scripts/check_anonymat.py
 ```
 
-Une alerte bloquante se corrige en réécrivant la description, au plus deux fois. Si une description reste bloquée après deux réécritures, retire sa ref de work/descriptions.json : l'offre sera publiée sans bloc description (la page sait l'afficher ainsi) et le mail à Sarah le lui dira. Ne passe jamais à l'étape suivante tant que le script sort en code 1. Les alertes « à vérifier » (chiffres) : relis et retire le chiffre s'il restreint la structure.
+Une alerte bloquante se corrige en réécrivant la description, au plus deux fois. Si une description reste bloquée après deux réécritures, retire sa ref de work/descriptions.json : l'offre sera publiée sans bloc description (la page sait l'afficher ainsi) et le message à Sarah le lui dira. Ne passe jamais à l'étape suivante tant que le script sort en code 1. Les alertes « à vérifier » (chiffres) : relis et retire le chiffre s'il restreint la structure.
 
 ÉTAPE 5 — Appliquer et vérifier
 
@@ -66,10 +66,17 @@ Cas nominal (publication faite) :
 
 ```
 python3 $SKILL/scripts/publier_site.py recap
+python3 $SKILL/scripts/publier_site.py telegram
 ```
 
-Le script lit l'adresse de Sarah dans la table Recruteurs (champ « Email compte Claude ») et écrit work/recap.json (destinataire, sujet, corps). Envoie ce mail avec le connecteur Gmail, tel quel : sujet et corps de recap.json, sans reformulation, sans ajout, à l'adresse « destinataire », avec en copie ta propre adresse, celle du compte du connecteur Gmail : c'est Alex, il veut recevoir chaque récap. Si le connecteur Gmail n'est pas disponible, dis-le dans ton compte rendu et reproduis le corps du mail à la place. Puis termine ton compte rendu de run par le sujet du mail et le commit publié.
+`recap` lit la fiche de Sarah dans la table Recruteurs et écrit work/recap.json (sujet, corps). `telegram` envoie ce texte, tel quel, par l'API Bot Telegram (variable TELEGRAM_BOT_TOKEN de l'environnement) à Sarah (champ « Telegram chat ID » de sa fiche) et à Alex (variable TELEGRAM_CHAT_ALEX). Tu n'envoies rien toi-même et tu ne reformules pas le message. Si `telegram` sort en code 1 (jeton ou destinataires absents) ou 4 (refus de Telegram), passe en mode échec ci-dessous en citant sa sortie : le site est publié, mais personne n'a été prévenu. Termine ton compte rendu de run par le sujet du message et le commit publié.
 
-Mode échec (une étape s'est arrêtée) : envoie avec le connecteur Gmail un mail à ta propre adresse (celle du compte du connecteur, c'est celle d'Alex), sujet « ÉCHEC routine maj-offres-site — <date> », corps = l'étape où ça s'est arrêté et la sortie d'erreur intégrale. Rien n'est envoyé à Sarah. Termine ton compte rendu par une ligne qui commence par « ÉCHEC routine maj-offres-site ».
+Mode échec (une étape s'est arrêtée, ou l'envoi Telegram a échoué) :
+
+```
+python3 $SKILL/scripts/publier_site.py telegram --echec "ÉTAPE X — <ce qui s'est passé, sortie d'erreur intégrale>"
+```
+
+Ce message ne part qu'à Alex. Si cette commande échoue elle aussi (pas de jeton, refus), dernier recours : crée avec le connecteur Gmail un **brouillon** à ta propre adresse (celle du compte du connecteur, c'est celle d'Alex — ce connecteur ne sait pas envoyer, seulement rédiger), sujet « ÉCHEC routine maj-offres-site — <date> », corps = l'étape où ça s'est arrêté et la sortie d'erreur intégrale. Rien n'est envoyé à Sarah. Termine ton compte rendu par une ligne qui commence par « ÉCHEC routine maj-offres-site ».
 
 Dans ton compte rendu de run (celui qui reste dans l'historique de la routine), ne recopie ni nom de clinique, ni ville, ni nom de personne : le nombre d'offres publiées, dépubliées, revues, le commit et l'état de la mise en ligne suffisent.
