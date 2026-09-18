@@ -13,7 +13,7 @@ pousse. Le formulaire web ne contient qu'un pointeur vers le fichier.
 | `profil-ia-candidat.md` | Enrichissement d'un candidat : champs structurés, Profil IA, grille de compétences par acte et parcours professionnel (base `appP0W2ISytaNyAhG`, tables `Candidats`, `Actes`, `Compétences`, `Expériences`) | API (`/fire`), `text` = `recordId:recXXXXXXXXXXXXXX` |
 | `mail-presentation-candidature.md` | Rédaction du mail de présentation d'un candidat à une clinique, enregistré dans la candidature (jamais envoyé par la routine). Lit `Candidatures`, `Candidats`, `Compétences`, `Offres d'emploi`, `Cliniques` ; écrit uniquement les champs `Mail de présentation - *` de la candidature. Exemples de ton dans `references/mails-presentation-exemples.md`. **Pas encore déployée** : routine cloud à créer, et trois champs à créer sur Candidatures (`Mail de présentation - Statut`, `- Généré le`, `- Note IA`). | API (`/fire`), `text` = `candidatureId:recXXXXXXXXXXXXXX` |
 | `cliniques-a-contacter.md` | Lot hebdomadaire de cliniques à contacter : lance `scripts/cliniques_a_contacter.py --attribuer`, qui score les posts « Clinique cherche vétérinaire » de `Posts scrappés`, écrit `Score` / `Raisons` / `Clinique existante`, et attribue 10 **cliniques** par recruteuse active (`Attribué à`, `Attribué le`, `Attribué jusqu'au` = dimanche). **Une clinique = une recruteuse**, y compris de semaine en semaine (posts regroupés par fiche liée, nom normalisé, mail, téléphone). Les recruteuses lisent leur lot sur les pages « À contacter — Sarah / Pamela » de l'interface Posts scrappés. Un lot encore valide bloque la réattribution. Déployée le 10/09/2026, ouverte aux recruteuses le 14/09/2026. | Planifiée : lundi 07:00 Europe/Paris (`0 5 * * 1` UTC), routine `trig_01QQwayZkev8GB8am3yhrt8T` |
-| `maj-offres-site.md` | Mise à jour quotidienne des offres du site sarecrute.com : version automatique de la compétence `maj-offres` (scripts de `remote-skills/maj-offres/`). Tourne dans un clone du **dépôt Pages `Cleuteu/sarecrute`** (attaché à la routine), clone `sarecrute-competences` pour les scripts, lit Airtable, écrit les descriptions, contrôle l'anonymat, régénère `offres.html` / `index.html` / `.offres-state.json`, commite et pousse sur `main` (`scripts/publier_site.py publier`), puis envoie par le connecteur Gmail un compte rendu à Sarah, Alex en copie (`publier_site.py recap`, adresse lue dans `Recruteurs`.« Email compte Claude ») — **seulement s'il y a eu des changements**. Échec = mail à Alex, rien à Sarah. **Pas encore déployée** (18/09/2026), voir ci-dessous. | Planifiée : tous les jours 02:00 Europe/Paris (`0 0 * * *` UTC en été, `0 1 * * *` en hiver) |
+| `maj-offres-site.md` | Mise à jour quotidienne des offres du site sarecrute.com : version automatique de la compétence `maj-offres` (scripts de `remote-skills/maj-offres/`). Tourne dans un clone du **dépôt Pages `Cleuteu/sarecrute`** (attaché à la routine), clone `sarecrute-competences` pour les scripts, lit Airtable, écrit les descriptions, contrôle l'anonymat, régénère `offres.html` / `index.html` / `.offres-state.json`, commite et pousse sur `main` (`scripts/publier_site.py publier`), puis envoie par le connecteur Gmail un compte rendu à Sarah, Alex en copie (`publier_site.py recap`, adresse lue dans `Recruteurs`.« Email compte Claude ») — **seulement s'il y a eu des changements**. Échec = mail à Alex, rien à Sarah. Routine `trig_015BKYCDaAEkmUHbLAvY6rAo` créée le 18/09/2026 par API, **désactivée** jusqu'à ce que le dépôt Pages soit attaché (compte GitHub à relier sur claude.ai), voir ci-dessous. | Planifiée : tous les jours 02:00 Europe/Paris (`0 0 * * *` UTC en été, `0 1 * * *` en hiver) |
 
 ## Convention
 
@@ -133,22 +133,27 @@ sources locales) et publie aussi `.offres-state.json`. La compétence `maj-offre
    scripts (`remote-skills/maj-offres/`, dont le nouveau `publier_site.py`) et le prompt. Pas besoin de
    `main:stable` pour la routine ; le pousser aussi si l'on veut la compétence manuelle 0.3.0 chez les
    utilisateurs du plugin.
-3. **La routine cloud** (claude.ai/code/routines) : dépôt attaché = **`Cleuteu/sarecrute`** (le dépôt
-   Pages, pas celui-ci — c'est là qu'elle doit pousser), environnement `sarecrute` (porte déjà
-   `AIRTABLE_API_KEY`), connecteur **Gmail** coché (le compte d'Alex : les mails partent de là ;
-   l'échec s'envoie à cette même adresse), modèle Opus 5, planification `0 0 * * *` UTC (2h Paris en
-   été ; `0 1 * * *` en hiver si l'heure exacte compte). Instructions = pointeur :
-   « Suis intégralement les instructions du fichier routines/maj-offres-site.md du dépôt
-   Cleuteu/sarecrute-competences (branche main ; le clone à faire est décrit dans son ÉTAPE 1). »
+3. **La routine cloud** — CRÉÉE le 18/09/2026 par API depuis Claude Code (compétence `schedule`, outil
+   `RemoteTrigger` : le README disait à tort que Claude Code n'y avait pas accès — il peut lister, créer,
+   modifier, lancer et lire les journaux de run, mais pas supprimer). `trig_015BKYCDaAEkmUHbLAvY6rAo`,
+   environnement `sarecrute` (porte `AIRTABLE_API_KEY`), connecteur **Gmail** attaché (compte d'Alex :
+   les mails partent de là, l'échec s'envoie à cette même adresse), modèle Opus 5, cron `0 0 * * *` UTC,
+   instructions = pointeur vers ce fichier avec repli `raw`. **Désactivée et sans dépôt** : l'API a refusé
+   `sources: Cleuteu/sarecrute` avec « Connect your GitHub account before saving a routine that uses a
+   GitHub repository ». Le journal du run `cse_01T2DDb9UktaiWjdikqosMm3` (14/09) prouve les deux
+   mécanismes : `git clone` d'un dépôt public passe sans source déclarée, et le push n'est accepté par le
+   proxy git **que** pour un dépôt déclaré dans les sources (« add the repository to the session's
+   sources »). Reste à faire par Alex : relier son compte GitHub sur claude.ai/code (paramètres), puis
+   soit ajouter `Cleuteu/sarecrute` en dépôt de la routine dans l'UI et l'activer, soit le demander à
+   Claude Code (`RemoteTrigger update` avec `sources` + `enabled: true`).
 4. **Adresses** : le script lit `Recruteurs`.« Email compte Claude » (adresse sarecrute de Sarah, décision
    d'Alex du 18/09/2026), jamais le champ `Email` (gmail collaborateur Airtable). Alex est en copie de
    chaque récap : la routine met sa propre adresse Gmail (celle du connecteur) en cc.
-5. **Premier run à la main** (« Run now ») en journée, Alex devant : vérifier (a) que le clone de
-   `sarecrute-competences` passe depuis l'environnement — sinon le repli `raw` du prompt, sinon plan B :
-   copier `remote-skills/maj-offres/` dans le dépôt Pages par `deploy.sh` — ; (b) que le `git push
-   origin HEAD:main` est accepté par le proxy GitHub du cloud pour un dépôt attaché ; (c) que le build
-   Pages est confirmé et que le mail arrive à Sarah avec les bons noms. Puis relire le commit poussé :
-   message fixe, trois fichiers, aucun nom de clinique.
+5. **Premier run à la main** (« Run now », ou `RemoteTrigger run`) en journée : vérifier que le build
+   Pages est confirmé et que le mail arrive à Sarah et Alex avec les bons noms, puis relire le commit
+   poussé : message fixe, trois fichiers, aucun nom de clinique. Le journal se lit par `RemoteTrigger
+   list_runs` puis `get_run_log`. Les changements en attente au 18/09 : deux offres archivées à dépublier,
+   une nouvelle offre signée à publier.
 
 Points ouverts : la routine ne connaît pas le fuseau Europe/Paris, elle calcule l'heure du commit et
 la date du mail elle-même (`publier_site.py`, règle été/hiver simplifiée). Les descriptions écrites la
