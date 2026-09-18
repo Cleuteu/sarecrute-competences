@@ -111,10 +111,11 @@ def cmd_publier(args):
         print("\n--dry-run : ni commit ni push.")
         return 0
 
-    # 3. commit + push — message fixe : aucun nom de clinique ne doit entrer dans l'historique
+    # 3. commit + push — message fixe : aucun nom de clinique ne doit entrer dans l'historique.
+    #    Auteur = l'identité git de la session cloud (le compte GitHub d'Alex) : le proxy de push
+    #    refuse vers une branche non « claude/ » un commit signé d'un autre auteur que le titulaire.
     git("add", *[f for f in FICHIERS_PUBLIES if f in modifies])
-    git("-c", "user.name=Routine SaRecrute", "-c", "user.email=routine@sarecrute.com",
-        "commit", "-q", "-m", f"Mise à jour des offres — {heure_paris():%Y-%m-%d %H:%M} (routine)")
+    git("commit", "-q", "-m", f"Mise à jour des offres — {heure_paris():%Y-%m-%d %H:%M} (routine)")
     sha = git("rev-parse", "--short", "HEAD").stdout.strip()
     p = git("push", "-q", "origin", "HEAD:main", check=False)
     if p.returncode:
