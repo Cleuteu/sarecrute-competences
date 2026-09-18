@@ -1,4 +1,4 @@
-version=0.2.0
+version=0.3.0
 PROMPT.md
 assets/dept_centroids.json
 assets/titre_specialites.json
@@ -6,3 +6,4 @@ scripts/apply_offres.py
 scripts/check_anonymat.py
 scripts/fetch_offres.py
 scripts/paths.py
+scripts/publier_site.py

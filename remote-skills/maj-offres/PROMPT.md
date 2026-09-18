@@ -1,4 +1,4 @@
-**maj-offres — version 0.2.0 (2026-09-14)**
+**maj-offres — version 0.3.0 (2026-09-18)**
 
 > Ce fichier est le corps de la compétence `maj-offres` du plugin `sarecrute-admin`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -20,7 +20,7 @@ Synchronise les offres publiées sur le site avec l'Airtable **PROD** (`appP0W2I
 
 **Périmètre publié** : offre non archivée **ET** clinique au statut commercial « Signé ». Rien d'autre.
 
-**Où tourner.** Les commandes se lancent **depuis le dossier du site** (celui qui contient `offres.html`, `site_sarecrute_v4.html` et `deploy.sh`) : les scripts le détectent par le dossier courant. Sinon, exporte `SARECRUTE_SITE=/chemin/du/site`. `<skill>` désigne ci-dessous le dossier de cette compétence (indiqué au chargement) — **ne code jamais son chemin en dur**, il change à chaque `claude plugin update`. Les scripts n'écrivent rien dedans : le dossier de travail est `~/.sarecrute/maj-offres/work/` (surchargeable par `MAJ_OFFRES_WORK`).
+**Deux façons de tourner.** (a) **À la main**, depuis le dossier de travail local du site (celui qui contient `offres.html`, `site_sarecrute_v4.html` et `deploy.sh`) : c'est cette compétence. (b) **Chaque nuit à 2h, par la routine cloud `maj-offres-site`** (`routines/maj-offres-site.md`), qui tourne dans un clone du dépôt GitHub Pages `Cleuteu/sarecrute` où la page d'accueil s'appelle `index.html`, et qui publie seule : depuis le 18/09/2026, **le dépôt est la référence pour les offres**. Conséquence pour (a) : **commence toujours par `./deploy.sh --sync`**, qui rapatrie dans les sources locales les offres publiées par la routine (blocs `OFFRES`, carousel, `OFFRES_TEASER`, `.offres-state.json`). Sans ça, tu travailles sur une copie périmée et ton deploy écrase la nuit précédente. Les scripts détectent le dossier du site par le dossier courant ; sinon, exporte `SARECRUTE_SITE=/chemin/du/site`. `<skill>` désigne ci-dessous le dossier de cette compétence (indiqué au chargement) — **ne code jamais son chemin en dur**, il change à chaque `claude plugin update`. Les scripts n'écrivent rien dedans : le dossier de travail est `~/.sarecrute/maj-offres/work/` (surchargeable par `MAJ_OFFRES_WORK`).
 
 **Règle absolue — anonymat.** Aucune information permettant d'identifier une clinique ne sort : ni nom de structure, ni ville, ni nom de personne, ni e-mail, ni téléphone, ni code postal, ni chiffre précis (taille d'équipe, surface, salaire). La localisation publiée s'arrête **au département** (ou au pays hors France). Les notes Airtable sont de la matière première interne : on en extrait des qualités génériques, on ne les recopie jamais.
 
@@ -29,8 +29,8 @@ Synchronise les offres publiées sur le site avec l'Airtable **PROD** (`appP0W2I
 | Fichier | Rôle |
 |---|---|
 | `offres.html` | tableau `const OFFRES` (toutes les offres) |
-| `site_sarecrute_v4.html` | cartes du carousel + `const OFFRES_TEASER` (uniquement les offres taguées « Nouvelle offre ») |
-| `.offres-state.json` | (dans le dossier du site) état persistant : description + empreinte du texte source par offre. **Non déployé** (`deploy.sh` ne copie que `index.html`, `offres.html`, les SEO et `images/`). Sert à savoir quelles descriptions existent déjà et lesquelles doivent être réécrites. |
+| `site_sarecrute_v4.html` (local) / `index.html` (dépôt Pages) | cartes du carousel + `const OFFRES_TEASER` (uniquement les offres taguées « Nouvelle offre ») |
+| `.offres-state.json` | (dans le dossier du site) état persistant : description + empreinte du texte source par offre. Sert à savoir quelles descriptions existent déjà et lesquelles doivent être réécrites. **Versionné dans le dépôt Pages** depuis le 18/09/2026 (la routine cloud en a besoin) : il ne contient que des descriptions déjà publiques et des empreintes, rien d'identifiant, et Pages ne sert pas les fichiers cachés (pas de `.nojekyll`). |
 
 ## Ressources bundlées
 
@@ -38,6 +38,7 @@ Synchronise les offres publiées sur le site avec l'Airtable **PROD** (`appP0W2I
 - `scripts/fetch_offres.py` — lit Airtable, calcule le diff, écrit `work/`
 - `scripts/check_anonymat.py` — garde-fou anonymat (bloquant)
 - `scripts/apply_offres.py` — régénère les deux pages HTML
+- `scripts/publier_site.py` — **routine cloud seulement** (refuse de tourner hors d'un clone du dépôt Pages) : `publier` = garde-fou anonymat sur tout l'état, commit à message fixe, push sur `main`, attente de la version servie ; `recap` = compose le mail de compte rendu à Sarah (adresse lue dans `Recruteurs`). À la main, c'est `./deploy.sh` qui publie.
 - `assets/dept_centroids.json` — centroïdes par département + pays étrangers, pour les points de la carte. Un point **par département** (toutes les offres d'un même département partagent le même point) : c'est volontaire, ça empêche de deviner la commune.
 - `assets/titre_specialites.json` — **source unique de vérité** des libellés : composition des titres, canonisation des pratiques, libellés du filtre, libellés d'expérience. Pour changer un libellé, on édite ce fichier et on relance `apply_offres.py` — on ne modifie jamais les tables à la main dans le HTML.
 
@@ -67,6 +68,14 @@ Le filtre matche pratique **ou** spécialité : `o.pratiques.includes(v) || o.sp
 **Si une nouvelle valeur de pratique apparaît dans Airtable** : ajoute-la dans `pratiques_titre` **et** `pratiques_filtre` de l'asset, puis relance `apply_offres.py`. Sans ça elle s'affichera brute et en minuscules dans le titre. Le champ Airtable contient des doublons et coquilles (`volailles` / `Vollaile`, `Rurale`) : `pratiques_canon` les normalise à la lecture, complète-le au besoin.
 
 ## Étapes
+
+### 0. Rapatrier ce que la routine a publié
+
+```bash
+./deploy.sh --sync
+```
+
+Tire le dépôt Pages et recopie dans les sources locales les blocs d'offres et `.offres-state.json`. « Offres locales identiques au dépôt » = rien n'avait bougé. Ne saute pas cette étape : la routine publie chaque nuit.
 
 ### 1. Lire Airtable et voir ce qui change
 

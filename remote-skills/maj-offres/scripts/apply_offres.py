@@ -19,10 +19,10 @@ import re
 import unicodedata
 from datetime import datetime, timedelta, timezone
 
-from paths import SITE, STATE, SKILL, WORK
+from paths import SITE, HOME, STATE, SKILL, WORK
 
 OFFRES_HTML = SITE / "offres.html"
-HOME_HTML = SITE / "site_sarecrute_v4.html"
+HOME_HTML = HOME                      # site_sarecrute_v4.html (local) ou index.html (dépôt Pages)
 CENTROIDS = SKILL / "assets" / "dept_centroids.json"
 
 MOIS = ["janv.", "févr.", "mars", "avr.", "mai", "juin",
@@ -262,7 +262,7 @@ def main():
     if desc_file.exists():
         desc_file.unlink()
 
-    print("\n✔ offres.html, site_sarecrute_v4.html et .offres-state.json mis à jour.")
+    print(f"\n✔ offres.html, {HOME_HTML.name} et .offres-state.json mis à jour.")
 
 
 if __name__ == "__main__":
