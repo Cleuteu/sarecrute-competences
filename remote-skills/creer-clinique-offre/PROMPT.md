@@ -335,7 +335,7 @@ personnalisation est une poignée de mots à l'intérieur, pas une nouvelle vers
 ### Signatures
 
 Mail comme Messenger se terminent **toujours** par le bloc de la recruteuse retenue à l'étape 1,
-ces trois lignes exactement, sans rien y ajouter :
+recopié exactement, sans rien y ajouter ni en retirer :
 
 ```
 Sarah Vanhersel
@@ -344,9 +344,10 @@ Vétérinaire et consultante en recrutement
 ```
 
 ```
-Pamela Martinez
+Pamela Martinez Martinez
 Vétérinaire et consultante en recrutement
-+33 7 81 04 51 54
+SaRecrute
++33 06 70 86 51 48
 ```
 
 Une recruteuse qui n'a pas son bloc ici : lui demander son numéro et signer avec son nom et le
