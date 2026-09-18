@@ -20,8 +20,10 @@ qui publie — ce script refuse d'y tourner.
       Compose le mail de compte rendu à partir de work/diff.json, work/todo.json,
       .offres-state.json et work/publication.json, et lit l'adresse de la destinataire
       dans la table Recruteurs (première recruteuse active dont le nom commence par le
-      prénom donné, « Sarah » par défaut). Écrit work/recap.json : destinataire, sujet,
-      corps. Ce mail est INTERNE : il nomme les cliniques, c'est voulu — c'est ainsi que
+      prénom donné, « Sarah » par défaut) — champ « Email compte Claude », l'adresse
+      sarecrute, jamais le champ « Email » (gmail collaborateur Airtable). Alex est en copie :
+      c'est l'adresse du compte du connecteur Gmail, la routine la connaît, pas ce script.
+      Écrit work/recap.json : destinataire, copie, sujet, corps. Ce mail est INTERNE : il nomme les cliniques, c'est voulu — c'est ainsi que
       la recruteuse reconnaît ses dossiers. Rien de tout cela n'est commité.
 
 Codes de sortie : 0 ok · 1 usage/environnement · 2 anonymat bloquant · 3 git/push.
@@ -43,7 +45,9 @@ SCRIPTS = Path(__file__).resolve().parent
 SITE_URL = "https://sarecrute.com/offres.html"
 FICHIERS_PUBLIES = ("offres.html", "index.html", ".offres-state.json")
 T_RECRUTEURS = "tblDUpPwkuHYnAPyt"
-F_REC_NOM, F_REC_EMAIL, F_REC_ACTIF = "fldwLiZVl731wiI4o", "fld4ETJcqeL3e2Ur0", "fldscrgHc1n9M60XZ"
+F_REC_NOM, F_REC_ACTIF = "fldwLiZVl731wiI4o", "fldscrgHc1n9M60XZ"
+F_REC_EMAIL = "fldaxrZ7PftpZQQfl"   # « Email compte Claude » = adresse sarecrute (décision d'Alex, 18/09/2026)
+COPIE = "l'adresse du compte du connecteur Gmail (Alex)"
 
 
 def git(*args, check=True):
@@ -223,11 +227,11 @@ def cmd_recap(args):
     n = len(ajouts) + len(retraits)
     sujet = (f"Site SaRecrute — {len(ajouts)} publiée(s), {len(retraits)} dépubliée(s) — {date}"
              if n else f"Site SaRecrute — descriptions revues — {date}")
-    recap = {"destinataire": email, "nom": nom, "sujet": sujet,
+    recap = {"destinataire": email, "nom": nom, "copie": COPIE, "sujet": sujet,
              "corps": "\n".join(l for l in L if l is not None),
              "changements": n + len(revues)}
     (WORK / "recap.json").write_text(json.dumps(recap, ensure_ascii=False, indent=1), encoding="utf-8")
-    print(f"→ {WORK}/recap.json — pour {nom} <{email}>\n")
+    print(f"→ {WORK}/recap.json — pour {nom} <{email}>, copie : {COPIE}\n")
     print(f"Sujet : {sujet}\n\n{recap['corps']}")
     return 0
 
