@@ -4,12 +4,12 @@ Trois mails nominatifs réellement envoyés par la recruteuse entre juillet et s
 
 Ce que ces trois mails ont en commun, et que la routine doit reproduire :
 
-- une accroche qui nomme le poste visé et dit en une phrase pourquoi ce candidat pour ce poste ;
+- une accroche d'une phrase, deux au plus, qui nomme le poste visé et, s'il y a lieu, un fait qui rend le candidat pertinent pour ce poste (jamais son état d'esprit) ;
 - un parcours en deux à quatre phrases, avec les durées ;
 - des compétences par acte, dans l'ordre de ce que l'offre attend, avec le niveau réel et **ce qui n'a pas encore été fait** ;
 - les conditions chiffrées telles que le candidat les a dites, écarts avec l'offre compris ;
 - les questions et freins du candidat pour ce poste, formulés sans plaider ;
-- une seule phrase de jugement ;
+- une phrase de jugement au plus, et seulement quand la recruteuse en a noté un après son appel ; sinon aucune (voir la comparaison généré / envoyé en fin de fichier) ;
 - « Vous trouverez son CV en pièce jointe. Qu'en pensez-vous ? » et la signature.
 
 ---
@@ -227,3 +227,67 @@ Sarah Vanhersel
 Vétérinaire et consultante en recrutement
 +33 6 75 08 38 86
 ```
+
+---
+
+## Ce que la recruteuse coupe à la relecture (18/09/2026) : généré, puis envoyé
+
+Même dossier, même jour : à gauche le mail généré par la routine, à droite ce que la recruteuse a réellement envoyé, anonymisés. Le mail est passé de 283 à 218 mots hors signature. Rien de ce qui a été retiré n'était une information ; tout plaidait. Le dossier était mince : notes d'appel seulement, pas de grille, pas de CV.
+
+**Sujet** : « Candidature canine - Claire Dumont » → « Candidate CDD vacances Noël et janvier - Claire Dumont ». Les notes disaient « sera en vacances 15j / indispo 18/01 / sinon 5 sem de rempla / <clinique> ok » : c'était une fenêtre de CDD pour cette clinique, pas des vacances de la candidate, et l'angle du mail était là.
+
+**Accroche**
+
+Généré :
+```
+Je vous propose ce jour une nouvelle candidature pour votre poste en canine, celle de Claire Dumont, vétérinaire diplômée de Nantes en juillet 2019. Elle ne connaissait pas votre clinique et Beaurepaire est un peu en dehors du secteur qu'elle visait au départ, mais elle recherche justement une structure indépendante et le poste l'intéresse suffisamment pour vouloir en savoir plus.
+```
+Envoyé :
+```
+Je vous propose ce jour une nouvelle candidature, celle de Claire Dumont, vétérinaire diplômée de Nantes en juillet 2019. Elle effectue actuellement des remplacements et pourrait donc être intéressée par un CDD dans votre structure à partir de la semaine de Noël (travailler pendant les vacances ne la dérange pas) et pour 5 semaines (hors semaine du 18/01). Je vous la propose dans le cas où cela pourrait vous dépanner.
+```
+
+**Parcours**
+
+Généré :
+```
+Elle a ensuite rejoint une clinique du côté de Béthune, en canine exclusive : elle aurait souhaité continuer l'équine mais n'a pas eu de proposition en ce sens. Elle en est devenue responsable de site en 2023, et enchaîne depuis des remplacements, à Amiens et Abbeville puis deux mois et demi dans le Lot.
+```
+Envoyé :
+```
+Elle a ensuite rejoint une clinique du côté de Béthune, en canine exclusive, dont elle est devenue responsable de site en 2023. Elle enchaîne depuis des remplacements : Amiens et Abbeville, puis deux mois et demi dans le Lot.
+```
+(La recruteuse a aussi ajouté le nom du groupe propriétaire de cette clinique ; la règle de la routine reste de l'omettre.)
+
+**Compétences**
+
+Généré :
+```
+Côté compétences, elle se dit autonome en médecine et en chirurgie canines, convenances comprises. Nous n'avons pas encore détaillé sa pratique acte par acte ; je compléterai après notre prochain échange.
+```
+Envoyé :
+```
+Côté compétences, elle est autonome en médecine et en chirurgie canines, toutes convenances comprises.
+```
+
+**Conditions**
+
+Généré :
+```
+Elle recherche plutôt un CDI, à temps partiel, autour de 3,5 jours par semaine, et idéalement sans garde, ce qui rejoint le fonctionnement de votre clinique. Elle souhaiterait idéalement une rémunération à la convention collective majorée de 35 %, à l'échelon 4. Elle n'est pas pressée : elle est engagée jusqu'à mi-décembre, avec quinze jours de vacances prévus ensuite et des remplacements possibles derrière, donc la date de prise de poste serait à caler avec elle.
+```
+Envoyé :
+```
+Elle recherche un CDI par la suite mais votre structure est trop loin de sa maison à Péronne. Elle serait donc intéressée par un CDD à temps partiel, autour de 3,5 jours par semaine. Elle souhaiterait idéalement une rémunération à la convention collective majorée de 35 %, à l'échelon 4.
+```
+(La recruteuse avait écrit « malheureusement trop loin » ; l'interdit de la routine sur ce mot est maintenu.)
+
+**Jugement**
+
+Généré :
+```
+C'est une vétérinaire expérimentée en canine, qui semble savoir précisément ce qu'elle cherche : une structure indépendante plutôt qu'un groupement.
+```
+Envoyé : rien. Le paragraphe a disparu.
+
+**Clôture** : identique dans les deux (« Elle va me transmettre son CV prochainement, en attendant voici ses coordonnées si vous souhaitez échanger avec elle : <téléphone>. Qu'en pensez-vous ? »).
