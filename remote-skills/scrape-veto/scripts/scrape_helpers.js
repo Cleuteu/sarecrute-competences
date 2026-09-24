@@ -176,6 +176,21 @@ window.__parseTS = function (s) {
   // ENTRE les glyphes du timestamp décodé ("1͏4͏ ͏h͏") → sans ce nettoyage,
   // TOUS les regex ci-dessous échouent et iso ressort null pour chaque post.
   s = (s || '').replace(/[͏​-‍⁠﻿­]/g, '').trim();
+  // Forme LONGUE du libellé (constatée le 23 septembre 2026 dans « We need you ») :
+  // l'élément pointé par aria-labelledby porte « il y a 29 minutes », « il y a
+  // environ une heure », « il y a un jour » ; la forme courte (« 29 min ») n'apparaît
+  // qu'avec retard, et pas sur tous les posts. Sans cette conversion, __isTsAnchor
+  // rejetait l'ancre tant que la forme courte n'était pas rendue : un post sur deux
+  // manquait au premier passage, sans aucun signal (stored figé pendant que le fil
+  // s'allongeait). On ramène la forme longue à la forme courte, puis le reste de la
+  // fonction s'applique tel quel.
+  const ilya = s.match(/^il y a (?:environ )?(une?|\d+)\s*(seconde|minute|heure|jour|semaine)s?$/i);
+  if (ilya) {
+    const n = /^une?$/i.test(ilya[1]) ? 1 : +ilya[1];
+    const u = ilya[2].toLowerCase();
+    s = u === 'seconde' ? n + ' s' : u === 'minute' ? n + ' min' : u === 'heure' ? n + ' h'
+      : u === 'jour' ? n + ' j' : (7 * n) + ' j';
+  }
   const now = new Date();
   let m;
   // ⚠️ Les unités relatives COLLISIONNENT avec les noms de mois, qui commencent

@@ -1,4 +1,4 @@
-**scrape-veto — version 0.16.0 (2026-09-18)**
+**scrape-veto — version 0.16.1 (2026-09-24)**
 
 > Ce fichier est le corps de la compétence `scrape-veto` du plugin `sarecrute-admin`. Il n'est
 > **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -56,6 +56,10 @@ Scraper les posts des **groupes Facebook vétérinaires** (tri chronologique) su
 > le `href` contient `__cft__` et regarder d'où sort son libellé (`innerText`, un `<use>`, un
 > `aria-labelledby`…), puis chaîner le nouveau décodeur **en tête** de `__decodeTS` et vider
 > `__tsCache`. Constaté le 14 septembre 2026 : les deux groupes remontaient 0 post sur 102.
+> Variante partielle du même piège, le 23 septembre 2026 : le libellé pointé passait à la forme
+> longue (« il y a 29 minutes »), que `__parseTS` ne datait pas — un post sur deux manquait au
+> premier passage. `__parseTS` convertit depuis la 0.16.1 ; si `stored` progresse moitié moins
+> vite que le fil, regarde d'abord le libellé brut de l'élément pointé.
 
 > ⚠️ **La blacklist n'est plus bundlée.** Depuis la 0.10.0 elle vit dans la table Airtable **« Auteurs posts exclus »** (`tblGBn2uKw7FmRJm8`), lue en §0 comme les canaux — Alex l'édite lui-même, sans republier le plugin. `references/auteurs_exclus.json` a été supprimé : ne le recrée pas, et ne rétablis pas de copie de secours (cf. §0).
 
