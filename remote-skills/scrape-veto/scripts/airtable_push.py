@@ -468,28 +468,38 @@ def fetch_all(token):
     return recs
 
 
-def list_offres(token, filtre=""):
-    """--offres [filtre] : liste les clés d'offre clinique déjà en base.
+def list_offres(token, filtres=()):
+    """--offres [filtre …] : liste les clés d'offre clinique déjà en base.
 
     Une clé d'offre est un auteur_key figé « <clé nue>#<slug> ». C'est CE listing que
     le scrape consulte avant d'écrire records.json : pour chaque post clinique, soit le
     poste correspond à une offre listée ici (→ réutiliser sa clé telle quelle), soit
-    c'est une offre nouvelle (→ inventer « <clé nue>#<slug> » neuf). Le filtre est un
-    sous-texte de la clé, insensible aux accents/majuscules."""
-    fl = norm(filtre)
-    rows = []
+    c'est une offre nouvelle (→ inventer « <clé nue>#<slug> » neuf). Chaque filtre est
+    un sous-texte de la clé, insensible aux accents/majuscules.
+
+    ⚠️ Passe TOUTES les clés nues du lot en un seul appel (`--offres "a" "b" "c"`) :
+    la table entière est relue à chaque appel (~30 s pour 1 300 records), donc un
+    appel par clinique coûtait plus de 2 minutes sur un lot de 40 (27/09/2026). Une
+    seule lecture, un bloc par filtre : même résultat, une fraction du temps."""
+    filtres = list(filtres) or [""]
+    offres = []
     for r in fetch_all(token):
         f = r["fields"]
         stored = (f.get("auteur_key") or "").strip()
-        if PIN not in stored or (fl and fl not in norm(stored)):
+        if PIN not in stored:
             continue
         secs = parse_sections(f.get("Contenu complet"), f.get("Date du post"), f.get("Lien du post"))
         body = re.sub(r"\s+", " ", secs[0]["body"])[:110] if secs else ""
-        rows.append("%s | %s | %s" % (stored, f.get("Date du post", ""), body))
-    for row in sorted(rows):
-        print(row)
-    if not rows:
-        print("(aucune offre%s)" % (" pour « %s »" % filtre if filtre else ""))
+        offres.append((norm(stored), "%s | %s | %s" % (stored, f.get("Date du post", ""), body)))
+    for filtre in filtres:
+        fl = norm(filtre)
+        rows = sorted(row for n, row in offres if not fl or fl in n)
+        if len(filtres) > 1:
+            print("== %s" % filtre)
+        for row in rows:
+            print(row)
+        if not rows:
+            print("(aucune offre%s)" % (" pour « %s »" % filtre if filtre else ""))
 
 
 def main():
@@ -499,9 +509,9 @@ def main():
     if not token:
         sys.exit("AIRTABLE_API_KEY manquant (export depuis ~/.zshrc).")
     if "--offres" in sys.argv:
-        return list_offres(token, args[0] if args else "")
+        return list_offres(token, args)
     if not args:
-        sys.exit("Usage: airtable_push.py records.json [--dry] | airtable_push.py --offres [filtre]")
+        sys.exit("Usage: airtable_push.py records.json [--dry] | airtable_push.py --offres [filtre …]")
     records = json.load(open(args[0]))
     check_vocab_loaded(records)
 
@@ -566,7 +576,7 @@ def main():
                 re.sub(r"\s+", " ", f.get("Contenu complet") or "")[:70]))
         msg.append("Choisis la clé au jugement (test d'extinction, cf. SKILL §5) : réutilise une clé")
         msg.append("listée ci-dessus si c'est le même poste, sinon invente « <clé nue>#<slug> » neuf.")
-        msg.append("`airtable_push.py --offres [filtre]` liste toutes les offres connues.")
+        msg.append("`airtable_push.py --offres [filtre …]` liste toutes les offres connues (plusieurs filtres en un appel).")
         sys.exit("\n".join(msg))
 
     by_key, exact_recs = {}, {}

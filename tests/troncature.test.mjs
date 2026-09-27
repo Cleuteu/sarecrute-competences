@@ -20,6 +20,13 @@ const t = (label, got, want) => {
 t('__isTrunc détecte "… Voir plus"', window.__isTrunc('Bonjour,… Voir plus'), true);
 t('__isTrunc détecte "En voir plus"', window.__isTrunc('Bonjour, En voir plus'), true);
 t('__isTrunc laisse passer un texte normal', window.__isTrunc('Bonjour, mail envoyé'), false);
+// 27/09/2026 : « savoir plus » n'est PAS un « Voir plus » (le post de Manon Lny bloquait l'export)
+t('__isTrunc laisse passer "en savoir plus"', window.__isTrunc('contactez-moi si vous souhaitez en savoir plus'), false);
+t('__isTrunc laisse passer "pouvoir plus"', window.__isTrunc('sans pouvoir plus'), false);
+t('__isTrunc détecte "…Voir plus" collé', window.__isTrunc('Bonjour,…Voir plus'), true);
+t('__isTrunc détecte "E… En voir plus"', window.__isTrunc('Vétérinaire Mixte E… En voir plus'), true);
+t('__cleanBody garde "en savoir plus"', window.__cleanBody('pour en savoir plus'), 'pour en savoir plus');
+t('__cleanBody retire "… Voir moins"', window.__cleanBody('Texte complet… Voir moins'), 'Texte complet');
 
 window.__store = {
   a: { author:'Clinique X', iso:'2026-08-09', body:'Annonce complète, rien à déplier.',

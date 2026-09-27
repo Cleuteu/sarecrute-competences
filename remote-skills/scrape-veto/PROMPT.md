@@ -1,4 +1,4 @@
-**scrape-veto — version 0.16.1 (2026-09-24)**
+**scrape-veto — version 0.16.2 (2026-09-27)**
 
 > Ce fichier est le corps de la compétence `scrape-veto` du plugin `sarecrute-admin`. Il n'est
 > **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -133,7 +133,7 @@ while True:
 
 def clean(b):                # même normalisation que window.__cleanBody
     b = re.sub(r"\s+", " ", b or "")
-    return re.sub(r"\s*(?:…\s*)?(?:En )?[Vv]oir (?:plus|moins)\s*$", "", b).strip()
+    return re.sub(r"\s*(?:…\s*)?(?:En )?(?<![A-Za-zÀ-ÿ])[Vv]oir (?:plus|moins)\s*$", "", b).strip()
 
 bornes = {}                  # dernier post scrappé, par canal
 for rec in rows:
@@ -830,9 +830,12 @@ Procédure, pour chaque entrée clinique retenue (posts ET commentaires de recru
 1. **Clé nue** = nom de la clinique normalisé (minuscules, sans accents, apostrophe droite,
    espaces simples) s'il est connu, sinon prénom+nom normalisés. C'est le nom de la CLINIQUE
    qui prime : la même offre est souvent portée par plusieurs personnes.
-2. **Liste les offres existantes** : `python3 <dossier_skill>/scripts/airtable_push.py --offres
-   "<clé nue>"` (clé | date | début de la dernière section). Au besoin, lis le `Contenu
-   complet` du record pour juger sur pièce.
+2. **Liste les offres existantes** — **un seul appel pour tout le lot**, avec toutes les clés
+   nues (ou un fragment distinctif : `"seille" "panier fleuri" "corlay"`) :
+   `python3 <dossier_skill>/scripts/airtable_push.py --offres "<clé nue 1>" "<clé nue 2>" …`
+   → un bloc `== <filtre>` par clinique (clé | date | début de la dernière section). Chaque
+   appel relit la table entière (~30 s) : un appel par clinique coûtait plus de 2 minutes sur
+   un lot de 40. Au besoin, lis le `Contenu complet` du record pour juger sur pièce.
 3. **Test d'extinction**, offre par offre : *si la clinique n'embauchait qu'UNE personne, les
    deux annonces tomberaient-elles ?* Oui → même offre → **réutilise la clé existante à
    l'identique** (ne corrige jamais son slug : c'est un identifiant). Non → offre nouvelle →
@@ -923,7 +926,7 @@ le canton s'il est dans le vocabulaire), `Statuts contractuels` (`CDI` pour « E
 `_des`) sont des aides à la lecture : **retire-les** avant le push.
 
 **4. Clé d'offre** (§5 bis, obligatoire) : `auteur_key` = `<_cle_nue>#<slug>`, après
-`airtable_push.py --offres "<clé nue>"` et le test d'extinction. Une annonce **modifiée**
+`airtable_push.py --offres "<clé nue>" …` (toutes les annonces retenues en un seul appel) et le test d'extinction. Une annonce **modifiée**
 (`rec_existant` renseigné) republie l'offre du record existant : réutilise sa clé telle quelle. Deux
 annonces d'une même entreprise pour deux cantons (Vetoadom Genève et Vaud) sont deux offres si les
 postes sont distincts, une seule si c'est la même équipe qui recrute pour les deux.

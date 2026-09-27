@@ -466,7 +466,14 @@ window.__harvestAll = function () {
  * sur la même entrée. */
 window.__store = window.__store || {};
 window.__postKey = p => (p.author || '') + '|' + (p.body || '').replace(/\s+/g, '').slice(0, 40);
-window.__isTrunc = b => /(?:…\s*)?(?:En )?[Vv]oir plus\s*$/.test((b || '').trim());
+/* ⚠️ `(?<![A-Za-zÀ-ÿ])` : « voir » doit être un MOT, pas la fin de « savoir » /
+ * « pouvoir ». Sans cette garde, un post complet qui finit par « si vous souhaitez en
+ * savoir plus » passait pour tronqué et bloquait __exportBlocked sans remède possible
+ * (aucun bouton à cliquer) — constaté le 27 septembre 2026 dans « We need you ».
+ * Même garde dans les deux `norm` des purges et dans __cleanBody (et dans le `clean()`
+ * Python du PROMPT §0, qui doit rester identique à __cleanBody). */
+window.__TRUNC_RX = /(?:…\s*)?(?:En )?(?<![A-Za-zÀ-ÿ])[Vv]oir plus\s*$/;
+window.__isTrunc = b => window.__TRUNC_RX.test((b || '').trim());
 window.__merge = function () {
   for (const p of window.__harvestAll()) {
     const k = window.__postKey(p);
@@ -638,7 +645,7 @@ window.__emptyBodies = function (borne) {
  * tronquée, commence par le même texte : c'est le même post, en mieux.
  * À appeler avant le contrôle d'export. Renvoie la liste des entrées retirées. */
 window.__purgeStubs = function () {
-  const norm = x => (x || '').replace(/\s*(?:…\s*)?(?:En )?[Vv]oir plus\s*$/, '').replace(/\s+/g, ' ').trim();
+  const norm = x => (x || '').replace(/\s*(?:…\s*)?(?:En )?(?<![A-Za-zÀ-ÿ])[Vv]oir plus\s*$/, '').replace(/\s+/g, ' ').trim();
   const byAuthor = {};
   for (const [k, p] of Object.entries(window.__store)) {
     (byAuthor[p.author || ''] = byAuthor[p.author || ''] || []).push([k, p]);
@@ -671,7 +678,7 @@ window.__purgeStubs = function () {
  * On supprime une entrée tronquée dès qu'une autre entrée du MÊME commentateur,
  * sous le MÊME post et non tronquée, commence par le même texte. */
 window.__purgeCommentStubs = function () {
-  const norm = x => (x || '').replace(/\s*(?:…\s*)?(?:En )?[Vv]oir plus\s*$/, '').replace(/\s+/g, ' ').trim();
+  const norm = x => (x || '').replace(/\s*(?:…\s*)?(?:En )?(?<![A-Za-zÀ-ÿ])[Vv]oir plus\s*$/, '').replace(/\s+/g, ' ').trim();
   const removed = [];
   for (const p of Object.values(window.__store)) {
     const ents = Object.entries(p.comments || {});
@@ -718,7 +725,7 @@ window.__exportBlocked = function (borne) {
 };
 
 /* --- Nettoyage du corps pour l'export (retire les marqueurs FB finaux) ------ */
-window.__cleanBody = b => (b || '').replace(/\s+/g, ' ').replace(/\s*(?:…\s*)?(?:En )?[Vv]oir (?:plus|moins)\s*$/, '').trim();
+window.__cleanBody = b => (b || '').replace(/\s+/g, ' ').replace(/\s*(?:…\s*)?(?:En )?(?<![A-Za-zÀ-ÿ])[Vv]oir (?:plus|moins)\s*$/, '').trim();
 
 /* --- ARRÊT SUR LE DERNIER POST DÉJÀ SCRAPPÉ ---------------------------------
  * Facebook ne donne PAS l'heure de publication : « 3 j » couvre 24 h entières.
