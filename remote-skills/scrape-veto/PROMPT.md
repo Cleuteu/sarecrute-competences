@@ -1,4 +1,4 @@
-**scrape-veto — version 0.16.2 (2026-09-27)**
+**scrape-veto — version 0.16.3 (2026-09-29)**
 
 > Ce fichier est le corps de la compétence `scrape-veto` du plugin `sarecrute-admin`. Il n'est
 > **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -904,6 +904,13 @@ blacklist de §0), et ces cas propres au portail :
   universités et instituts (Vetsuisse, laboratoires cantonaux), industrie et commerciaux (MSD,
   représentants), internships, FVH-Ausbildungsstellen et assistanats universitaires (`Internat`),
   postes d'ASV passés au travers du filtre ;
+- **exception, décidée par Alex le 29/09/2026 : les résidanats se gardent**, université comprise
+  (« Residency », « Residency Training Program », préparation d'un diplôme de college ECVN, ECVIM,
+  ECVS…). Ils visent des vétérinaires déjà formés (internat ou 2 ans de pratique) et font de vrais
+  candidats. `Statuts contractuels` = `Internat` (valeur la plus proche du vocabulaire),
+  `Spécialités requises` = la discipline du résidanat, `Langues requises` = les langues exigées
+  dans le texte (une annonce rédigée en anglais n'est pas « Français »). Les internships, les
+  assistanats et les FVH-Ausbildungsstellen restent hors périmètre ;
 - **intermédiaires** : agences de remplacement et de locum (BackupVets et consorts), cabinets de
   recrutement → exclure et signaler comme en §Détecter un intermédiaire ;
 - **groupes de cliniques** (VetTrust, IVC Evidensia, SwissVets, MeikoVet, Marigin, Vetmint,
