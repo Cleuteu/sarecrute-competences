@@ -1,4 +1,4 @@
-**maj-offres — version 0.3.1 (2026-10-09)**
+**maj-offres — version 0.3.2 (2026-10-09)**
 
 > Ce fichier est le corps de la compétence `maj-offres` du plugin `sarecrute-admin`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -38,7 +38,7 @@ Synchronise les offres publiées sur le site avec l'Airtable **PROD** (`appP0W2I
 - `scripts/fetch_offres.py` — lit Airtable, calcule le diff, écrit `work/`
 - `scripts/check_anonymat.py` — garde-fou anonymat (bloquant)
 - `scripts/apply_offres.py` — régénère les deux pages HTML
-- `scripts/publier_site.py` — **routine cloud seulement** (refuse de tourner hors d'un clone du dépôt Pages) : `publier` = garde-fou anonymat sur tout l'état, commit à message fixe, push sur `main`, attente de la version servie ; `recap` = compose le mail de compte rendu à Sarah (adresse lue dans `Recruteurs`). À la main, c'est `./deploy.sh` qui publie.
+- `scripts/publier_site.py` — **routine cloud seulement** (refuse de tourner hors d'un clone du dépôt Pages) : `publier` = garde-fou anonymat sur tout l'état, commit à message fixe, push sur `main`, attente de la version servie ; `recap` = compose le mail de compte rendu à Sarah (adresse lue dans `Recruteurs`). À la main, c'est `./deploy.sh --offres-locales` qui publie.
 - `assets/dept_centroids.json` — centroïdes par département + pays étrangers, pour les points de la carte. Un point **par département** (toutes les offres d'un même département partagent le même point) : c'est volontaire, ça empêche de deviner la commune.
 - `assets/titre_specialites.json` — **source unique de vérité** des libellés : composition des titres, canonisation des pratiques, libellés du filtre, libellés d'expérience. Pour changer un libellé, on édite ce fichier et on relance `apply_offres.py` — on ne modifie jamais les tables à la main dans le HTML.
 
@@ -184,8 +184,10 @@ python3 -c "import json,os; a=json.load(open(os.path.expanduser('~/.sarecrute/ma
 ```
 
 ```bash
-./deploy.sh
+./deploy.sh --offres-locales
 ```
+
+**Toujours avec `--offres-locales`.** Sans l'option, `deploy.sh` rapatrie d'abord les offres du dépôt (comme `--sync`) et écrase les pages qu'on vient de régénérer : il répond « aucun changement à publier » et rien ne part (vécu le 09/10/2026). La synchro a déjà eu lieu à l'étape 0. Si `apply_offres.py` doit être relancé après coup, `work/descriptions.json` a été consommé : le réécrire d'abord.
 
 **Ne déploie jamais sans que l'utilisateur l'ait demandé.** Présente d'abord le récapitulatif (ajouts, retraits, descriptions modifiées, offres taguées) et attends son feu vert. Ajouts et retraits y sont nommés par **clinique + ville + titre**, comme à l'étape 1.
 
