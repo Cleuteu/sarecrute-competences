@@ -143,7 +143,10 @@ def dept_from_cp(cp):
     if not cp:
         return None
     digits = re.sub(r"\D", "", str(cp))
-    if len(digits) < 2:
+    # Un code postal français a 5 chiffres. Les NPA suisses, belges et
+    # luxembourgeois en ont 4 : « 1724 » (Le Mouret) devenait « Charente-Maritime (17) ».
+    # Hors format, on se replie sur le pays de la clinique.
+    if len(digits) != 5:
         return None
     code = digits[:3] if digits[:3] in ("971", "972", "973", "974", "976") else digits[:2]
     nom = DEPTS.get(code)

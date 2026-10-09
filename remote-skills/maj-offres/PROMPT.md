@@ -1,4 +1,4 @@
-**maj-offres — version 0.3.0 (2026-09-18)**
+**maj-offres — version 0.3.1 (2026-10-09)**
 
 > Ce fichier est le corps de la compétence `maj-offres` du plugin `sarecrute-admin`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
