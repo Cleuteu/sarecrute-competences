@@ -1,4 +1,4 @@
-**creer-brouillons-facebook — version 0.2.1 (2026-09-18)**
+**creer-brouillons-facebook — version 0.3.0 (2026-10-13)**
 
 > Ce fichier est le corps de la compétence `creer-brouillons-facebook` du plugin `sarecrute-recruteur`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -33,11 +33,13 @@ Prérequis, propres à chaque utilisateur :
 - connecteurs **Airtable** et **Google Drive** connectés sur son compte Claude ;
 - **Claude in Chrome** actif, Chrome ouvert et connecté à **son** compte Facebook ;
 - être membre des groupes Facebook visés (sinon ces canaux seront signalés, voir étape 4) ;
-- pour les images : soit une session disposant de **dossiers partagés** sous `/mnt/user-data`
-  (l'upload direct fonctionne, rien à régler), soit le script de repli livré dans `scripts/`
-  (`attach_image.ps1` sous Windows, `attach_image.sh` sous macOS) — et, sous macOS uniquement,
-  l'app Claude cochée dans Réglages Système > Confidentialité et sécurité > Accessibilité.
-  Sans l'un ou l'autre, les brouillons partent en texte seul.
+- pour les images : **Google Drive pour ordinateur** installé et connecté au compte Workspace de
+  la recruteuse, le Drive partagé « Sarecrute » visible dedans (le mode flux suffit), et son
+  dossier `Publications` **connecté à la session Claude** avant de lancer — en Cowork, c'est le
+  dossier ajouté à la session ; en Claude Code, le dossier de travail ou un `/add-dir`. C'est la
+  seule source d'image que l'application accepte de transmettre à Chrome en session cloud
+  (étape 3). Sans elle, il reste un repli qui demande un geste à la recruteuse (pièces jointes
+  du chat), puis le texte seul.
 
 Le **texte**, lui, ne dépend d'aucun de ces prérequis : il passe par un événement `paste`
 synthétique (étape 4), qui n'utilise ni le presse-papiers système ni le focus fenêtre.
@@ -55,8 +57,9 @@ Un run nominal va donc **de bout en bout sans rien demander**. Tout se déduit :
 - **l'identité du recruteur** — déduite quand elle est déductible (étape 1) ;
 - **le nombre de brouillons** — lancé d'office entre 5 et 17 (étape 2.5) ;
 - **le navigateur** — choisi d'office quand un seul Chrome est connecté (étape 4) ;
-- **la méthode d'attache de l'image** (A ou B) — jamais soumise au recruteur, décidée par le test
-  de l'étape 3 ;
+- **la source de l'image** — le Drive synchronisé quand il est là, le repli sinon, décidée à
+  l'étape 3 sans question ; la seule demande possible est celle du repli (glisser N images dans
+  le chat), et seulement quand le Drive synchronisé manque ;
 - **les cas dégradés** (image manquante, groupe non rejoint, canal sans URL, canal hors
   périmètre) — jamais une question : on continue et on le dit dans le compte rendu.
 
@@ -360,59 +363,103 @@ explicitement ; ce n'est jamais le comportement par défaut.
    jamais « Publié ? ». Ce qui est autorisé d'office, c'est **préparer** des brouillons — une
    action que le recruteur relit ensuite onglet par onglet, et qui ne sort pas de sa machine.
 
-## Étape 3 — Télécharger les images (une seule fois par image)
+## Étape 3 — Trouver les images (une seule fois par image)
 
-**Quand.** Démarrer les téléchargements **dès que la liste du point 4 de l'étape 2 est connue**,
-c'est-à-dire *avant* de présenter la liste et *sans attendre* un éventuel feu vert. Le téléchargement Drive
-et le décodage ne touchent pas au navigateur : ils ne rentrent en conflit avec rien, et le temps
-de lecture de l'utilisateur est autant de pris.
+**Quand.** Dès que la liste du point 4 de l'étape 2 est connue, c'est-à-dire *avant* de la
+présenter et *sans attendre* un éventuel feu vert. Rien ici ne touche au navigateur : le temps de
+lecture de l'utilisateur est autant de pris.
 
 Le texte et l'image d'une offre étant partagés par tous ses canaux, une douzaine de publications
 ne représente en général que 7 à 9 images distinctes : **dédupliquer par ID de fichier Drive**
-avant de télécharger quoi que ce soit.
+avant de chercher quoi que ce soit.
 
-**Lancer tous les `download_file_content` dans un seul tour**, pas en série : ils sont
-indépendants. Mesuré : 8 images en un tour, contre une à deux minutes perdues en série.
+### D'où vient l'image, et pourquoi
 
-Pour chaque URL Drive distincte trouvée dans `url image publication` :
+`file_upload` ne lit pas le fichier lui-même : c'est **l'application Claude installée sur le
+poste** qui lit les octets et les passe à Chrome, sous ses propres droits. Depuis la mise à jour
+de la semaine du 05/10/2026, en session cloud (Cowork), elle n'accepte plus que ce qu'elle voit
+elle-même : les **pièces jointes du chat** et les **dossiers du poste connectés à la session**.
+Un fichier téléchargé et décodé par la compétence dans la sandbox n'y est jamais :
 
-1. Extraire l'ID du fichier depuis l'URL (`.../file/d/<ID>/...`).
-2. Appeler `download_file_content(fileId=<ID>)`. Le résultat (base64) dépasse la limite de
-   contexte et est **automatiquement sauvegardé dans un fichier `.txt`** : récupérer le chemin
-   indiqué dans le message d'erreur.
-   - **Ne jamais lire ce `.txt`** avec l'outil de lecture de fichiers, ni en afficher le contenu :
-     un visuel fait 2 à 3 Mo, son base64 saturerait le contexte pour rien.
-   - Si l'appel échoue en **permission refusée** ou fichier introuvable : le compte Google de
-     l'utilisateur n'a pas accès au Drive partagé contenant le dossier « Publications ». Ne pas
-     réessayer : signaler qu'il doit demander l'accès en **Lecteur**, et continuer en texte seul.
-3. Décoder en image **sans charger le base64 en mémoire**, et **sans coder aucun chemin en dur**.
+> `Cannot upload "/mnt/user-data/outputs/pub_images/monnard.png": only files this session is
+> allowed to read can be uploaded.`
 
-   Le dossier de sortie doit être un dossier que `file_upload` accepte : uniquement `uploads` et
-   `outputs` de la session (ou un dossier ouvert par l'utilisateur). `working` est **refusé** bien
-   qu'il soit lisible par l'agent, et un dossier temporaire système aussi. En Cowork, seul
-   `working` existe parfois : **on crée le dossier, on ne se demande pas s'il existe.**
+Constaté le 09/10/2026 : 13 brouillons partis en texte seul. Ce chemin par `outputs` avait
+fonctionné jusque-là ; il ne reviendra par aucun réglage, et **aucun dossier de la sandbox**
+(`outputs`, `uploads`, `working`, temporaire) ne le remplace.
 
-   Le script ci-dessous mappe les fichiers par l'`id` Drive contenu dans chaque JSON, et non par
-   l'ordre des réponses : quand 8 téléchargements partent dans le même tour, les horodatages des
-   `.txt` ne sont pas monotones et un mappage positionnel intervertit les images.
+La source nominale est donc **le Drive partagé synchronisé sur le poste** par Google Drive pour
+ordinateur : le visuel y est déjà, en pleine résolution, sous un chemin que l'application lit.
+Vérifié le 13/10/2026 : PNG 1254 × 1254 de 2,1 Mo, attaché du premier coup, sans téléchargement
+ni décodage.
+
+### 3.1 — Le nom du fichier
+
+L'URL Airtable ne porte que l'ID Drive (`.../file/d/<ID>/...`). Pour chaque ID distinct, appeler
+`get_file_metadata(fileId=<ID>, excludeContentSnippets=true)` : la réponse donne `title` (nom du
+fichier, extension comprise) et `fileSize` (octets). **Lancer tous ces appels dans un seul tour.**
+
+Permission refusée ou fichier introuvable : le compte Google de l'utilisateur n'a pas accès au
+Drive partagé contenant le dossier « Publications ». Ne pas réessayer : signaler qu'il doit
+demander l'accès en **Lecteur**, et continuer en texte seul.
+
+### 3.2 — Le fichier dans le Drive synchronisé
+
+Chercher chaque fichier **par son nom**, dans le dossier `Publications` du Drive partagé
+« Sarecrute », **sans coder de chemin en dur** : l'emplacement dépend du poste et de la façon dont
+le dossier a été connecté.
+
+- **Session cloud (Cowork)** : le dossier connecté par la recruteuse apparaît sous
+  `/mnt/user-data/` sous le nom du dossier qu'elle a choisi (`Publications`, `Sarecrute`, ou un
+  parent). Lister `/mnt/user-data/` et chercher dedans.
+- **macOS, shell local** : `~/Library/CloudStorage/GoogleDrive-*/Drive partagés/Sarecrute/Publications/`.
+- **Windows, shell local** : la lettre de lecteur attribuée par Drive (souvent
+  `G:\Drive partagés\Sarecrute\Publications\`, soit `/g/Drive partagés/…` sous Git Bash).
+
+```bash
+# un seul passage pour tous les noms ; aucun chemin absolu n'est présumé juste
+for root in /mnt/user-data ~/Library/CloudStorage/GoogleDrive-* /[a-z]/"Drive partagés" /[a-z]/"Shared drives"; do
+  [ -d "$root" ] || continue
+  find "$root" -maxdepth 6 \( -name "<title1>" -o -name "<title2>" \) -print 2>/dev/null
+done
+```
+
+Un fichier trouvé peut être un **espace réservé** (Drive en mode flux : visible dans l'arborescence,
+pas encore sur le disque). Le lire une fois (`head -c 1 "<chemin>" >/dev/null`) déclenche le
+téléchargement ; vérifier ensuite que la taille sur disque est celle de `fileSize`. Si elle
+diffère encore après quelques secondes, noter la publication « sans image » plutôt que d'envoyer
+un fichier tronqué.
+
+Mémoriser le chemin **absolu tel que le shell le voit** : c'est lui qu'attend `file_upload`.
+**Ne pas le convertir** (ni en chemin hôte, ni en chemin sandbox).
+
+**Dossier introuvable** (aucun montage Drive, aucun dossier connecté contenant les fichiers) :
+ne pas s'arrêter, et **ne pas demander de connecter un dossier au milieu du run** — la connexion
+se fait avant de lancer, c'est un prérequis. L'inscrire dans *À faire par vous* : « installer
+Google Drive pour ordinateur, puis connecter le dossier Publications du Drive partagé Sarecrute à
+la session avant le prochain lancement ». Puis passer au repli 3.3.
+
+### 3.3 — Repli : télécharger, puis pièces jointes du chat
+
+Quand le Drive synchronisé manque, télécharger les images par le connecteur et les décoder, comme
+avant. Pour chaque ID distinct :
+
+1. `download_file_content(fileId=<ID>)`. Le résultat (base64) dépasse la limite de contexte et est
+   **automatiquement sauvegardé dans un fichier `.txt`** : récupérer le chemin indiqué dans le
+   message d'erreur. **Ne jamais lire ce `.txt`** ni en afficher le contenu : un visuel fait 2 à
+   3 Mo, son base64 saturerait le contexte pour rien. Lancer tous les téléchargements dans un
+   seul tour.
+2. Décoder **sans charger le base64 en mémoire**, dans un dossier de la session (`outputs` s'il
+   existe, sinon un dossier neutre), en mappant par l'`id` Drive contenu dans chaque JSON et non
+   par l'ordre des réponses : quand 8 téléchargements partent dans le même tour, les horodatages
+   des `.txt` ne sont pas monotones et un mappage positionnel intervertit les images.
 
    ```bash
-   D="<dossier_des_txt>"; OUT=""
-   if [ -d /mnt/user-data ]; then
-     for c in /mnt/user-data/outputs /mnt/user-data/uploads; do
-       [ -d "$c" ] && [ -w "$c" ] && { OUT="$c/pub_images"; break; }
-     done
-     OUT="${OUT:-/mnt/user-data/outputs/pub_images}"   # aucun n'existe : on crée outputs
-   else
-     # Pas de dossier de session partagé. Le shell tourne sur la machine du recruteur — c'est le
-     # cas d'un poste macOS ou Windows, MAIS AUSSI de certaines sessions Cowork dont le shell est
-     # l'hôte. Ne pas se fier au nom « Cowork » : seul ce test compte.
-     # Ici la méthode d'attache sera TOUJOURS la B. Nom neutre, surtout PAS `outputs` ni
-     # `uploads` : ces noms ont déjà fait croire à un agent que la méthode A était disponible.
-     OUT="sarecrute_pub_images"
-   fi
+   D="<dossier_des_txt>"; OUT="sarecrute_pub_images"
+   for c in /mnt/user-data/outputs /mnt/user-data/uploads; do
+     [ -d "$c" ] && [ -w "$c" ] && { OUT="$c/pub_images"; break; }
+   done
    mkdir -p "$OUT"
-
    python3 - "$D" "$OUT" <<'PY'
    import base64, json, sys, glob, os
    d, out = sys.argv[1], sys.argv[2]
@@ -426,17 +473,20 @@ Pour chaque URL Drive distincte trouvée dans `url image publication` :
            print("OK", names[j["id"]], os.path.getsize(dst), dst)
    PY
    ```
+3. **Essayer `file_upload` avec ce fichier décodé sur le premier onglet** (étape 4, appel B).
+   Avec un shell local (poste macOS ou Windows, sans sandbox), l'application lit ce chemin et
+   l'envoi passe : continuer ainsi pour tout le run. Vérifié les 09/10 et 13/10/2026 sous macOS.
+4. **Refus `only files this session is allowed to read`** : on est en session cloud, et aucun
+   autre chemin de la sandbox ne passera. Ne pas réessayer, ne pas chercher d'autre dossier.
+   Envoyer les images décodées à la recruteuse en fichiers du chat, et lui demander **en une
+   seule fois** de les reglisser dans la conversation — N fichiers, un seul message, avec leurs
+   noms. Les chemins des pièces jointes (`/root/.claude/uploads/<session>/…` en cloud, tels que
+   l'outil de lecture les rapporte) sont ceux qu'on passe ensuite à `file_upload`. Si elle ne le
+   fait pas : texte seul pour ces publications, nommées dans *Pas fait*.
 
-   Sous Windows sans shell POSIX, l'équivalent PowerShell (`[Convert]::FromBase64String` sur
-   `(Get-Content -Raw ... | ConvertFrom-Json).content`), en écrivant dans `%TEMP%` — ce qui
-   convient à la méthode B et serait refusé par `file_upload`, mais ce cas ne se présente pas :
-   un poste Windows sans Git Bash n'est pas une session à dossiers partagés.
-4. Mémoriser le chemin **absolu tel que le shell le voit**. C'est ce chemin-là qu'attend
-   `file_upload` : l'outil transfère lui-même les octets, il ne demande pas au poste d'ouvrir le
-   fichier. **Ne pas le convertir en chemin hôte** (`/Users/...`, `C:\...`) : il serait refusé.
-
-   Vérifié en production : `/mnt/user-data/outputs/pub_images/<nom>.png` est accepté du premier
-   coup. Sont refusés `/mnt/user-data/working/...` et `/home/claude/...`.
+Ce repli est **secondaire par conception** : il coûte un geste par run à la recruteuse, ce que le
+Drive synchronisé évite. Quand on y passe, le dire dans *À faire par vous* avec le prérequis du
+3.2, pour que le geste disparaisse au run suivant.
 
 Si une image est introuvable (URL vide, ID invalide, échec du décodage) : ne pas bloquer, noter la
 publication comme « sans image » et continuer.
@@ -558,7 +608,7 @@ const f = () => [...document.querySelectorAll('div[role="dialog"]')]
 let dlg = f();
 if (!dlg) {
   // Le libellé du déclencheur suit la langue du COMPTE Facebook, pas celle du recruteur.
-  const rx = /Exprimez-vous|Écrivez quelque chose|Créez une publication|Escribe algo|Crea una publicación|Write something|Create post/i;
+  const rx = /Exprimez-vous|Écrivez quelque chose|Créez une publication|Que voulez-vous dire|Escribe algo|Crea una publicación|Write something|Create post/i;
   const lab = e => (e.getAttribute('aria-label') || '') + ' ' + (e.textContent || '');
   const btns = [...document.querySelectorAll('div[role="button"]')];
   const t = btns.find(e => (e.textContent || '').length < 80 && rx.test(lab(e)));
@@ -614,7 +664,10 @@ Ce script porte lui-même les trois garde-fous, et c'est ce qui les rend fiables
   celle du recruteur : un compte configuré en espagnol affiche « Escribe algo… » et « Crear
   publicación ». Constaté le 18/09/2026 sur le compte de Pamela, où la regex franco-seulement
   levait `COMPOSEUR_INTROUVABLE` sur **tous** les groupes alors qu'elle en était membre. Une autre
-  langue encore : ajouter son libellé ici plutôt que de contourner dans la session.
+  langue encore : ajouter son libellé ici plutôt que de contourner dans la session. « Que
+  voulez-vous dire ? » est le libellé du composeur d'un **mur de profil** (constaté le
+  13/10/2026 sur `/me`) : il est dans la regex pour le jour où les murs seront réintégrés, mais
+  ils restent écartés à l'étape 2 et ne sont jamais tentés.
 
 Puis, dans le **même appel**, un `find` par onglet :
 `find(query: "input type=file du dialogue Créer une publication")`. Il renvoie 2 ou 3 candidats et
@@ -623,10 +676,18 @@ des posts voisins et joindraient l'image au post d'un autre membre. Retenir celu
 étant dans le dialogue (« Ajouter à votre publication », « Photo/Vidéo »). Ne pas utiliser
 `read_page` pour ça : il renvoie le bouton, pas l'`input`.
 
-**Appel B — 3 × `file_upload`, une attente, puis 3 × vérification.**
+**Appel B — un `file_upload` par `browser_batch`, puis les 3 vérifications groupées.**
 
-`file_upload` doit **impérativement** être appelé à l'intérieur d'un `browser_batch` : appelé
-seul, l'argument `paths` se perd et l'outil répond « expected array, received undefined ».
+`file_upload` envoie les octets dans **un seul message** sur le pont du navigateur, plafonné à
+**10 Mo par appel**, tous chemins confondus. Un visuel fait 2 à 3,5 Mo : le 09/10/2026, plusieurs
+images envoyées dans le même lot ont fait refuser l'envoi (`total upload size would exceed 10 MB
+… split across multiple file_upload calls`). Rien ne dit si la limite se mesure par action ou par
+`browser_batch` entier ; dans le doute, **un `browser_batch` par image** — une seule action
+`file_upload`, **un seul chemin**, rien d'autre —, autant de fois qu'il y a d'onglets dans le lot,
+puis **un** `browser_batch` avec les 3 vérifications ci-dessous. C'est un appel de plus par
+brouillon, et le cas disparaît. `file_upload` doit malgré tout rester à l'intérieur d'un
+`browser_batch` : appelé seul, l'argument `paths` se perd et l'outil répond « expected array,
+received undefined ».
 
 ```js
 const d = [...document.querySelectorAll('div[role="dialog"]')]
@@ -642,28 +703,36 @@ const L = t.split('\n').filter(s => s.trim());
 `dup` doit valoir **1** (sinon le texte a été saisi deux fois) et `img` **1** (0 pour les
 publications sans image). Prévoir ~5 s d'attente entre l'upload et la vérification.
 
-Les appels A et B de lots différents se combinent : un même `browser_batch` peut porter les
-uploads du lot précédent et les collages du lot suivant.
+Les vérifications du lot précédent et les collages (appel A) du lot suivant se combinent dans
+un même `browser_batch` ; les `file_upload`, eux, restent seuls dans le leur.
 
-**En cas de refus de `file_upload` pour une raison de partage de session** (« requires a non-empty
-`paths` array of files the user has shared with this session », ou toute variante parlant de
-fichiers partagés) : basculer **immédiatement** en méthode B, dès le premier refus, sans réessayer
-et sans chercher d'autre chemin. La bascule vaut pour **tout le reste du run**.
+**En cas de refus `only files this session is allowed to read`** (ou toute variante parlant de
+fichiers partagés avec la session) : le chemin passé n'est pas un chemin du poste. Si l'image
+venait du Drive synchronisé (3.2), c'est que le dossier connecté n'est pas celui qui contient le
+fichier — le noter dans *À faire par vous* et passer au repli 3.3. Si elle venait du repli
+(fichier décodé), passer aux pièces jointes du chat (3.3, point 4). Dans les deux cas : **dès le
+premier refus, sans réessayer**, et la bascule vaut pour tout le reste du run.
 
-**Ne jamais demander au recruteur de connecter ou de partager un dossier.** Constaté en
-production : un agent l'a fait, le recruteur a connecté un dossier, `file_upload` a refusé de plus
-belle, et le run est resté bloqué en texte seul — alors que le script de la méthode B attendait
-dans `scripts/`. Un dossier connecté n'est pas un dossier de session : cette porte ne s'ouvre pas.
+**Ne jamais demander au recruteur de connecter un dossier au milieu du run.** La connexion du
+dossier Drive est un prérequis, faite avant de lancer ; en cours de run elle ne serait pas prise
+en compte par l'application, et le run resterait bloqué (constaté en production avant la 0.3.0).
+On le dit dans *À faire par vous* pour le prochain lancement, et on continue.
 
-### Méthode B — presse-papiers (repli hors dossiers partagés)
+### Méthode B — presse-papiers (dernier recours, shell local seulement)
+
+Ne sert que si le shell tourne **sur le poste** (macOS ou Windows sans sandbox) et que ni le Drive
+synchronisé ni le fichier décodé n'ont été acceptés — cas qui ne s'est pas présenté depuis que
+`file_upload` lit les chemins du poste. En session cloud, cette méthode **ne peut pas**
+fonctionner : le script s'exécuterait dans la sandbox, pas sur la machine où est Chrome ; ne pas
+l'y tenter.
 
 Ne concerne que **l'image** : le texte passe par l'événement `paste` de la phase 2, qui n'a besoin
 de rien. Cette méthode passe le navigateur au premier plan et envoie une vraie frappe : elle
-monopolise la machine quelques secondes par image. **Prévenir l'utilisateur en début de run** qu'il
-ne doit pas taper pendant ces quelques secondes — et ne pas l'avertir du tout en méthode A, où il
-n'y a rien à subir. En méthode B, **traiter les onglets un par un** : le presse-papiers est une
-ressource unique et deux collages simultanés enverraient l'image dans le mauvais onglet, sans
-erreur visible.
+monopolise la machine quelques secondes par image. **Prévenir l'utilisateur** avant la première
+image qu'il ne doit pas taper pendant ces quelques secondes — et ne pas l'avertir du tout quand
+`file_upload` passe, où il n'y a rien à subir. **Traiter les onglets un par un** : le presse-papiers
+est une ressource unique et deux collages simultanés enverraient l'image dans le mauvais onglet,
+sans erreur visible.
 
 Le curseur doit être dans la zone de texte : appeler le script juste après le collage du texte.
 
@@ -723,6 +792,9 @@ Format et règles : `references/compte-rendu.md`. Ce que chaque bloc contient ic
 - **les publications écartées parce que leur canal est un mur de profil** (`/me`,
   `/veto.annonce`), nommées offre × canal, présentées comme « à faire à la main » et non comme
   un échec ;
+- **le Drive synchronisé absent ou non connecté** (étape 3.2), si les images ont dû passer par
+  le repli ou ont manqué : « installer Google Drive pour ordinateur, puis connecter le dossier
+  Publications du Drive partagé Sarecrute à la session avant le prochain lancement » ;
 - **les coquilles repérées dans le texte Airtable** — les signaler, ne **jamais** les corriger de
   sa propre initiative : c'est la copie du recruteur, et deviner une correction est une
   modification silencieuse de son annonce ;
@@ -736,8 +808,9 @@ Format et règles : `references/compte-rendu.md`. Ce que chaque bloc contient ic
 
 **Détail technique** (mode `debug`, ou corps du mail d'incident) : version, identité et son
 origine, l'échec d'écriture de `recruteur.json` en session cloud (la table `Recruteurs` fournira
-l'identité au prochain lancement — ce n'est pas un incident), le navigateur retenu, la méthode
-d'attache A ou B, le compte de passages en gras par onglet, le résultat des contrôles `dup` /
+l'identité au prochain lancement — ce n'est pas un incident), le navigateur retenu, la source de
+chaque image (Drive synchronisé / fichier décodé / pièce jointe du chat / aucune) et le chemin
+passé à `file_upload`, le compte de passages en gras par onglet, le résultat des contrôles `dup` /
 `img` / `MAUVAIS_COMPTE`.
 
 Les décisions de tuyauterie n'appellent aucune action du recruteur : en mode recruteur elles
@@ -782,8 +855,8 @@ de lui retirer.
   français « 𝘃é𝘁é𝗿𝗶𝗻𝗮𝗶𝗿𝗲 » et « 𝗥𝗛Ô𝗡𝗘 » sortent en gras panaché — mesuré à ~5 % des lettres des
   passages en gras, mais présentes dans presque tous les titres. S'y ajoutent l'illisibilité pour
   les lecteurs d'écran et la recherche Facebook qui ne retrouve plus ces mots.
-- Le texte et l'image d'une offre sont partagés par tous ses canaux → télécharger l'image une
-  seule fois et réutiliser le fichier local pour tous les onglets de la même offre.
+- Le texte et l'image d'une offre sont partagés par tous ses canaux → repérer l'image une seule
+  fois (étape 3) et réutiliser le même chemin pour tous les onglets de la même offre.
 - La table « Canaux de diffusion » compte 18 canaux, dont 14 ont une Url. Sur ces 14, 12 sont
   des groupes — les seuls traités — et un recruteur ne peut y publier que s'il en est membre.
   Les 2 autres sont des murs de profil, écartés à l'étape 2. Les **4 sans Url** écartent eux
