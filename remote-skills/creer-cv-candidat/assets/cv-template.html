@@ -78,6 +78,19 @@ const CANDIDAT = {
   // --- Langues (fld48WU9SCR9DkVN6) — noms seuls, aucun niveau -------------
   langues: [],
 
+  // --- Parcours (table Expériences, tblTYdApkiHqKeBVi) --------------------
+  // Un objet par poste, du plus recent au plus ancien :
+  //   poste       = fldKL9vuSGhrwgV4c (Poste)
+  //   structure   = fldZsxMqiU6OuTCBH (Structure)
+  //   periode     = fldblqIgDkZX08ScY (Période)   duree = flduZveIw1rViotNt (Durée)
+  //   description = fldf4RmAB4BbabJgI (Description), SANS la mention de source
+  //                 entre parentheses en fin de champ (« (CV) », « (complément
+  //                 TemaVet du …) ») : c'est de la tracabilite interne.
+  // Ne retiens que les postes en clinique (Salarié, Remplacement). Les stages
+  // d'etudiant et les jobs hors clinique allongent la page sans repondre a la
+  // question que se pose le lecteur. Bloc vide = section absente.
+  experiences: [],
+
   // --- Bilan de competences ----------------------------------------------
   // Table Compétences (tblH8Zym1DNu7PN3c), un enregistrement par acte :
   //   acte    = fldUZQyIvlhNeZhzG (Acte)      espece = fldlREgGF38TczqNi (Espèce)
@@ -311,14 +324,18 @@ const ETATS = [
   .fam{ margin-top:calc(1.5mm * var(--scale)); }
   .grp .fam:first-of-type{ margin-top:calc(.9mm * var(--scale)); }
   /* intitule de famille suivi d'un filet qui file jusqu'au bord de la colonne */
+  /* La famille est un bandeau, pas une ligne de texte : sur un relevé de
+     cinquante actes, un intitulé qui ne se distingue que par sa couleur se
+     noie. Le fond sauge pâle découpe la colonne en sections qu'on repère sans
+     lire, et c'est ce qui permet d'aller droit à « chirurgie de convenance »
+     ou « imagerie » quand on cherche un geste précis. */
   .fam-t{
-    display:flex; align-items:center; gap:calc(1.4mm * var(--scale));
-    font-size:calc(7.2px * var(--scale)); font-weight:600; line-height:1.2;
-    letter-spacing:.03em; text-transform:uppercase; color:var(--sr-green);
-    margin-bottom:calc(.7mm * var(--scale));
-  }
-  .fam-t::after{
-    content:""; flex:1 1 auto; height:1px; background:var(--sr-line);
+    font-size:calc(7.3px * var(--scale)); font-weight:700; line-height:1.25;
+    letter-spacing:.04em; text-transform:uppercase; color:var(--sr-forest);
+    background:rgba(110,146,120,.16);
+    border-radius:calc(1mm * var(--scale));
+    padding:calc(.5mm * var(--scale)) calc(1.5mm * var(--scale));
+    margin-bottom:calc(.8mm * var(--scale));
   }
 
   /* Une ligne d'acte : libelle a gauche, jauge a droite, alignees entre elles. */
@@ -349,6 +366,26 @@ const ETATS = [
   /* Les non acquis restent affiches — l'honnetete sur les limites est ce qui
      rend le reste credible — mais en fin de bloc et en retrait : une ligne de
      texte, pas une pastille de plus a trier du regard. */
+  /* --- Parcours : un poste par bloc, sous le bilan ------------------------
+     Deux lignes par poste : l'intitule et la structure d'un cote, la periode
+     et la duree de l'autre ; la description en dessous, en gris. La duree est
+     ce que le lecteur cherche d'abord — elle dit la stabilite. */
+  .exp + .exp{ margin-top:calc(1.9mm * var(--scale)); }
+  .exp-t{
+    display:flex; align-items:baseline; gap:calc(2.4mm * var(--scale));
+    font-size:calc(8.6px * var(--scale)); line-height:1.3; color:var(--sr-forest);
+  }
+  .exp-t b{ font-weight:600; }
+  .exp-t .ou{ font-weight:500; color:var(--sr-green); }
+  .exp-t .quand{
+    margin-left:auto; white-space:nowrap; text-align:right;
+    font-size:calc(7.5px * var(--scale)); font-weight:500; color:var(--sr-muted);
+  }
+  .exp-d{
+    font-size:calc(7.9px * var(--scale)); line-height:1.4; color:var(--sr-muted);
+    margin-top:calc(.4mm * var(--scale));
+  }
+
   .nonac{
     margin-top:calc(1.4mm * var(--scale));
     font-size:calc(7.9px * var(--scale)); line-height:1.4; color:var(--sr-muted);
@@ -644,6 +681,26 @@ const ETATS = [
     }).join("");
 
     html += `</div></section>`;
+
+    // Parcours, sous le bilan : le bilan dit ce qu'elle sait faire, le parcours
+    // dit ou elle l'a fait et combien de temps. Absent si le bloc est vide —
+    // une fiche sans experience saisie ne montre pas une section creuse.
+    const xp = (C.experiences || []).filter(e => e && (e.poste || e.structure));
+    if (xp.length){
+      html += `<section class="block"><div class="label">Parcours</div>` +
+        xp.map(e => {
+          const quand = [e.periode, e.duree].filter(Boolean).join(" · ");
+          return `<div class="exp"><div class="exp-t">` +
+            (e.poste ? `<b>${esc(e.poste)}</b>` : "") +
+            (e.structure ? `<span class="ou">${esc(e.structure)}</span>` : "") +
+            (quand ? `<span class="quand">${esc(quand)}</span>` : "") +
+            `</div>` +
+            (e.description ? `<div class="exp-d">${esc(e.description)}</div>` : "") +
+            `</div>`;
+        }).join("") +
+        `</section>`;
+    }
+
     MAIN.innerHTML = html;
   }
 

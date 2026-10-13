@@ -1,4 +1,4 @@
-**creer-cv-candidat — version 0.4.0 (2026-10-13)**
+**creer-cv-candidat — version 0.5.0 (2026-10-13)**
 
 > Ce fichier est le corps de la compétence `creer-cv-candidat` du plugin `sarecrute-recruteur`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -293,8 +293,9 @@ une recruteuse. Les **décomptes**, eux, restent sur trois états (« 11 acquis 
 que c'est ce qu'une clinique compte ; ils se lisent en texte à côté du nom de l'espèce, chiffres en
 noir, sans pastille.
 
-Le regroupement est à **deux niveaux : espèce, puis famille d'actes**. La famille est l'intitulé
-en petites capitales vertes suivi d'un filet. Son ordre ne suit ni l'alphabet ni l'ordre
+Le regroupement est à **deux niveaux : espèce, puis famille d'actes**. La famille est un bandeau à fond sauge pâle,
+texte vert forêt en capitales grasses — sur un relevé de cinquante actes, un intitulé qui ne se
+distingue que par sa couleur se noie. Son ordre ne suit ni l'alphabet ni l'ordre
 d'apparition mais le référentiel Airtable (constante `FAMILLES` en tête du moteur) : c'est ce qui
 fait qu'un chirurgien et un rural présentent leurs actes dans le même ordre. À l'intérieur d'une
 famille, le tri va de l'acquis au non acquis.
@@ -345,7 +346,30 @@ Un seul `.html` autonome, sans dépendance externe hors Google Fonts, contenant 
 
 Champs de `CANDIDAT`, tous obligatoires et toujours dans cet ordre — une valeur vide masque sa ligne, elle ne se supprime pas du bloc :
 
-`reference`, `prenom`, `nom`, `sousTitre`, `accroche`, `contact{ email, telephone }`, `cadre{ experience, disponibilite, contrat, tempsTravail, gardes, remuneration, mobilite }`, `pratiques[]`, `specialites[]`, `recherche[]`, `formation{ ecole, anneeSortie, internat, desv, diplomeSup, habilitation }`, `langues[]`, `competences[]`.
+`reference`, `prenom`, `nom`, `sousTitre`, `accroche`, `contact{ email, telephone }`, `cadre{ experience, disponibilite, contrat, tempsTravail, gardes, remuneration, mobilite }`, `pratiques[]`, `specialites[]`, `recherche[]`, `formation{ ecole, anneeSortie, internat, desv, diplomeSup, habilitation }`, `langues[]`, `experiences[]`, `competences[]`.
+
+`experiences` alimente la section **Parcours**, sous le bilan : le bilan dit ce que le candidat
+sait faire, le parcours dit où il l'a fait et combien de temps. Un objet par poste, du plus récent
+au plus ancien, depuis la table `Expériences` (`tblTYdApkiHqKeBVi`, champ `Candidat`
+`fldYbpAW0GK8Ijm1w`) : `{ poste, structure, periode, duree, description }` — soit `Poste`
+(`fldKL9vuSGhrwgV4c`), `Structure` (`fldZsxMqiU6OuTCBH`), `Période` (`fldblqIgDkZX08ScY`), `Durée`
+(`flduZveIw1rViotNt`) et `Description` (`fldf4RmAB4BbabJgI`). Section absente si le tableau est
+vide — une fiche sans expérience saisie ne montre pas un bloc creux.
+
+Trois règles de tri, parce qu'un vivier contient des parcours de onze lignes et que la page en
+tient quatre ou cinq :
+
+- **Les postes en clinique gardent leur description** (`Salarié`, `Remplacement`). Regroupe les
+  remplacements courts d'une même période sur une seule ligne.
+- **Les stages, jobs étudiants et postes hors clinique se regroupent en une ligne finale** :
+  intitulés et structures, la période couverte et le nombre de postes, sans description ni durée
+  individuelle. Ils situent un début de parcours, ils ne répondent pas à la question du lecteur.
+- **Ne calcule pas de durée cumulée** pour ce groupe : plusieurs expériences sont cotées « moins
+  d'un mois », une somme produirait un chiffre que la base ne dit pas. La période suffit.
+
+La `Description` finit souvent par une mention de source entre parenthèses — « (CV) », « (CV +
+complément TemaVet du 01/09/2026) ». **Retire-la** : c'est de la traçabilité interne, pas du
+contenu client.
 
 `competences` est un tableau plat de `{ espece, famille, acte, niveau }` — `famille` est le lookup `Famille` (`fldroKCZqI4OLndpo`) de la table Compétences, avec le `Niveau` Airtable recopié **verbatim** (`"Autonome"`, `"Ponctuel"`, `"En apprentissage"`, `"Jamais fait"`, `"Non concerné"` — plus `"Non évalué"`, qui n'existe pas dans Airtable et ne sert qu'au modèle vierge). Le regroupement (espèce puis famille), le tri et les décomptes sont automatiques : ne les pré-calcule pas. Une compétence sans `famille` est rendue sans intitulé, donc un ancien bloc de données reste valide.
 
@@ -396,7 +420,7 @@ Le wordmark « SaRecrute » en Fraunces 600, `letter-spacing: -0.03em`, le mot e
 
 Un bandeau d'en-tête de 32 mm (logo à gauche, mention « Dossier de présentation candidat » à droite en micro-label capitales). Puis le bloc identité : prénom et nom en Fraunces, sous-titre métier en Inter 500 coloré (« Vétérinaire · Canine · 3 ans d'expérience »), puis l'accroche de quatre lignes — la seule zone rédigée.
 
-En dessous, deux colonnes. La latérale, 54 mm (elle ne remplit jamais sa hauteur, alors que la colonne principale paie chaque retour à la ligne) : Contact, Cadre recherché (carte vert très clair), Domaines en pills (maîtrisés en vert, recherchés en neutre), Formation et diplômes (blocs intitulé/valeur, puis les qualifications binaires en pastilles vertes), Langues. La principale : les **compétences vérifiées**, qui occupent toute la hauteur — c'est le document.
+En dessous, deux colonnes. La latérale, 54 mm (elle ne remplit jamais sa hauteur, alors que la colonne principale paie chaque retour à la ligne) : Contact, Cadre recherché (carte vert très clair), Domaines en pills (maîtrisés en vert, recherchés en neutre), Formation et diplômes (blocs intitulé/valeur, puis les qualifications binaires en pastilles vertes), Langues. La principale : les **compétences vérifiées**, puis le **Parcours** — c'est le document.
 
 Le terracotta reste réservé au « R » du logo et au sous-titre métier. Il ne sert pas à qualifier une compétence ou un domaine : sur un dossier candidat il se lit comme un signal négatif, ce qu'un domaine maîtrisé n'est évidemment pas.
 
