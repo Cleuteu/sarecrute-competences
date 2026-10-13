@@ -1,4 +1,4 @@
-**creer-cv-candidat — version 0.3.0 (2026-09-09)**
+**creer-cv-candidat — version 0.4.0 (2026-10-13)**
 
 > Ce fichier est le corps de la compétence `creer-cv-candidat` du plugin `sarecrute-recruteur`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -42,8 +42,9 @@ Le **dossier de travail** — celui où atterrissent les `.html` et les `.pdf` p
 dossier courant de la session, jamais un chemin d'une machine en particulier. Si l'utilisateur en
 veut un autre, il le dit.
 
-Prérequis : connecteur **Airtable** (lecture seule ici), et **Chrome** sur le poste pour l'export
-PDF. Charge les outils Airtable en un seul appel — l'identifiant du serveur MCP change d'une
+Prérequis : connecteur **Airtable**, **Chrome** sur le poste pour l'export PDF, et la variable
+d'environnement `AIRTABLE_API_KEY_CV_AI` pour ranger le dossier dans la fiche (voir la dernière
+section). Charge les outils Airtable en un seul appel — l'identifiant du serveur MCP change d'une
 installation à l'autre, donc cherche-les par mots-clés plutôt que par un hash écrit en dur :
 
 ```
@@ -92,15 +93,20 @@ Parle à l'utilisateur comme à un pair : direct, argumenté, sans flatterie. Si
 
 ### Où sont les données
 
-Base Airtable **`appS3S5dZMKKtQxbf`** (« Recrutement vétérinaire STAGING »), table **`tblPmkTaAjS9Yoovt`** (« Candidats », ~999 enregistrements).
+Base Airtable **`appP0W2ISytaNyAhG`** (« Recrutement vétérinaire »), table **`tblPmkTaAjS9Yoovt`** (« Candidats », ~1100 enregistrements) — la base de production, celle que toutes les autres compétences recruteur utilisent.
 
-**Accès en lecture seule.** N'écris jamais dans la base : ni création, ni modification, ni suppression. L'utilisateur travaille sur son vivier de production, une écriture accidentelle coûte cher à réparer.
+**Une seule écriture autorisée : le dépôt du dossier produit dans `CV IA`** (voir « Ranger le dossier dans la fiche »). Tout le reste est en lecture : ni création d'enregistrement, ni modification d'un champ qualifié par une recruteuse, ni suppression. Une écriture accidentelle dans un vivier de production coûte cher à réparer.
 
 Les outils Airtable se chargent comme indiqué plus haut (« Ressources du snapshot ») : par
 mots-clés, jamais par un identifiant de serveur MCP écrit en dur — le hash change d'une
 installation à l'autre.
 
-Pour cibler un candidat nommé, `search_records` sur le nom de famille est le chemin le plus court — il renvoie la fiche complète en un appel, avec l'URL de la pièce jointe.
+Pour cibler un candidat nommé, **filtre sur le nom plutôt que de chercher en plein texte** :
+`list_records_for_table` avec `{"operands":[{"operator":"=","operands":["fld6yzzWrqBZBtXly","Germain"]}]}`.
+`search_records` paraît plus court mais son index ne remonte pas tout : interrogé sur
+« Stéphanie Germain », il a renvoyé zéro résultat là où le filtre exact sortait la fiche
+immédiatement (constaté le 13/10/2026). Un candidat « introuvable » par `search_records` n'est
+pas un candidat absent du vivier.
 
 ### Le piège du corpus
 
@@ -215,7 +221,7 @@ Un champ Airtable vide **reste vide** : sa ligne disparaît du document. On ne c
 
 ### Le template existe — ne le reconstruis pas
 
-`<dossier_skill>/assets/cv-template.html` est en place et validé : une page A4 tenue aussi bien par une fiche vide que par un bilan de 136 actes sur huit espèces. Il embarque l'auto-ajustement, l'anonymisation, le bilan à trois états et les états vides.
+`<dossier_skill>/assets/cv-template.html` est en place et validé : une page A4 tenue aussi bien par une fiche vide que par un bilan de 136 actes sur huit espèces. Il embarque l'auto-ajustement, l'anonymisation, le bilan en jauges et les états vides.
 
 Copie-le, remplace ce qui est entre `/*DATA-START*/` et `/*DATA-END*/`, et c'est fini. Ne touche à aucune règle CSS. Reconstruire un template à chaque dossier produit des documents qui dérivent visuellement les uns des autres — exactement ce que la standardisation cherche à éliminer.
 
@@ -233,12 +239,17 @@ Le dossier `<dossier_skill>/assets/` contient aussi `serve.ps1` (serveur HTTP lo
 | Sous-titre | `Emploi recherché` + `Pratiques requises` + `Années d'expérience` |
 | Accroche | voir ci-dessous |
 | Contact | `Mail`, `Téléphone` — **et rien d'autre : pas de localisation** |
-| Cadre recherché | `Statut Recherche`, `Années d'expérience`, `En poste ?`, `Date de disponibilité`, `Statuts contractuels souhaités`, `Type de temps de travail`, `Gardes` + `Fréquence tolérable des gardes`, `Rémunération souhaitée` |
+| Cadre recherché | `Années d'expérience`, `Date de disponibilité`, `Statuts contractuels souhaités`, `Type de temps de travail`, `Gardes` + `Fréquence tolérable des gardes`, `Rémunération souhaitée` |
 | Domaines maîtrisés | `Pratiques maitrisées` + `Spécialités maitrisées` |
 | Domaines recherchés | `Pratiques requises` + `Spécialités requises` |
 | Formation et diplômes | `Ecole véto`, `Année de sortie`, `Internat`, `DESV?`, `Diplôme supplémentaire`, `Habilitation sanitaire` |
 | Langues | `Langues` (`fld48WU9SCR9DkVN6`) — **noms seuls, jamais de niveau** |
-| Compétences vérifiées | table `Compétences` (`tblH8Zym1DNu7PN3c`), un enregistrement par acte |
+| Compétences vérifiées | table `Compétences` (`tblH8Zym1DNu7PN3c`), un enregistrement par acte, avec son `Espèce` et sa `Famille` |
+
+**`Statut Recherche` et `En poste ?` ne figurent plus au cadre** (décision du 07/09/2026) : un
+dossier qui circule chez une clinique n'a pas à exposer la situation courante du candidat, et ces
+deux lignes se périmaient entre l'envoi et la lecture. Elles ne sont ni rendues ni présentes dans
+le bloc de données — ne pas les remettre, même quand la fiche les renseigne.
 
 Quatre précisions qui reviennent :
 
@@ -259,27 +270,46 @@ Ces notes portent aussi ce qui n'a rien à faire dans un dossier client : les qu
 
 La tentation est réelle, parce que les notes contiennent souvent la valeur qui manque au champ et que la signaler ressemble à un service rendu. C'en est un mauvais : le champ vide **est** le signal, il dit qu'une recruteuse n'a pas encore qualifié ce point. Une valeur officieuse tirée des notes donne l'illusion que la fiche est à jour et retarde la saisie qui, elle, ferait foi.
 
-### Le bilan de compétences : trois états, lisibles d'un coup d'œil
+### Le bilan de compétences : un acte par ligne, noté sur trois points
 
-C'est le cœur du dossier et la raison d'être de la colonne principale. Chaque acte de la table `Compétences` porte un `Niveau` Airtable, traduit en **trois états visuels** — c'est la table `NIVEAUX` en tête du template :
+C'est le cœur du dossier et la raison d'être de la colonne principale. Chaque acte s'écrit sur une
+ligne — son intitulé à gauche, sa **jauge de trois crans** à droite. Les jauges s'alignent en
+colonne, donc le niveau se lit verticalement sans lire un seul intitulé. C'est la table `NIVEAUX`
+en tête du template :
 
-| Niveau Airtable | État affiché | Rendu |
+| Niveau Airtable | Crans allumés | Couleur |
 |---|---|---|
-| `Autonome` | **Acquis** | pastille verte pleine, fond sauge |
-| `Ponctuel`, `En apprentissage` | **En cours** | pastille or pleine, fond ambré |
-| `Jamais fait` | **Non acquis** | pastille creuse, texte gris, fond neutre |
-| `Non évalué` | **Non évalué** | contour tireté — réservé au modèle vierge, jamais sur un dossier réel |
+| `Autonome` | ●●● | vert |
+| `Ponctuel` | ●●○ | orange |
+| `En apprentissage` | ●○○ | or |
+| `Jamais fait` | ○○○ | gris |
+| `Non évalué` | ○○○ en contour tireté | réservé au modèle vierge, jamais sur un dossier réel |
 | `Non concerné` | — | non affiché |
 
-Les actes sont regroupés par espèce dans l'ordre du tableau de données, puis triés acquis → en cours → non acquis à l'intérieur de chaque groupe. Chaque espèce porte son décompte (« 11 acquis · 7 en cours »), les zéros étant omis. La légende en tête de section **ne montre que les états réellement présents** : afficher « non acquis » sur un dossier qui n'en compte aucun est un contresens.
+La jauge porte les **quatre** niveaux Airtable sans en fondre deux : « Ponctuel » et « En
+apprentissage » restent distincts, là où l'ancien rendu en pastilles les affichait tous deux en
+« en cours ». Rien n'est inventé pour autant — chaque cran est la recopie d'un `Niveau` saisi par
+une recruteuse. Les **décomptes**, eux, restent sur trois états (« 11 acquis · 7 en cours »), parce
+que c'est ce qu'une clinique compte ; ils se lisent en texte à côté du nom de l'espèce, chiffres en
+noir, sans pastille.
 
-**Les « non acquis » s'affichent**, et c'est délibéré : une clinique doit voir en une seconde ce qui est tenu, ce qui est en apprentissage et ce qui ne l'est pas. L'honnêteté sur les limites est ce qui rend le reste crédible. Ne les masque pas au prétexte qu'ils desservent le candidat.
+Le regroupement est à **deux niveaux : espèce, puis famille d'actes**. La famille est l'intitulé
+en petites capitales vertes suivi d'un filet. Son ordre ne suit ni l'alphabet ni l'ordre
+d'apparition mais le référentiel Airtable (constante `FAMILLES` en tête du moteur) : c'est ce qui
+fait qu'un chirurgien et un rural présentent leurs actes dans le même ordre. À l'intérieur d'une
+famille, le tri va de l'acquis au non acquis.
+
+Le bilan passe sur **deux colonnes typographiques** au-delà de 24 actes, et reste sur une seule en
+dessous — sinon la seconde colonne se retrouve avec une espèce et deux lignes, et le vide à côté
+se lit comme une erreur de mise en page plutôt que comme une fiche peu qualifiée.
+
+**Les « non acquis » s'affichent**, et c'est délibéré : une clinique doit voir en une seconde ce qui est tenu, ce qui est en apprentissage et ce qui ne l'est pas. L'honnêteté sur les limites est ce qui rend le reste crédible. Ne les masque pas au prétexte qu'ils desservent le candidat — la jauge à zéro cran les distingue déjà sans les sortir du relevé.
 
 ### La contrainte qui structure tout : une seule page A4
 
 `@page { size: A4; margin: 0; }`, format 210 × 297 mm. Le contenu ne doit jamais déborder sur une deuxième page — ni pour une fiche à peine qualifiée, ni pour un bilan de 136 actes sur huit espèces.
 
-C'est le vrai piège technique. Une mise en page fixe ne peut pas absorber cet écart de densité. D'où une routine d'auto-ajustement en JS : après rendu, mesurer la hauteur réelle du contenu et faire varier une variable `--scale` (typographie, interlignes, espacements) **de 1.11 vers 0.82 par pas de 0.01**, en retenant la première valeur qui ne déborde pas. Si à 0.82 ça déborde encore, le rendu bascule du mode `chips` (une pastille par acte) au mode `compact` (une ligne de texte par état et par espèce), et la boucle recommence.
+C'est le vrai piège technique. Une mise en page fixe ne peut pas absorber cet écart de densité. D'où une routine d'auto-ajustement en JS : après rendu, mesurer la hauteur réelle du contenu et faire varier une variable `--scale` (typographie, interlignes, espacements) **de 1.11 vers 0.82 par pas de 0.01**, en retenant la première valeur qui ne déborde pas. Si à 0.82 ça déborde encore, le rendu bascule du mode `chips` (une ligne et une jauge par acte) au mode `compact` (une ligne de texte par état et par espèce, sans intitulé de famille), et la boucle recommence.
 
 **1.11 n'est pas un chiffre arbitraire : c'est le format commun.** Le plafond a été calé pour qu'une fiche complète — tous les champs du cadre remplis, toutes les qualifications, le référentiel entier des actes — l'atteigne elle aussi. Résultat, la quasi-totalité des dossiers sortent à la même taille de texte, ce qui est exactement ce qu'on attend d'un format standard. Ne remonte pas ce plafond pour faire respirer un dossier léger : tu rendrais les dossiers visuellement inégaux, et c'est le premier reproche qu'on t'a fait.
 
@@ -315,9 +345,9 @@ Un seul `.html` autonome, sans dépendance externe hors Google Fonts, contenant 
 
 Champs de `CANDIDAT`, tous obligatoires et toujours dans cet ordre — une valeur vide masque sa ligne, elle ne se supprime pas du bloc :
 
-`reference`, `prenom`, `nom`, `sousTitre`, `accroche`, `contact{ email, telephone }`, `cadre{ statut, experience, enPoste, disponibilite, contrat, tempsTravail, gardes, remuneration, mobilite }`, `pratiques[]`, `specialites[]`, `recherche[]`, `formation{ ecole, anneeSortie, internat, desv, diplomeSup, habilitation }`, `langues[]`, `competences[]`.
+`reference`, `prenom`, `nom`, `sousTitre`, `accroche`, `contact{ email, telephone }`, `cadre{ experience, disponibilite, contrat, tempsTravail, gardes, remuneration, mobilite }`, `pratiques[]`, `specialites[]`, `recherche[]`, `formation{ ecole, anneeSortie, internat, desv, diplomeSup, habilitation }`, `langues[]`, `competences[]`.
 
-`competences` est un tableau plat de `{ espece, acte, niveau }`, avec le `Niveau` Airtable recopié **verbatim** (`"Autonome"`, `"Ponctuel"`, `"En apprentissage"`, `"Jamais fait"`, `"Non concerné"` — plus `"Non évalué"`, qui n'existe pas dans Airtable et ne sert qu'au modèle vierge). Le regroupement par espèce, le tri par état et les décomptes sont automatiques : ne les pré-calcule pas.
+`competences` est un tableau plat de `{ espece, famille, acte, niveau }` — `famille` est le lookup `Famille` (`fldroKCZqI4OLndpo`) de la table Compétences, avec le `Niveau` Airtable recopié **verbatim** (`"Autonome"`, `"Ponctuel"`, `"En apprentissage"`, `"Jamais fait"`, `"Non concerné"` — plus `"Non évalué"`, qui n'existe pas dans Airtable et ne sert qu'au modèle vierge). Le regroupement (espèce puis famille), le tri et les décomptes sont automatiques : ne les pré-calcule pas. Une compétence sans `famille` est rendue sans intitulé, donc un ancien bloc de données reste valide.
 
 Les dossiers générés vont dans le **dossier de travail de la session** (le dossier courant, jamais un chemin d'une machine en particulier), nommés `CV-Prenom-Nom-SaRecrute.html` et `.pdf`, avec une référence `SR-<année>-<initiales>` — `SR-MODELE` pour le modèle vierge.
 
@@ -366,7 +396,7 @@ Le wordmark « SaRecrute » en Fraunces 600, `letter-spacing: -0.03em`, le mot e
 
 Un bandeau d'en-tête de 32 mm (logo à gauche, mention « Dossier de présentation candidat » à droite en micro-label capitales). Puis le bloc identité : prénom et nom en Fraunces, sous-titre métier en Inter 500 coloré (« Vétérinaire · Canine · 3 ans d'expérience »), puis l'accroche de quatre lignes — la seule zone rédigée.
 
-En dessous, deux colonnes. La latérale, 62 mm : Contact, Cadre recherché (carte vert très clair), Domaines en pills (maîtrisés en vert, recherchés en neutre), Formation et diplômes (blocs intitulé/valeur, puis les qualifications binaires en pastilles vertes), Langues. La principale : les **compétences vérifiées**, qui occupent toute la hauteur — c'est le document.
+En dessous, deux colonnes. La latérale, 54 mm (elle ne remplit jamais sa hauteur, alors que la colonne principale paie chaque retour à la ligne) : Contact, Cadre recherché (carte vert très clair), Domaines en pills (maîtrisés en vert, recherchés en neutre), Formation et diplômes (blocs intitulé/valeur, puis les qualifications binaires en pastilles vertes), Langues. La principale : les **compétences vérifiées**, qui occupent toute la hauteur — c'est le document.
 
 Le terracotta reste réservé au « R » du logo et au sous-titre métier. Il ne sert pas à qualifier une compétence ou un domaine : sur un dossier candidat il se lit comme un signal négatif, ce qu'un domaine maîtrisé n'est évidemment pas.
 
@@ -408,6 +438,8 @@ Le `--user-data-dir` ne l'est pas non plus : sans profil propre, Chrome se ratta
 
 Après toute modification du template, teste réellement les deux extrêmes de densité : une fiche sans aucune compétence évaluée **et** un bilan de 130 actes ou plus sur huit espèces. C'est là que les templates cassent, et c'est là que se vérifie le basculement `chips` → `compact`.
 
+Le mode `compact` ne montre **pas** les familles, et c'est voulu : sa seule mission est que la page ne se coupe pas. Mesuré sur 136 actes et 8 espèces, pour 852 px disponibles — une ligne par famille et par état donne 1515 px (page tronquée), les intitulés conservés en jalons 891 px (déborde encore), une ligne par état sans intitulé 756 px. Les actes gardent leur ordre par famille ; seul l'intitulé disparaît.
+
 Sur un dossier ordinaire, un seul contrôle suffit : **ouvrir le PDF livré et le regarder**.
 
 **Le nombre de pages du PDF ne prouve rien.** La page a une hauteur fixe et `overflow: hidden` : un débordement se traduit par une **coupure basse silencieuse**, pas par une seconde page. Un PDF « 1 page » peut très bien être un document tronqué.
@@ -422,6 +454,44 @@ La vérification qui a réellement fonctionné, en trois temps :
 Vérifie enfin que les aplats sont bien imprimés (le print-to-PDF headless supprime les fonds dans certaines configurations) et que l'ensemble reste lisible en noir et blanc.
 
 Ne cherche pas à prouver l'embarquement des polices en cherchant `/FontFile` dans le fichier : Chrome range les programmes de polices dans des flux compressés, et le compte ressort à zéro y compris sur des PDF parfaitement valides. Un écart de taille de fichier entre deux versions est un meilleur indice, et l'œil sur le rendu tranche.
+
+### Ranger le dossier dans la fiche
+
+Une fois le PDF contrôlé, **dépose-le dans le champ `CV IA`** (`fldDfGvVlyid0xacE`) de la fiche du
+candidat, **sans demander confirmation** (autorisation permanente du 13/10/2026). Un dossier qui
+reste sur le disque du poste n'existe pas pour l'équipe : c'est la fiche qui fait foi.
+
+Ne confonds pas avec le champ `CV` (`fldsj2ukrpjPzu5ox`), qui porte le CV d'origine transmis par
+le candidat — celui-là n'est jamais une source du dossier, et ne doit pas être écrasé.
+
+Le connecteur MCP Airtable **n'expose aucun outil de pièce jointe** : ses outils d'écriture
+s'arrêtent aux enregistrements et aux champs. Le dépôt passe donc par l'API HTTP d'Airtable, avec
+le jeton rangé dans la variable d'environnement `AIRTABLE_API_KEY_CV_AI` (scope
+`data.records:write`) — ne l'affiche jamais, ne l'écris dans aucun fichier :
+
+```
+POST https://content.airtable.com/v0/{baseId}/{recordId}/{fieldId}/uploadAttachment
+Authorization: Bearer $AIRTABLE_API_KEY_CV_AI
+Content-Type: application/json
+
+{ "contentType": "application/pdf", "file": "<base64 du PDF>", "filename": "CV-Prenom-Nom-SaRecrute.pdf" }
+```
+
+Quatre points qui ont coûté un incident ou se paient cher :
+
+- **L'API ajoute, elle ne remplace pas.** Vérifie que `CV IA` est vide avant d'envoyer : un dépôt
+  manuel de l'utilisateur peut déjà s'y trouver, et tu créerais un doublon. C'est arrivé le
+  13/10/2026 sur la fiche Lecarpentier.
+- **Le nom de fichier est celui que tu passes**, pas celui du fichier local : `CV-Prenom-Nom-SaRecrute.pdf`,
+  sans suffixe de travail. Ce document part chez une clinique.
+- **Limite de 5 Mo** par fichier. Un dossier d'une page en fait moins de 400 Ko, donc la marge est
+  large ; au-delà, c'est que quelque chose ne va pas dans le PDF.
+- **Si la variable d'environnement est absente**, ne bricole pas : dis-le, livre le PDF sur le
+  disque, et laisse l'utilisateur le déposer à la main.
+
+Si le dossier a été bâti sur des données qui ne viennent pas de cette base (un export, une autre
+base, une session précédente), **recontrôle les champs contre la fiche avant de déposer**. Archiver
+dans la fiche un dossier dont on ne sait plus s'il la reflète est pire que de ne rien archiver.
 
 ---
 
