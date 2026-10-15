@@ -1,8 +1,8 @@
 # Compte rendu et incidents — doctrine commune aux compétences recruteur
 
-Ce fichier est **identique dans les cinq compétences** du plugin `sarecrute-recruteur`
-(`tests/compte_rendu_commun.test.py` l'exige). Le modifier, c'est le modifier dans les cinq
-dossiers et monter les cinq versions.
+Ce fichier est **identique dans les quatre compétences** du plugin `sarecrute-recruteur`
+(`tests/compte_rendu_commun.test.py` l'exige). Le modifier, c'est le modifier dans les quatre
+dossiers et monter les quatre versions.
 
 ## Deux lecteurs
 

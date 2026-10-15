@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PLUGINS = {
     "sarecrute-recruteur": (
-        ["creer-candidat", "creer-clinique-offre", "creer-brouillons-facebook", "creer-cv-candidat", "insta-follow-veto"],
+        ["creer-candidat", "creer-clinique-offre", "creer-brouillons-facebook", "insta-follow-veto"],
         ("alex@botyglot.com",),  # mail d'incident : recruteur seulement
     ),
     "sarecrute-admin": (

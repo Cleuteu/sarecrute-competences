@@ -5,7 +5,7 @@ plugins indépendants** : on n'installe que celui dont on a besoin.
 
 | Plugin | Pour qui | Compétences |
 |---|---|---|
-| `sarecrute-recruteur` | les recruteurs, au quotidien | `creer-clinique-offre`, `creer-candidat`, `creer-cv-candidat`, `creer-brouillons-facebook`, `insta-follow-veto` |
+| `sarecrute-recruteur` | les recruteurs, au quotidien | `creer-clinique-offre`, `creer-candidat`, `creer-brouillons-facebook`, `insta-follow-veto` |
 | `sarecrute-admin` | le poste d'administration | `scrape-veto`, `maj-offres`, `insta-scrape-veto` |
 
 ## Installation — recruteurs
@@ -44,7 +44,6 @@ claude plugin update sarecrute-recruteur@sarecrute-competences
 |---|---|---|
 | `creer-clinique-offre` | à partir d'une annonce collée dans Claude : crée la clinique et l'offre d'emploi dans Airtable, puis prépare le premier contact (brouillon Gmail, ou message Messenger à copier) | « crée la clinique et l'offre », ou simplement en collant l'annonce |
 | `creer-candidat` | crée un candidat vétérinaire dans Airtable à partir d'un CV, d'une annonce de recherche, du transcript d'un appel ou d'un simple nom, puis enrichit sa fiche | « crée un candidat », « rentre ce CV », « ajoute-le au vivier » |
-| `creer-cv-candidat` | analyse et score le vivier, et monte le **dossier de présentation A4** d'un candidat à la charte SaRecrute, à partir des seuls champs Airtable vérifiés | **invocation manuelle uniquement** : `/creer-cv-candidat` |
 | `creer-brouillons-facebook` | prépare un brouillon de publication Facebook par canal pour les publications du jour, texte + image, **sans publier** | « prépare les brouillons Facebook », « les publications du jour » |
 | `insta-follow-veto` | s'abonne en série aux profils Instagram du vivier partagé sur Drive, en pilotant le Chrome de l'utilisateur, et tient à jour la liste d'abonnements de la recruteuse pour ne jamais réapprocher deux fois la même personne | **invocation manuelle uniquement** : `/insta-follow-veto` |
 
@@ -70,8 +69,6 @@ Les compétences s'appuient sur les connecteurs du compte Claude de chaque recru
 - **Google Drive** + **Claude in Chrome** — pour les visuels et les onglets Facebook
   (`creer-brouillons-facebook`), et pour la liste de prospection Instagram partagée + la session
   Instagram de la recruteuse (`insta-follow-veto`) ;
-- **Chrome installé sur le poste** — pour l'export PDF du dossier A4 (`creer-cv-candidat`) : rien à
-  brancher côté Claude, c'est le navigateur local qui imprime.
 
 Chaque recruteur travaille sous sa propre identité, lue dans `~/.sarecrute/recruteur.json`
 (`%USERPROFILE%\.sarecrute\recruteur.json` sous Windows) :

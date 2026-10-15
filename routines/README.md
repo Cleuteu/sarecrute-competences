@@ -14,6 +14,7 @@ pousse. Le formulaire web ne contient qu'un pointeur vers le fichier.
 | `mail-presentation-candidature.md` | Rédaction du mail de présentation d'un candidat à une clinique, enregistré dans la candidature (jamais envoyé par la routine). Lit `Candidatures`, `Candidats`, `Compétences`, `Offres d'emploi`, `Cliniques` ; écrit uniquement les champs `Mail IA - *` de la candidature. Deux formats : nominatif, et **anonyme** quand la case `Candidatures anonymes` de la clinique (fldeTW9pHHeSGvTut, créée le 18/09/2026, cas d'usage : groupe suisse Vetmint / Vetplatform) est cochée, ou sur demande du candidat — sujet daté sans nom, ni école ni employeur ni ville, clause de collaboration en clôture, identité du candidat dans la note (depuis le 18/09/2026). Exemples de ton dans `references/mails-presentation-exemples.md` (3 nominatifs, 2 anonymes). Déployée : routine `trig_01K582k1wWqi8BRpov5q7ueG`, voir ci-dessous. | API (`/fire`), `text` = `candidatureId:recXXXXXXXXXXXXXX` |
 | `cliniques-a-contacter.md` | Lot hebdomadaire de cliniques à contacter : lance `scripts/cliniques_a_contacter.py --attribuer --recharger --dossier-mails`, qui score les posts « Clinique cherche vétérinaire » de `Posts scrappés`, écrit `Score` / `Raisons` / `Clinique existante` / `Membre Vetcoop`, et attribue 10 **cliniques** par recruteuse active (`Attribué à`, `Attribué le`, `Attribué jusqu'au` = dimanche). **Une clinique = une recruteuse**, y compris de semaine en semaine (posts regroupés par fiche liée, nom normalisé, mail, téléphone). **Adhérents Vetcoop** (table `Adhérents Vetcoop`, reconnaissance par mail, domaine, nom ; décision d'Alex du 18/09/2026) : retenus même sans candidat compatible, en tête du réservoir, **Sarah seulement** ; sinon « arbitrage d'Alex » dans le rapport. Puis la routine **rédige le mail d'intro** de chaque post du lot dans le gabarit du bouton « Mail d'intro » (variante Vetcoop, jamais de prix), et `scripts/ecrire_mails_intro.py` l'écrit dans `Mail intro proposé` après ses garde-fous (seul écrivain de ce champ ; recopié sur la clinique par l'automation de conversion, lu par la formule « Lien Gmail intro »). Les recruteuses lisent leur lot sur les pages « À contacter — Sarah / Pamela » de l'interface Posts scrappés. Un lot encore valide bloque la réattribution. Déployée le 10/09/2026, ouverte aux recruteuses le 14/09/2026 ; mails et Vetcoop ajoutés le 18/09/2026. | Planifiée : lundi 07:00 Europe/Paris (`0 5 * * 1` UTC), routine `trig_01QQwayZkev8GB8am3yhrt8T` + déclencheur API (recharge) |
 | `maj-offres-site.md` | Mise à jour quotidienne des offres du site sarecrute.com : version automatique de la compétence `maj-offres` (scripts de `remote-skills/maj-offres/`). Tourne dans un clone du **dépôt Pages `Cleuteu/sarecrute`** (attaché à la routine), clone `sarecrute-competences` pour les scripts, lit Airtable, écrit les descriptions, contrôle l'anonymat, régénère `offres.html` / `index.html` / `.offres-state.json`, commite et pousse sur `main` (`scripts/publier_site.py publier`), puis envoie un compte rendu **Telegram** à Sarah (`Recruteurs`.« Telegram chat ID ») et à Alex (`TELEGRAM_CHAT_ALEX`) par l'API Bot (`publier_site.py recap` puis `telegram`, jeton `TELEGRAM_BOT_TOKEN` de l'environnement) — **seulement s'il y a eu des changements**. Échec = Telegram à Alex seul, dernier recours brouillon Gmail (le connecteur Gmail des routines ne sait pas envoyer). Routine `trig_015BKYCDaAEkmUHbLAvY6rAo` créée le 18/09/2026 par API, **désactivée** jusqu'à ce que le dépôt Pages soit attaché (compte GitHub à relier sur claude.ai), voir ci-dessous. | Planifiée : tous les jours 02:00 Europe/Paris (`0 0 * * *` UTC en été, `0 1 * * *` en hiver) |
+| `cv-candidat.md` | Dossier de présentation candidat (CV IA), **seule façon de le générer** depuis le 15/10/2026 : l'ancienne compétence manuelle `creer-cv-candidat` de Léo a été retirée du plugin des recruteuses (décision d'Alex, une seule source, dans ce dossier). `scripts/cv_candidat.py` lit la fiche, ses `Compétences` et ses `Expériences` par l'API REST (`AIRTABLE_API_KEY`), monte le bloc de données, rend le PDF A4 par Playwright sur le **Chromium préinstallé du conteneur** (`/opt/pw-browsers`, aucun téléchargement de navigateur ne passe le proxy ; `scripts/cv_pdf.js` mesure l'échelle et le débordement avant d'imprimer), contrôle le PDF (1 page, A4, taille) et le dépose dans `CV IA` (`content.airtable.com/…/uploadAttachment`, **domaine à autoriser dans l'environnement**), en remplaçant l'ancien `CV-*-SaRecrute.pdf` et en gardant toute autre pièce jointe. Le modèle n'écrit que l'accroche (depuis Profil / Notes / Notes du candidat / Transcripts, jamais Profil IA ni le CV) et peut resserrer le parcours. Template et notes de maintenance : `references/cv-candidat/`. Champs écrits sur `Candidats` (créés le 15/10/2026) : `CV IA - Statut` fldQ9g5Mlxauvo98o (En cours / Généré / Erreur), `CV IA - Note` fldn0zi6Mh8kW77dE, `CV IA - Généré le` fldJiqeHBG46k0dBU. Mots-clés du message : `anonyme`, `dryrun`. Routine `trig_01EJSbn5e39CmfDuWs3v21yQ` créée le 15/10/2026, environnement `sarecrute`, voir ci-dessous. | API (`/fire`), `text` = `recordId:recXXXXXXXXXXXXXX` [+ `anonyme`] [+ `dryrun`] |
 
 ## Convention
 
@@ -135,6 +136,57 @@ mail obligatoire, fraîcheur ≤ 15 jours prioritaire ; le contact se trace dans
 Réservoir mesuré le 10/09 : 113 posts attribuables pour 20 par semaine, et 15 à 25 nouveaux éligibles par
 semaine. Quand il manque, le script réduit les lots plutôt que de les gonfler d'annonces sans mail, et le
 dit dans son rapport.
+
+## Déploiement de `cv-candidat` (créé le 15/10/2026, à finir par Alex)
+
+Demande d'Alex du 15/10/2026 : lancer la compétence `creer-cv-candidat` de Léo depuis un bouton
+Airtable, par appel API vers une routine, comme le mail de présentation. Même mécanique :
+automation → `CV IA - Statut` = En cours → script → `/fire` → la routine dépose le PDF et écrit le
+statut. **Une seule source, ici** (décisions d'Alex le jour même : d'abord « DRY », puis « le dossier ne
+sera généré que par la routine ») : la compétence manuelle a été retirée du plugin `sarecrute-recruteur`
+(0.15.0) et de `remote-skills/` ; son template et son modèle vierge sont déplacés dans
+`references/cv-candidat/`, ses leçons de construction dans `references/cv-candidat/template-notes.md`,
+et sa Partie 1 (analyse et scoring du vivier, lecture d'un CV PDF) n'est pas reprise — elle reste dans
+l'historique git (0.5.0, commit `ce68857`). Les recruteuses verront la compétence disparaître à leur
+prochaine mise à jour du plugin ; `stable` la sert encore jusqu'au prochain `main:stable`.
+
+1. **Champs sur `Candidats`** — FAITS le 15/10/2026 : `CV IA - Statut` fldQ9g5Mlxauvo98o (En cours /
+   Généré / Erreur), `CV IA - Note` fldn0zi6Mh8kW77dE, `CV IA - Généré le` fldJiqeHBG46k0dBU. Le champ
+   `CV IA` fldDfGvVlyid0xacE existait (compétence de Léo).
+2. **La routine cloud** — CRÉÉE le 15/10/2026 par API (`trig_01EJSbn5e39CmfDuWs3v21yQ`), environnement
+   `sarecrute` (porte `AIRTABLE_API_KEY` et `AIRTABLE_API_KEY_CV_AI`), dépôt `Cleuteu/sarecrute-competences`
+   attaché (cloné sur `main`), connecteur Airtable coché (non utilisé : tout passe par le script), modèle
+   Opus 5, Instructions = pointeur vers `routines/cv-candidat.md` + paragraphe explicite pour le
+   classificateur. Jeton API généré par Alex dans l'UI le 15/10 (Modifier → déclencheur API → Generate
+   token), affiché une fois.
+3. **Diagnostic du conteneur** (run `cse_01FCAF9DNTXtpnyXcoLVUNj5`) : Ubuntu 24.04, root, node 22,
+   `python3` 3.11 mais `pip3` sur 3.13 ; **Chromium préinstallé** dans `/opt/pw-browsers` (symlink
+   `chromium`, build 1194), `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` posé, tout téléchargement de navigateur
+   refusé par le proxy — d'où le `executablePath` explicite de `cv_pdf.js` ; npm et PyPI joignables ;
+   Google Fonts joignable ; **`content.airtable.com` refusé** (connect_rejected), de même que
+   `dl.airtable.com` et `v5.airtableusercontent.com`. Le dépôt de la pièce jointe exige donc d'**ajouter
+   `content.airtable.com` aux domaines autorisés de l'environnement `sarecrute`** (comme `api.telegram.org`
+   en septembre). Sans cela, `upload` s'arrête avec un message qui le dit, et la routine passe la fiche en
+   Erreur.
+4. **L'automation** — CRÉÉE le 15/10/2026 par API, `wflFW8k1gxWbq5hrw` **Générer le dossier de présentation
+   [bouton candidat]**, script intégré à la création (l'API l'a accepté cette fois ; source de vérité
+   `sarecrute/airtable/declencherCvCandidat.js`), désactivée. Deux branches : Statut = En cours → note seule ;
+   sinon En cours puis script (`recordId` = Déclencheur > Record ID). Reste à faire dans l'UI : créer le
+   secret `ROUTINE_CV_CANDIDAT_KEY` avec le jeton de la routine et le cocher sur l'action script, vérifier
+   que le déclencheur est bien « bouton d'interface » sur Candidats, poser le bouton sur les pages de
+   détail Candidats, activer.
+5. `git push origin main` de ce dépôt, avec l'accord d'Alex : la routine clone `main`.
+6. **Premier essai en `dryrun`** : depuis Claude Code, `RemoteTrigger run` ne porte pas de texte ; passer par
+   l'automation, ou par un `curl …/fire` avec `{"text":"recordId:recQGD9OTVjKNPWz5 dryrun"}` et le jeton
+   de la routine. Lire le journal (`list_runs` puis `get_run_log`) : rendu, échelle, contrôles. Puis un
+   vrai run sur Manon Lecarpentier ou Neel Paul, dont le dossier de Léo sert d'étalon.
+
+Testé en local le 15/10/2026 sur Manon Lecarpentier (lecture seule, dépôt en `--dry-run`) : 10 actes,
+échelle 1,08 en mode chips, PDF A4 d'une page de 410 Ko, polices chargées, rendu au niveau du dossier de
+Léo. Décisions prises seul, à contester : le nom affiché perd sa précision entre parenthèses
+(« Lecarpentier (Caparroy) » → « Lecarpentier »), la date de disponibilité s'écrit en toutes lettres, les
+stages et postes courts se regroupent sur une ligne « N postes », et l'ancien `CV-*-SaRecrute.pdf` est
+remplacé (toute autre pièce jointe de `CV IA` est gardée).
 
 ## Déploiement de `maj-offres-site` (à faire par Alex)
 

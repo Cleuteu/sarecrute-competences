@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""La doctrine « compte rendu et incidents » est un seul texte, copié dans les cinq compétences
+"""La doctrine « compte rendu et incidents » est un seul texte, copié dans les quatre compétences
 recruteur (`remote-skills/<compétence>/references/compte-rendu.md`), parce que chaque snapshot se
 télécharge seul depuis son dossier. Une copie qui dérive, c'est une recruteuse qui reçoit une
 consigne différente selon la compétence qu'elle lance — sans que rien ne le signale.
@@ -14,7 +14,6 @@ SKILLS = [
     "creer-candidat",
     "creer-clinique-offre",
     "creer-brouillons-facebook",
-    "creer-cv-candidat",
     "insta-follow-veto",
 ]
 REL = Path("references") / "compte-rendu.md"
@@ -37,7 +36,7 @@ def main() -> int:
         if needle not in ref:
             print(f"ÉCHEC : « {needle} » absent de compte-rendu.md", file=sys.stderr)
             return 1
-    print("compte-rendu.md identique dans les cinq compétences recruteur.")
+    print("compte-rendu.md identique dans les quatre compétences recruteur.")
     return 0
 
 
