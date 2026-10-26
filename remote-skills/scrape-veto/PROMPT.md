@@ -1,4 +1,4 @@
-**scrape-veto — version 0.16.3 (2026-09-29)**
+**scrape-veto — version 0.16.4 (2026-10-26)**
 
 > Ce fichier est le corps de la compétence `scrape-veto` du plugin `sarecrute-admin`. Il n'est
 > **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -150,9 +150,12 @@ for rec in rows:
         m = re.match(r"^\[(\d{4}-\d{2}-\d{2})\]", chunk)
         dt = m.group(1) if m else (f.get("Date du post") or "")
         # on ne garde que le corps : ni l'en-tête "[date] lien · canal", ni le
-        # marqueur 💬 des commentaires, ni le post parent recopié
+        # marqueur 💬 des commentaires, ni le post parent recopié.
+        # ⚠️ l'en-tête se reconnaît à sa DATE, pas au seul « [ » : beaucoup de posts
+        # commencent par un titre entre crochets (« [WANTED véto rural…] »), et les
+        # jeter les rendait invisibles — repris pour neufs à chaque scrape (26/10/2026)
         body = "\n".join(l for l in chunk.split("\n")
-                         if not l.startswith("[") and not l.startswith("💬"))
+                         if not re.match(r"\[\d{4}-\d{2}-\d{2}\]", l) and not l.startswith("💬"))
         body = clean(body.split("━━━ Post commenté")[0])
         if len(body) < 25: continue
         for c in f.get("Canaux") or []:
