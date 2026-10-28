@@ -144,6 +144,32 @@ check("un profil nommé n'a pas de clé (le push la calcule)", "auteur_key" in f
 check("rien de jugé dans le squelette",
       [k for k in ("Expérience", "Statuts contractuels", "Date de disponibilité", "Contrat court", "Spécialités requises") if k in fl], [])
 
+print("\nclasser — lecture incrémentale : fiches non relues, disparus lus sur la liste")
+
+
+def carte(n):
+    return {"id": str(n), "url": "https://job.temavet.fr/users/veterinaire/%d" % n, "lignes": ["Jeanne EXEMPLE", "Praticien"]}
+
+
+def page(n, maj="16/10/2026"):
+    return {"url": "https://job.temavet.fr/users/veterinaire/%d" % n, "status": 200, "html": fiche(maj=maj)}
+
+
+TEXTE = tv.norm(tv.lire_fiche(fiche())["texte"])
+base = {n: {"rec": "rec%dxxxxxxxxxxx" % n, "numero": n - 900000, "date": "2026-10-16", "nom": "Jeanne Exemple",
+            "auteur_key": "", "texte": TEXTE} for n in (900011, 900012, 900013, 900014, 900099)}
+base[900011]["date"] = "2026-09-01"                            # revalidé depuis
+export = {"total_annonce": 6, "cartes": [carte(n) for n in (900010, 900011, 900012, 900013, 900014, 900015)],
+          "profils": {"900010": page(900010), "900011": page(900011), "900012": page(900012), "900013": page(900013)}}
+res = tv.classer(export, base, "recTEMAVETxxxxxxx", VOCAB)
+check("inconnu lu → à juger", [(a["numero"], a["etat"]) for a in res["a_juger"]], [(900010, "nouveau")])
+check("connu, même texte, date plus récente → réactualisé", [r["numero"] for r in res["reactualises"]], [900011])
+check("connu non relu → inchangé, marqué non relu",
+      [(i["numero"], i["relue"]) for i in res["inchanges"]], [(900012, True), (900013, True), (900014, False)])
+check("inconnu sans fiche → inaccessible (jamais compté inchangé)", [i["numero"] for i in res["inaccessibles"]], [900015])
+check("disparu = absent de la LISTE, pas des fiches lues", [d["numero"] for d in res["disparus"]], [900099])
+check("compteurs", (res["profils_listes"], res["fiches_lues"], res["complet"]), (6, 4, True))
+
 print("\nairtable_push — un profil se remplace, il ne s'empile pas")
 CANAL_TV, CANAL_FB = "recTEMAVETxxxxxxx", "recFBxxxxxxxxxxxx"
 CANAUX = {CANAL_TV: "CV-thèque TÉMAVet", CANAL_FB: "We need you"}

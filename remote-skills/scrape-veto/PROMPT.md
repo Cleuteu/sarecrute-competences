@@ -1,4 +1,4 @@
-**scrape-veto — version 0.17.0 (2026-10-28)**
+**scrape-veto — version 0.17.1 (2026-10-28)**
 
 > Ce fichier est le corps de la compétence `scrape-veto` du plugin `sarecrute-admin`. Il n'est
 > **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -44,8 +44,8 @@ Scraper les posts des **groupes Facebook vétérinaires** (tri chronologique) su
 - **`scripts/scrape_helpers.js`** — Read ce fichier, injecte tout son contenu via `javascript_tool`. Fournit `__decodeTS` (quatre régimes de rendu du timestamp, dont `aria-labelledby` depuis le 14/09/2026 — cf. ⚠️ ci-dessous), `__parseTS`, `__harvestAll`, `__store`/`__merge`, `__expandPostText`, `__expandCommentText`, `__expandVisible` (expansion bornée au viewport, **obligatoire sur les fils longs**), `__commentFull`, `__truncated`, `__truncatedComments`, `__purgeStubs` / `__purgeCommentStubs` (appelés par `__exportBlocked`, pas à appeler soi-même), `__storyToken` (jeton `__cft__` = identité du post d'une ancre), `__isCommentArticle` / `__inComment` (frontière post ↔ commentaire, cf. §4), `__emptyBodies` (posts au corps vide), `__seenInit` / `__tailKnown` / `__unseen` (arrêt sur le déjà-scrappé, cf. §0 et §2), `__exportBlocked` (garde unique avant export), `__profileUrl`, `__gid` (id du groupe courant, jamais codé en dur), `__alive`, `__chrono` (contrôle du tri), `__orphanComments` (compteur). **Ré-injecte après toute navigation** (le window est vidé).
 - **`scripts/airtable_push.py`** — pousse un `records.json` en upsert-merge. Voir §5.
 - **`scripts/svs_portail.py`** — collecteur du marché de l'emploi de la SVS (HTML, sans Chrome) : liste les annonces, lit chaque fiche et son contact, détecte la langue, compare avec la base et prépare un squelette de champs. Voir §7.
-- **`scripts/temavet_cvtheque.js`** — à injecter dans l'onglet de la CV-thèque TÉMAVet : `__tvStart()` lit la liste et chaque fiche par `fetch` (aucun clic), en tâche de fond, et les sort par download blob ; `__tvStatus()` donne l'avancement. Voir §8.
-- **`scripts/temavet_cvtheque.py`** — lit cet export, compare avec la base (nouveaux, modifiés, réactualisés, disparus) et prépare un squelette de champs candidat. Voir §8.
+- **`scripts/temavet_cvtheque.js`** — à injecter dans l'onglet de la CV-thèque TÉMAVet : `__tvStart({connus})` lit toute la liste et les fiches mises à jour depuis le dernier passage par `fetch` (aucun clic), en tâche de fond, et les sort par download blob ; `__tvStatus()` donne l'avancement. Voir §8.
+- **`scripts/temavet_cvtheque.py`** — `connus` imprime les profils déjà en base (l'argument de `__tvStart`) ; `collect` lit l'export, compare avec la base (nouveaux, modifiés, réactualisés, disparus) et prépare un squelette de champs candidat. Voir §8.
 - **`scripts/focus_chrome.sh`** (macOS) / **`scripts/focus_chrome.ps1`** (Windows) — ramènent l'onglet du scrape au premier plan pour réveiller le rendu. Voir §1 bis.
 - **`scripts/keep_awake.sh`** (macOS) — empêche l'écran de s'éteindre pendant la collecte. À lancer **en préventif** dès §0 et à arrêter en §6. Voir §0.
 - **`references/matching_vocab.json`** — valeurs select valides (Zones/Statuts/Temps) + mapping `macro_regions` → départements. Source de vérité pour remplir les champs de matching (cf. §3). Régénérable depuis la base si le vocab change.
@@ -980,11 +980,27 @@ compte (30 CV par jour, celui des recruteuses) ; la fiche ne le consomme pas et 
 un poste », « Ajouter à mes CV favoris » sont des gestes visibles du candidat ou du compte. Le helper
 n'utilise que `fetch` : ne le remplace jamais par des clics.
 
-**1. Collecter** : nouvel onglet sur `https://job.temavet.fr/CV-theque/veterinaire`, injecte tout le
-contenu de `scripts/temavet_cvtheque.js` (`javascript_tool`), puis `__tvStart()`. La collecte tourne
-en tâche de fond (une à deux minutes pour 150 profils, `javascript_tool` coupant à 45 s) : relance
-`__tvStatus()` toutes les 20 à 30 s jusqu'à `etat: "terminé"`. Le fichier `temavet_cv_<date>.json`
-arrive dans `~/Downloads` : déplace-le dans le scratchpad.
+**1. Collecter.** D'abord, les profils déjà en base (une ligne JSON, n° → date de mise à jour) :
+
+```bash
+python3 <dossier_skill>/scripts/temavet_cvtheque.py connus
+```
+
+Puis nouvel onglet sur `https://job.temavet.fr/CV-theque/veterinaire`, injecte tout le contenu de
+`scripts/temavet_cvtheque.js` (`javascript_tool`), et lance `__tvStart({connus: <la ligne JSON>})`.
+La lecture est **incrémentale** (depuis 0.17.1) : la liste est triée par date de mise à jour, la plus
+récente en tête ; le helper la lit en entier (onze pages, c'est elle qui donne les disparus), charge
+toute fiche inconnue de la base, et cesse de charger les fiches connues après trois d'affilée
+revenues à leur date en base. Le tri ne suit pas exactement la date affichée (le 28/10/2026, un
+profil mis à jour le 23/10 était classé parmi ceux de fin septembre) : chaque passage relit donc en
+plus une ronde d'un septième des fiches connues (n° modulo 7 = jour), qui rattrape en une semaine un
+profil modifié sans remonter dans la liste. Un passage ordinaire charge ainsi une vingtaine de fiches
+au lieu des 150 — autant de pages de moins vues par TÉMAVet sur le compte de Sarah. Au premier passage (`{}`), tout est lu : une à deux minutes, `javascript_tool` coupant à
+45 s, la collecte tourne en tâche de fond. Relance `__tvStatus()` toutes les 20 à 30 s jusqu'à
+`etat: "terminé"` (`fiches` = chargées, `sautees` = connues non rechargées). Le fichier
+`temavet_cv_<date>.json` arrive dans `~/Downloads` : déplace-le dans le scratchpad.
+- **Ne lance jamais `__tvStart()` sans `connus` après le premier passage** : ce serait recharger les
+  150 fiches pour rien.
 - **Un seul téléchargement par chargement de page.** Chrome bloque sans rien dire le téléchargement
   automatique suivant d'une même page : `etat` dit « terminé » mais aucun fichier n'arrive. Pour
   relancer, recharge l'onglet, réinjecte, puis `__tvStart()`.
@@ -1007,7 +1023,8 @@ aux profils déjà en base (sections dont le lien pointe sur `/users/veterinaire
 - `reactualises` : même texte, date de mise à jour plus récente — le candidat a revalidé son profil.
   Leurs `fields` sont **prêts**, à pousser tels quels sans jugement : le push remplace la section
   et avance `Date du post`, sans toucher à ce qui a été jugé ou saisi sur l'enregistrement ;
-- `inchanges` ; `disparus` (en base, plus dans la CV-thèque) ; `inaccessibles` (fiche refusée par
+- `inchanges` (dont `relue: false` : les fiches connues que la lecture incrémentale n'a pas
+  rechargées) ; `disparus` (en base, absents de la liste) ; `inaccessibles` (fiche refusée par
   TÉMAVet).
 Il n'écrit rien dans Airtable — pas de `Vu en ligne le` ici : la CV-thèque affiche encore des
 profils que personne n'a mis à jour depuis 2023, y être visible ne dit rien de l'activité du
@@ -1090,6 +1107,6 @@ bash <dossier_skill>/scripts/keep_awake.sh stop
 - **Portail SVS** (§7), un bloc à part : annonces en ligne, nouvelles poussées (par langue),
   modifiées, inchangées, **disparues** (n° de post et clinique), exclues avec la raison, annonces en
   italien laissées sans `Langues requises`, et les groupes non arbitrés rencontrés.
-- **CV-thèque TÉMAVet** (§8), un bloc à part : profils annoncés et lus, nouveaux poussés, modifiés,
+- **CV-thèque TÉMAVet** (§8), un bloc à part : profils listés et fiches chargées, nouveaux poussés, modifiés,
   réactualisés, inchangés, **disparus** (n° de post et nom), inaccessibles, exclus avec la raison,
   le quota avant et après (il ne doit pas bouger) et la date de fin d'accès.

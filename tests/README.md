@@ -12,6 +12,7 @@ node tests/expansion_clic.test.js                   # jsdom aussi
 node tests/queue_et_libelles.test.js                # jsdom aussi
 python3 tests/revision_svs.test.py                  # aucune dépendance
 python3 tests/temavet_cvtheque.test.py             # aucune dépendance
+node tests/temavet_incremental.test.js             # jsdom aussi
 node tests/liens_markdown.test.mjs                  # aucune dépendance
 python3 tools/manifests.py --check                  # les MANIFEST des compétences distantes sont à jour
 python3 tests/compte_rendu_commun.test.py           # aucune dépendance
@@ -84,6 +85,14 @@ développée, Corse tranchée par le code postal, DOM, hors vocabulaire jamais f
 activités cochées sont des alternatives. Push : un profil revalidé ou modifié REMPLACE sa version
 précédente (toutes dates), `Date du post` avance, les champs jugés restent, le post Facebook de la même
 personne n'est pas touché.
+Lecture incrémentale (0.17.1) : une fiche connue non rechargée compte « inchangée », une fiche
+inconnue absente reste « inaccessible », les disparus se lisent sur la liste et non sur les fiches.
+
+**`temavet_incremental.test.js`** — la règle d'arrêt du helper TÉMAVet (0.17.1), contre un serveur
+simulé : au premier passage tout est lu ; ensuite, le helper s'arrête après trois fiches connues
+d'affilée revenues à leur date, lit quand même une fiche inconnue plus bas dans la liste, et repart
+de zéro sur un profil connu mis à jour ; la ronde du jour (n° modulo 7) relit une fiche connue au-delà
+de l'arrêt. La liste reste lue en entier.
 
 **`troncature.test.mjs`** — `__truncated()` ne regarde que les **posts**. Un commentaire figé sur
 « Bonjour,… Voir plus » passait donc l'export sans aucun signal. Le test vérifie que

@@ -1,4 +1,4 @@
-version=0.17.0
+version=0.17.1
 PROMPT.md
 references/matching_vocab.json
 scripts/airtable_push.py

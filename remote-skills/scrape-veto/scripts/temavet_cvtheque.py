@@ -9,13 +9,18 @@ prépare un squelette de records.json ; le JUGEMENT (exclusions, Expérience, Sp
 Statuts, Date de disponibilité, Contrat court) reste à la compétence, comme pour Facebook et la SVS.
 
 Usage :
+    python3 temavet_cvtheque.py connus
+        Imprime, en une ligne JSON, les profils déjà en base (n° → date de mise à jour) : c'est
+        l'argument de __tvStart({connus: …}) dans la page, qui n'a alors à recharger que les fiches
+        mises à jour depuis le dernier passage (lecture incrémentale, 0.17.1).
     python3 temavet_cvtheque.py collect --canal recXXXXXXXXXXXXXX --export ~/Downloads/temavet_cv_<date>.json --out temavet_raw.json
         Lit chaque fiche de l'export, compare avec les profils déjà en base (sections de « Contenu
         complet » dont le lien pointe sur /users/veterinaire/<n°>) et écrit :
           - a_juger      : profils NOUVEAUX, ou MODIFIÉS (texte changé), avec un squelette de champs ;
           - reactualises : texte inchangé, date de mise à jour plus récente — records prêts à pousser
                            tels quels (le push remplace la section et avance « Date du post ») ;
-          - inchanges    : même texte, même date (ignorés) ;
+          - inchanges    : même texte, même date (ignorés) — y compris les fiches connues que la
+                           lecture incrémentale n'a pas rechargées (relue: false) ;
           - disparus     : en base, plus dans la CV-thèque (à signaler, jamais archivés ici) ;
           - inaccessibles: fiches refusées par TÉMAVet (« Vous n'avez pas accès à la page profil »).
         Lit Airtable avec AIRTABLE_API_KEY ; n'y écrit RIEN. Pas de « Vu en ligne le » ici, à la
@@ -393,10 +398,63 @@ def charger_export(path):
     return d
 
 
+def classer(export, connus, canal, vocab):
+    """Export de la page + profils en base → le contenu de temavet_raw.json (sans réseau)."""
+    noms_carte = {c["id"]: nom_de_carte(c.get("lignes")) for c in export["cartes"]}
+    a_juger, reactualises, inchanges, inaccessibles = [], [], [], []
+    for c in export["cartes"]:
+        num, p = c["id"], export["profils"].get(c["id"])
+        k = connus.get(int(num))
+        if not p and k:
+            # Fiche connue que la lecture incrémentale n'a pas rechargée : plus bas dans la liste que
+            # trois fiches connues revenues à leur date, donc inchangée elle aussi.
+            inchanges.append({"numero": int(num), "rec": k["rec"], "post": k["numero"], "nom": k["nom"], "relue": False})
+            continue
+        if not p or "/users/veterinaire/" not in p.get("url", "") or p.get("status") != 200:
+            inaccessibles.append({"numero": int(num), "nom": noms_carte.get(num, "")})
+            continue
+        f = lire_fiche(p["html"])
+        if not f["maj"] or not f["texte"]:
+            inaccessibles.append({"numero": int(num), "nom": noms_carte.get(num, ""), "raison": "fiche illisible"})
+            continue
+        sq = squelette(f, int(num), p["url"], canal, vocab, noms_carte.get(num, ""))
+        if k and "#" in (k["auteur_key"] or ""):
+            sq["fields"]["auteur_key"] = k["auteur_key"]   # clé figée à la main : respectée à l'entrée
+        if k and norm(f["texte"]) == k["texte"]:
+            if f["maj"] <= k["date"]:
+                inchanges.append({"numero": int(num), "rec": k["rec"], "post": k["numero"], "nom": k["nom"], "relue": True})
+                continue
+            # Texte inchangé, mise à jour plus récente : le candidat a revalidé son profil. Rien à
+            # rejuger ; on n'envoie que de quoi remplacer la section et dater, pour ne pas écraser
+            # ce que la compétence ou la recruteuse ont posé sur l'enregistrement.
+            garde = ("Type de post", "Type d'entrée", "Date du post", "Lien du post", "Prénom", "Nom",
+                     "Contenu complet", "Canaux", "auteur_key")
+            reactualises.append({"numero": int(num), "rec": k["rec"], "post": k["numero"], "avant": k["date"],
+                                 "fields": {x: v for x, v in sq["fields"].items() if x in garde}})
+            continue
+        a_juger.append({"numero": int(num), "etat": "modifié" if k else "nouveau", "rec_existant": k["rec"] if k else None,
+                        "nom": "%s %s" % (sq["fields"].get("Prénom", ""), sq["fields"].get("Nom", "")), "squelette": sq})
+    # Disparus : en base, absents de la LISTE (lue en entier même en incrémental) ; une fiche
+    # inaccessible ou non relue est toujours listée, donc toujours en ligne.
+    en_ligne = {int(c["id"]) for c in export["cartes"]}
+    complet = len(export["cartes"]) >= (export.get("total_annonce") or 0)
+    disparus = [] if not complet else [{"numero": n, "post": v["numero"], "rec": v["rec"], "nom": v["nom"]}
+                                       for n, v in connus.items() if n not in en_ligne]
+    return {"collecte_le": export.get("collecte_le"), "canal": canal, "acces_fin": export.get("acces_fin"),
+            "quota_debut": export.get("quota_debut"), "quota_fin": export.get("quota_fin"),
+            "profils_annonces": export.get("total_annonce"), "profils_listes": len(export["cartes"]),
+            "fiches_lues": len(export["profils"]), "complet": complet,
+            "a_juger": a_juger, "reactualises": reactualises, "inchanges": inchanges,
+            "disparus": disparus, "inaccessibles": inaccessibles}
+
+
 def main():
-    if len(sys.argv) < 2 or sys.argv[1] not in ("collect", "fiche"):
+    if len(sys.argv) < 2 or sys.argv[1] not in ("connus", "collect", "fiche"):
         sys.exit(__doc__)
     args = sys.argv[2:]
+    if sys.argv[1] == "connus":
+        print(json.dumps({str(n): v["date"] for n, v in sorted(en_base().items())}, separators=(",", ":")))
+        return
 
     def opt(name, default=None):
         return args[args.index(name) + 1] if name in args else default
@@ -416,56 +474,20 @@ def main():
     canal, out_path = opt("--canal"), opt("--out", "temavet_raw.json")
     if not canal or not re.match(r"^rec[A-Za-z0-9]{14}$", canal):
         sys.exit("--canal recXXXXXXXXXXXXXX obligatoire : le recId du canal CV-thèque TÉMAVet (table Canaux de diffusion).")
-    connus = en_base()
-    a_juger, reactualises, inchanges, inaccessibles = [], [], [], []
-    en_ligne = set()
-    for c in export["cartes"]:
-        num, p = c["id"], export["profils"].get(c["id"])
-        if not p or "/users/veterinaire/" not in p.get("url", "") or p.get("status") != 200:
-            inaccessibles.append({"numero": int(num), "nom": noms_carte.get(num, "")})
-            continue
-        f = lire_fiche(p["html"])
-        if not f["maj"] or not f["texte"]:
-            inaccessibles.append({"numero": int(num), "nom": noms_carte.get(num, ""), "raison": "fiche illisible"})
-            continue
-        en_ligne.add(int(num))
-        sq = squelette(f, int(num), p["url"], canal, vocab, noms_carte.get(num, ""))
-        k = connus.get(int(num))
-        if k and "#" in (k["auteur_key"] or ""):
-            sq["fields"]["auteur_key"] = k["auteur_key"]   # clé figée à la main : respectée à l'entrée
-        if k and norm(f["texte"]) == k["texte"]:
-            if f["maj"] <= k["date"]:
-                inchanges.append({"numero": int(num), "rec": k["rec"], "post": k["numero"], "nom": k["nom"]})
-                continue
-            # Texte inchangé, mise à jour plus récente : le candidat a revalidé son profil. Rien à
-            # rejuger ; on n'envoie que de quoi remplacer la section et dater, pour ne pas écraser
-            # ce que la compétence ou la recruteuse ont posé sur l'enregistrement.
-            garde = ("Type de post", "Type d'entrée", "Date du post", "Lien du post", "Prénom", "Nom",
-                     "Contenu complet", "Canaux", "auteur_key")
-            reactualises.append({"numero": int(num), "rec": k["rec"], "post": k["numero"], "avant": k["date"],
-                                 "fields": {x: v for x, v in sq["fields"].items() if x in garde}})
-            continue
-        a_juger.append({"numero": int(num), "etat": "modifié" if k else "nouveau", "rec_existant": k["rec"] if k else None,
-                        "nom": "%s %s" % (sq["fields"].get("Prénom", ""), sq["fields"].get("Nom", "")), "squelette": sq})
-    complet = len(export["cartes"]) >= (export.get("total_annonce") or 0)
-    disparus = [] if not complet else [{"numero": n, "post": v["numero"], "rec": v["rec"], "nom": v["nom"]}
-                                       for n, v in connus.items() if n not in en_ligne]
-    res = {"collecte_le": export.get("collecte_le"), "canal": canal, "acces_fin": export.get("acces_fin"),
-           "quota_debut": export.get("quota_debut"), "quota_fin": export.get("quota_fin"),
-           "profils_annonces": export.get("total_annonce"), "profils_lus": len(export["cartes"]),
-           "a_juger": a_juger, "reactualises": reactualises, "inchanges": inchanges,
-           "disparus": disparus, "inaccessibles": inaccessibles}
+    res = classer(export, en_base(), canal, vocab)
     json.dump(res, open(out_path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    a_juger, disparus, inaccessibles = res["a_juger"], res["disparus"], res["inaccessibles"]
     nouveaux = sum(1 for a in a_juger if a["etat"] == "nouveau")
-    print("%s profils annoncés, %d lus · %d nouveaux, %d modifiés à juger · %d réactualisés (prêts) · %d inchangés · "
-          "%d disparus · %d inaccessibles → %s" % (export.get("total_annonce"), len(export["cartes"]), nouveaux,
-                                                   len(a_juger) - nouveaux, len(reactualises), len(inchanges),
-                                                   len(disparus), len(inaccessibles), out_path))
+    print("%s profils annoncés, %d listés, %d fiches lues · %d nouveaux, %d modifiés à juger · %d réactualisés (prêts) · "
+          "%d inchangés (dont %d non relus) · %d disparus · %d inaccessibles → %s" % (
+              export.get("total_annonce"), res["profils_listes"], res["fiches_lues"], nouveaux, len(a_juger) - nouveaux,
+              len(res["reactualises"]), len(res["inchanges"]), sum(1 for i in res["inchanges"] if not i["relue"]),
+              len(disparus), len(inaccessibles), out_path))
     print("Accès CV-thèque jusqu'au %s · quota de téléchargement %s → %s%s" % (
         export.get("acces_fin"), export.get("quota_debut"), export.get("quota_fin"),
         "" if export.get("quota_debut") == export.get("quota_fin") else "  ⚠️ LE QUOTA A BOUGÉ PENDANT LA COLLECTE"))
-    if not complet:
-        print("⚠️ Export incomplet (%d profils lus sur %s annoncés) : disparus non calculés." % (
+    if not res["complet"]:
+        print("⚠️ Liste incomplète (%d profils listés sur %s annoncés) : disparus non calculés." % (
             len(export["cartes"]), export.get("total_annonce")))
     for a in a_juger:
         sq = a["squelette"]
