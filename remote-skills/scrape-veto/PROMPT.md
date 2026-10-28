@@ -1,4 +1,4 @@
-**scrape-veto — version 0.16.4 (2026-10-26)**
+**scrape-veto — version 0.16.5 (2026-10-28)**
 
 > Ce fichier est le corps de la compétence `scrape-veto` du plugin `sarecrute-admin`. Il n'est
 > **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -276,12 +276,17 @@ await (async function(){
 chaque lot :
 
 ```javascript
-window.__tailKnown(3, '<borne YYYY-MM-DD>')   // true = les 3 derniers posts sont déjà en base
+window.__tailKnown(3, '<borne YYYY-MM-DD>')   // true = 3 des 4 derniers posts sont déjà en base
 ```
 
 - ✅ S'arrêter dès que `__tailKnown(3, borne)` est `true` **ET** que `__alive()` confirme
-  `frozen: false`. Trois posts consécutifs déjà en base, tous à la borne ou avant : on a rejoint le
-  fil connu, tout ce qui suit est plus ancien.
+  `frozen: false`. Trois posts déjà en base parmi les quatre derniers rendus, tous les trois à la
+  borne ou avant : on a rejoint le fil connu, tout ce qui suit est plus ancien.
+- Depuis la 0.16.5, **un** post isolé qui n'est pas en base est toléré dans ces quatre, où qu'il
+  soit (y compris tout en bas) : le fil connu contient pour de vrai des posts jamais poussés
+  (auteurs blacklistés, posts non pertinents). Le 28/10/2026 sur « We need you », un post de Flo Ky
+  (blacklisté) sous 7 posts connus d'affilée bloquait l'arrêt, qu'il a fallu faire à la main. Deux
+  posts inconnus parmi les quatre derniers, et on continue.
 - ⚠️ **Trois, jamais un.** Une republication au texte inchangé revient régulièrement en tête de fil
   (constaté : 4 sur une fenêtre de 3 jours) ; s'arrêter au premier post connu couperait le scrape
   dès la première ligne. La condition de date écarte ce cas — une republication du jour est
@@ -314,6 +319,8 @@ JSON.stringify({stop: window.__exportBlocked('<borne YYYY-MM-DD>'),
 - `stop` **non vide** : depuis la 0.9.2, `__exportBlocked` a **déjà** purgé les **doublons parasites** (posts ET commentaires) — des entrées tronquées dont la version complète est déjà dans le store, non dépliables puisque l'exemplaire affiché est déjà déplié, et qui bloquaient l'export indéfiniment. Inutile d'appeler `__purgeStubs()` toi-même. Ce qui reste a donc bien été capté avant dépliage (souvent les posts les plus récents, en haut du fil). Remonte jusqu'à elles (`window.scrollTo(0,0)` puis re-descends par petits pas de ~650 px), en refaisant `__expandPostText()` **et `__expandCommentText()`** → attendre **≥1,5 s** → `__merge()` à chaque pas, puis **re-vérifie**. Répète jusqu'à `stop` vide. Ne jamais exporter tant que ce n'est pas le cas.
 
 ⚠️ Un `stop` qui ne bouge pas d'un lot à l'autre n'est plus un dépliage qui échoue : c'était la signature du doublon parasite, désormais purgé automatiquement. S'il persiste, c'est une vraie troncature — remonte jusqu'à elle.
+
+⚠️ Depuis la 0.16.5, `__expandCommentText()` reconnaît aussi les « En voir plus » de commentaires dont seul le texte **visible** porte le libellé (le 28/10/2026, trois commentaires sont restés tronqués pour cette raison, et il a fallu les déplier à la main). Si un commentaire reste malgré tout tronqué une fois l'écran remonté jusqu'à lui, c'est un nouveau défaut à signaler dans le résumé. Un clic à la main ne vise que le bouton au texte exact « En voir plus » **à l'intérieur** d'un `div[role="article"]` « Commentaire de… » / « Réponse de… », et **jamais** « Voir plus de commentaires » ni « Voir plus de réponses » (ces deux boutons ouvrent le permalink et vident le store).
 
 - `vides` **non vide** → des posts au **corps vide**. `__emptyBodies` ne bloque **pas** l'export (un post sans texte — photo, lien, affiche — existe pour de vrai et bloquerait indéfiniment), mais **aucune de ces entrées ne doit partir en base**. Pour chacune : ouvre son `permalink` et lis le post. Soit il est réellement sans texte exploitable → écarte-le ; soit son corps n'avait pas été rendu → reprends-le à la main. Depuis la 0.10.1 ce cas est **plus fréquent et c'est voulu** : là où le texte d'un commentaire prenait silencieusement la place du post (cf. §4), on obtient désormais une chaîne vide, franche et signalée.
 
@@ -944,6 +951,11 @@ postes sont distincts, une seule si c'est la même équipe qui recrute pour les 
 **5. Pousser** : `records.json` avec les `fields` complétés (le `Contenu complet` est le corps tel que
 collecté, le push pose l'en-tête `[date] lien · Portail emploi SVS`), puis §5 : `--dry`, relire le
 plan, pousser. `Canaux` = le recId du canal svs sur chaque ligne.
+Une annonce **modifiée** à date de publication inchangée doit sortir du `--dry` en `↻ RÉVISION`
+(et compter dans « mises à jour », jamais dans « ignorés ») : sa section remplace l'ancienne version
+et les scalaires prennent ses valeurs (depuis la 0.16.5 ; avant, une modification au-delà des 80
+premiers caractères passait pour « déjà en base » — annonces 5537 et 5521 le 28/10/2026). Une
+annonce modifiée qui ressort « ignorée » est un défaut à signaler, pas un cas normal.
 
 **6. Les disparues** ne se touchent pas : liste-les au résumé avec le n° de post et la clinique (le
 poste est sans doute pourvu). Archiver est le geste de la recruteuse, pas du scrape.

@@ -20,7 +20,8 @@
  *                          b.click() nu ne déclenche rien sur certains boutons FB
  *   __expandPostText()   -> n  : clique les "Voir plus" des posts
  *   __expandCommentText()-> n  : idem DANS les commentaires (jamais "Voir plus de
- *                          commentaires", qui navigue et viderait le store)
+ *                          commentaires", qui navigue et viderait le store) ;
+ *                          libellé lu par __expanderLabel (repli innerText)
  *   __expandVisible(pad) -> n  : idem __expandPostText mais borné au viewport
  *                          (obligatoire sur les fils longs : sinon timeout CDP)
  *   __commentFull(art)   -> string : texte INTÉGRAL d'un commentaire (tous ses
@@ -553,15 +554,35 @@ window.__expandPostText = function () {
  * réponse). Restreint aux boutons SITUÉS DANS un article de commentaire, avec le même
  * test de texte strict : « Voir plus de commentaires » et « N réponses » ne matchent
  * pas le regex, donc on ne déclenche jamais la navigation vers le permalink (qui
- * viderait window.__store). */
+ * viderait window.__store).
+ *
+ * ⚠️ Le libellé se lit sur le texte VISIBLE (innerText) quand textContent échoue.
+ * Le 28 octobre 2026, trois « En voir plus » de commentaires (div role=button, innerText
+ * exact « En voir plus ») n'ont jamais été cliqués : leur textContent ne passait pas le
+ * test strict, __exportBlocked bloquait, et la remontée par pas de 650 px n'y changeait
+ * rien. Un clic sur le seul critère innerText les a dépliés du premier coup. innerText
+ * coûte un reflow, mais seulement en repli et seulement sur les boutons des
+ * commentaires — pas sur les ~6700 boutons du document (cf. __expandPostText).
+ * Le test reste strict (__EXPAND_RX ancré des deux côtés) : « Voir plus de
+ * commentaires » et « Voir plus de réponses » ne passent toujours pas.
+ * Même jour, même prudence : on n'écarte que les boutons pris dans un lien qui
+ * NAVIGUE (a[href]) — un <a> sans href, que FB pose parfois autour d'un bloc, ne
+ * peut pas vider le store, et l'écarter laissait le commentaire tronqué. */
+window.__expanderLabel = function (b) {
+  const nz = s => (s || '').replace(/[​-‍⁠﻿]/g, '').replace(/\s+/g, ' ').trim();
+  const tc = nz(b.textContent);
+  if (tc.length <= 18 && window.__EXPAND_RX.test(tc)) return tc;
+  if (tc.length > 200) return '';          // un bloc de texte, pas un bouton : pas de reflow
+  const it = nz(b.innerText);
+  return it.length <= 18 && window.__EXPAND_RX.test(it) ? it : '';
+};
 window.__expandCommentText = function () {
   let n = 0;
   for (const art of document.querySelectorAll('div[role="article"][aria-label]')) {
     if (!window.__isCommentArticle(art)) continue;
     for (const b of art.querySelectorAll('div[role="button"],span[role="button"]')) {
-      const tc = (b.textContent || '').trim();   // textContent : cf. __expandPostText
-      if (tc.length > 18 || !window.__EXPAND_RX.test(tc)) continue;
-      if (b.closest('a')) continue;
+      if (!window.__expanderLabel(b)) continue;
+      if (b.closest('a[href]')) continue;
       if (window.__realClick(b)) n++;
     }
   }
@@ -736,7 +757,7 @@ window.__cleanBody = b => (b || '').replace(/\s+/g, ' ').replace(/\s*(?:…\s*)?
  * normalisation. `__seenInit` reçoit ces empreintes (chargées en §0 depuis
  * Airtable), `__tailKnown` dit si la queue du fil est entièrement connue.
  *
- * ⚠️ Le critère est « K posts consécutifs connus », jamais un seul : une simple
+ * ⚠️ Le critère est « K posts connus » (parmi les K+1 derniers, cf. plus bas), jamais un seul : une simple
  * republication en tête de fil arrêterait sinon le scrape immédiatement. Et il
  * reste doublé du critère de date (cf. SKILL.md §2), qui prend le relais si le
  * dernier post scrappé a été supprimé et n'est donc plus jamais rencontré. */
@@ -751,11 +772,24 @@ window.__seenInit = function (prefixes) {
  * de deux). ⚠️ Le script du §0 DOIT tronquer à la même longueur. */
 window.__SIG_LEN = 48;
 window.__sig = b => window.__cleanBody(b).toLowerCase().slice(0, window.__SIG_LEN);
+/* ⚠️ « n connus parmi les n+1 derniers », pas « n derniers tous connus » (0.16.5).
+ * Le fil connu contient pour de vrai des posts ABSENTS de la base : auteurs blacklistés,
+ * posts jugés non pertinents — on ne les pousse jamais. Un seul d'entre eux dans la
+ * queue suffisait à bloquer l'arrêt : le 28 octobre 2026 sur « We need you », un post
+ * de Flo Ky (blacklisté, 25/10) était le DERNIER rendu, sous 7 posts connus d'affilée,
+ * et le scrape a dû être arrêté à la main. On tolère donc UN post isolé qui n'est pas
+ * « connu et à la borne ou avant », où qu'il soit dans la queue (y compris en bas).
+ * Le garde-fou des republications ne bouge pas : il faut toujours n posts connus
+ * ET datés à la borne ou avant — une republication du jour ne compte jamais.
+ * Tant que moins de n+1 posts sont rendus, on retombe sur l'ancienne règle stricte. */
 window.__tailKnown = function (n, borne) {
   n = n || 3;
-  const ps = window.__harvestAll().filter(p => p.iso && (p.body || '').trim()).slice(-n);
-  if (ps.length < n || !window.__seen.size) return false;
-  return ps.every(p => window.__seen.has(window.__sig(p.body)) && (!borne || p.iso <= borne));
+  if (!window.__seen.size) return false;
+  const ps = window.__harvestAll().filter(p => p.iso && (p.body || '').trim()).slice(-(n + 1));
+  if (ps.length < n) return false;
+  const ok = p => window.__seen.has(window.__sig(p.body)) && (!borne || p.iso <= borne);
+  if (ps.length === n) return ps.every(ok);
+  return ps.filter(ok).length >= n;
 };
 /* Ce que la fenêtre courante apporte de NOUVEAU (pour le résumé §6). */
 window.__unseen = function (borne) {

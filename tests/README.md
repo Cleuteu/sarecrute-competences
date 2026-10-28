@@ -9,6 +9,8 @@ node tests/troncature.test.mjs                      # aucune dépendance
 python3 tests/fusion_commentaires.test.py           # aucune dépendance
 npm i --no-save jsdom@22 && node tests/attribution_commentaires.test.js
 node tests/expansion_clic.test.js                   # jsdom aussi
+node tests/queue_et_libelles.test.js                # jsdom aussi
+python3 tests/revision_svs.test.py                  # aucune dépendance
 node tests/liens_markdown.test.mjs                  # aucune dépendance
 python3 tools/manifests.py --check                  # les MANIFEST des compétences distantes sont à jour
 python3 tests/compte_rendu_commun.test.py           # aucune dépendance
@@ -54,6 +56,24 @@ l'export **sans moyen de le lever**, et rien ne l'expliquait (le bouton était t
 émis). Le test rejoue un bouton qui n'écoute que `pointerdown`, exige que les trois expanders
 passent par `__realClick`, vérifie que le click classique marche toujours, et interdit le retour
 d'un `b.click()` nu dans la source.
+
+**`queue_et_libelles.test.js`** — deux défauts du scrape du 28/10/2026 (0.16.5). D'abord trois
+« En voir plus » de commentaires que `__expandCommentText()` ne cliquait pas : leur `innerText` était
+exactement « En voir plus », mais leur `textContent` ne passait pas le test strict, et
+`__exportBlocked()` bloquait sans remède. Le test rejoue un bouton au `textContent` pollué de texte
+caché et un bouton pris dans un `<a>` sans `href`, exige qu'ils soient cliqués, et qu'un lien qui
+navigue, « Voir plus de commentaires » et « Voir plus de réponses » ne le soient jamais. Ensuite
+`__tailKnown(3, borne)`, bloqué par un post blacklisté (donc absent de la base) en bas de la queue :
+le test épingle la règle « 3 connus parmi les 4 derniers », et vérifie que les republications du jour
+ne comptent toujours pas.
+
+**`revision_svs.test.py`** — une annonce SVS modifiée au-delà des 80 premiers caractères, à date
+inchangée (5537 Am Sonnenberg, 5521 Herkules le 28/10/2026), était « ignorée (déjà en base) » par
+`airtable_push.py`. Le test fait tourner `main()` contre une base simulée : la révision remplace
+l'ancienne section au lieu de s'empiler, les scalaires suivent, une annonce inchangée reste ignorée,
+une republication à une autre date s'empile comme avant. Côté Facebook rien ne bouge : un post
+re-capté plus long reste ignoré, et deux commentaires de la même personne sous le même post, le même
+jour (même lien), ne se remplacent pas.
 
 **`troncature.test.mjs`** — `__truncated()` ne regarde que les **posts**. Un commentaire figé sur
 « Bonjour,… Voir plus » passait donc l'export sans aucun signal. Le test vérifie que

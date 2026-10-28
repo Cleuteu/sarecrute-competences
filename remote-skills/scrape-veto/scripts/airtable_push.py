@@ -63,6 +63,11 @@ Dans les DEUX régimes, « rien de neuf dans le contenu » ne veut pas dire « r
 ORIGINE nouvelle. Les gardes d'idempotence ajoutent donc le canal manquant (ligne
 « ⊕ CANAL » en --dry) sans toucher au contenu ni aux champs scalaires.
 
+Annonce SVS RÉVISÉE (0.16.5) : même n° d'annonce, même date, texte modifié. Sa section
+se signe sur le n° et le texte intégral (cf. sec_sig), donc elle n'est plus « ignorée » ;
+elle REMPLACE l'ancienne version dans l'enregistrement cible (ligne « ↻ RÉVISION » en
+--dry) et les scalaires prennent ses valeurs. Les posts Facebook ne sont pas concernés.
+
 auteur_key = prénom+nom normalisés (sans accents, minuscules). Vide (donc pas
 de fusion) si : nom vide / "Membre anonyme" / pseudo FB auto-généré (contient des
 chiffres) / tout en capitales / > 6 mots (un titre d'annonce capté à la place de
@@ -323,9 +328,41 @@ def mark_comment(content, f):
     return head + " — ce qui suit « Post commenté » n'est pas de %s.\n" % who + body
 
 
+# Annonce du portail SVS : son n° l'identifie, et le portail la RÉVISE sur place (même n°,
+# même date de publication, texte changé). Cf. annonce_id / sec_sig.
+ANNONCE_RE = re.compile(r"gstsvs\.ch/\S*/annonce/(\d+)")
+
+
+def annonce_id(s):
+    """N° d'annonce SVS d'une section (depuis son lien), '' pour tout le reste."""
+    m = ANNONCE_RE.search(s.get("link") or "")
+    return m.group(1) if m else ""
+
+
+def rev_key(s):
+    """Identité d'une publication RÉVISABLE : (date, n° d'annonce), None sinon."""
+    aid = annonce_id(s)
+    return (s["date"], aid) if aid else None
+
+
 def sec_sig(s):
-    body = COMMENT_MARK_RE.sub("", s["body"] or "")
-    return (s["date"], re.sub(r"\s+", " ", body).strip().lower()[:80])
+    """Signature d'une section : date + 80 premiers caractères du corps.
+
+    ⚠️ Sauf pour une annonce SVS (0.16.5) : n° + texte INTÉGRAL. Le 28/10/2026, les
+    annonces 5537 (Am Sonnenberg) et 5521 (Herkules, taux passé de 30-80 % à 50-100 %)
+    avaient été modifiées au-delà des 80 premiers caractères, sans changer de date :
+    svs_portail.py les donnait « modifiées », et le push les comptait « ignorées (déjà
+    en base) » sans rien écrire. La section révisée REMPLACE alors l'ancienne (même
+    rev_key), elle ne s'empile pas à côté.
+    Pourquoi pas pour Facebook : le lien n'y identifie pas une publication — deux
+    commentaires d'une même personne sous le même post, le même jour, portent le même
+    lien, et l'un remplacerait l'autre. Les posts Facebook gardent la signature à 80
+    caractères, inchangée."""
+    body = re.sub(r"\s+", " ", COMMENT_MARK_RE.sub("", s["body"] or "")).strip().lower()
+    aid = annonce_id(s)
+    if aid:
+        return (s["date"], "annonce:" + aid, body)
+    return (s["date"], body[:80])
 
 
 def parse_sections(content, fb_date, fb_link, fb_canal=""):
@@ -611,6 +648,7 @@ def main():
                 by_key[k] = r
 
     to_create, to_patch, to_link, skipped = [], [], [], 0
+    revised = []   # (recId, n° d'annonce SVS) : sections remplacées par leur révision
 
     def add_canaux(target, flist):
         """Le contenu est déjà en base : ne reste-t-il qu'un canal à ajouter ?
@@ -658,6 +696,14 @@ def main():
                 add_canaux(target, flist)                    # …mais peut-être un canal
                 skipped += len(flist)
                 continue
+            # Annonce SVS révisée : l'ancienne version de la même annonce (même date, même
+            # n°) s'efface devant la nouvelle — sinon les deux s'empileraient. Les scalaires
+            # suivent via merged_scalars (flist d'abord : à date égale, le post entrant gagne).
+            revs = {rev_key(s) for s in in_secs} - {None}
+            old = [s for s in t_secs if rev_key(s) in revs]
+            if old:
+                t_secs = [s for s in t_secs if rev_key(s) not in revs]
+                revised.extend(sorted({(target["id"], annonce_id(s)) for s in old}))
             fields = merged_scalars(flist + [tf])
             fields["auteur_key"] = k
             # Union des canaux : la fusion ajoute une origine, elle n'en remplace pas.
@@ -700,9 +746,9 @@ def main():
         seen_batch[ek] = f
         to_create.append({"fields": f})
 
-    print("Input: %d lignes | nouveaux: %d | mises à jour: %d | canaux ajoutés: %d | "
-          "ignorés (déjà en base): %d"
-          % (len(records), len(to_create), len(to_patch), len(to_link), skipped))
+    print("Input: %d lignes | nouveaux: %d | mises à jour: %d (dont annonces révisées: %d) | "
+          "canaux ajoutés: %d | ignorés (déjà en base): %d"
+          % (len(records), len(to_create), len(to_patch), len(revised), len(to_link), skipped))
 
     if dry:
         def cnames(f):
@@ -718,6 +764,8 @@ def main():
             canal_txt = apres if avant == apres else "%s → %s" % (avant, apres)
             print("  ~ MAJ   ", rid, "|", who, "| nouveau top:", f.get("Date du post"),
                   "| canaux:", canal_txt)
+        for rid, aid in revised:
+            print("  ↻ RÉVISION", rid, "| annonce SVS n°%s : l'ancienne version est remplacée" % aid)
         for rid, f, tf in to_link:
             who = ((tf.get("Prénom") or "") + " " + (tf.get("Nom") or "")).strip() or "(anonyme)"
             print("  ⊕ CANAL ", rid, "|", who, "| contenu déjà en base, canaux:",
