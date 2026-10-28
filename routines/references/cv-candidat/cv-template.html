@@ -189,10 +189,12 @@ const ETATS = [
     font-weight:500; font-size:calc(11.6px * var(--scale)); color:var(--sr-terracotta);
     margin-top:calc(2.2mm * var(--scale)); letter-spacing:.005em;
   }
+  /* Fer a gauche, pas justifie : sur quatre lignes, la justification ouvre
+     des rivieres de blanc qui coutent plus en lecture qu'un bord droit irregulier. */
   .accroche{
     margin-top:calc(3.2mm * var(--scale));
-    font-size:calc(9.6px * var(--scale)); line-height:1.58; color:#3B4F49;
-    max-width:172mm; text-align:justify;
+    font-size:calc(10.2px * var(--scale)); line-height:1.55; color:#2F433D;
+    max-width:172mm; text-align:left;
   }
 
   .cols{
@@ -206,7 +208,7 @@ const ETATS = [
   .main{ flex:1 1 auto; min-width:0; }
 
   .label{
-    font-size:calc(9.5px * var(--scale)); text-transform:uppercase; font-weight:600;
+    font-size:calc(9.8px * var(--scale)); text-transform:uppercase; font-weight:600;
     letter-spacing:.09em; color:var(--sr-muted);
     margin-bottom:calc(2.4mm * var(--scale));
   }
@@ -219,12 +221,33 @@ const ETATS = [
     border-radius:14px; padding:calc(3.1mm * var(--scale)) calc(3.8mm * var(--scale));
   }
   .card.soft{ background:var(--sr-wash); border-color:rgba(110,146,120,.20); }
-  .kv + .kv{ margin-top:calc(1.55mm * var(--scale)); }
-  .kv dt{
-    font-size:calc(8.2px * var(--scale)); text-transform:uppercase; font-weight:600;
-    letter-spacing:.07em; color:var(--sr-muted); margin-bottom:calc(.25mm * var(--scale));
+  /* Intitule et valeur sur la meme ligne (intitule a gauche, 19,5 mm) : la
+     carte du cadre passe de douze lignes a huit, et c'est elle qui bride la
+     page. Les millimetres rendus financent un corps de texte plus grand
+     partout. */
+  .kv{
+    display:grid; grid-template-columns:calc(19.5mm * var(--scale)) 1fr;
+    column-gap:calc(1.8mm * var(--scale)); align-items:baseline;
   }
-  .kv dd{ font-size:calc(9.2px * var(--scale)); line-height:1.45; color:var(--sr-forest); }
+  /* Un intitule long ou une valeur longue (plus de 13 / 18 caracteres, decide
+     au rendu) reprend la forme empilee : intitule au-dessus, valeur pleine
+     largeur, plutot qu'une valeur hachee sur quatre lignes dans 24 mm. */
+  .kv.long{ grid-template-columns:1fr; row-gap:calc(.2mm * var(--scale)); }
+  .kv + .kv{ margin-top:calc(1.25mm * var(--scale)); }
+  .kv dt{
+    font-size:calc(7.6px * var(--scale)); text-transform:uppercase; font-weight:600;
+    letter-spacing:.05em; color:var(--sr-muted); line-height:1.4; white-space:nowrap;
+  }
+  .kv dd{ font-size:calc(9.6px * var(--scale)); line-height:1.4; color:var(--sr-forest); }
+  /* Contact : une ligne par coordonnee, sans intitule — un e-mail et un
+     numero de telephone se reconnaissent seuls. Corps un peu plus petit et
+     marges reduites : une adresse de 30 caracteres doit tenir sur sa ligne. */
+  .card.contact{ padding-left:calc(3mm * var(--scale)); padding-right:calc(3mm * var(--scale)); }
+  .ct{
+    font-size:calc(9.2px * var(--scale)); line-height:1.45; letter-spacing:-.01em;
+    color:var(--sr-forest); overflow-wrap:anywhere;
+  }
+  .ct + .ct{ margin-top:calc(.9mm * var(--scale)); }
 
   .pills{ display:flex; flex-wrap:wrap; gap:calc(1.5mm * var(--scale)); }
   .pills + .sublabel{ margin-top:calc(2mm * var(--scale)); }
@@ -235,16 +258,16 @@ const ETATS = [
   }
   .pill{
     display:inline-block; border-radius:999px; padding:calc(1.1mm * var(--scale)) calc(2.6mm * var(--scale));
-    font-size:calc(8.4px * var(--scale)); font-weight:500; line-height:1.35;
+    font-size:calc(8.8px * var(--scale)); font-weight:500; line-height:1.35;
     background:var(--sr-paper); border:1px solid var(--sr-line-2); color:var(--sr-green);
   }
   .pill.accent{ background:rgba(110,146,120,.15); border-color:rgba(110,146,120,.38); color:#2E4B3F; }
 
-  .lang{ font-size:calc(9.2px * var(--scale)); line-height:1.55; color:var(--sr-forest); }
+  .lang{ font-size:calc(9.6px * var(--scale)); line-height:1.55; color:var(--sr-forest); }
 
   .edu + .edu{ margin-top:calc(1.3mm * var(--scale)); }
-  .edu-t{ font-size:calc(9.3px * var(--scale)); font-weight:600; line-height:1.35; }
-  .edu-s{ font-size:calc(8.7px * var(--scale)); color:#4C5F59; line-height:1.4; }
+  .edu-t{ font-size:calc(9.6px * var(--scale)); font-weight:600; line-height:1.35; }
+  .edu-s{ font-size:calc(9px * var(--scale)); color:#4C5F59; line-height:1.4; }
 
   /* ---------- Bilan de competences ---------- */
   .bil-head{
@@ -283,7 +306,7 @@ const ETATS = [
   }
   .grp-n{
     font-family:"Fraunces", Georgia, serif;
-    font-size:calc(12px * var(--scale)); font-weight:600; letter-spacing:-.015em;
+    font-size:calc(12.5px * var(--scale)); font-weight:600; letter-spacing:-.015em;
     line-height:1.2; color:var(--sr-forest);
   }
   /* Les decomptes se lisent a cote du nom de l'espece, en texte. Chiffres en
@@ -293,11 +316,11 @@ const ETATS = [
   .grp-c{ display:flex; align-items:baseline; gap:calc(2mm * var(--scale)); }
   .cnt{
     display:inline-flex; align-items:baseline; gap:calc(.8mm * var(--scale));
-    font-size:calc(7.4px * var(--scale)); font-weight:500; letter-spacing:.02em;
+    font-size:calc(7.8px * var(--scale)); font-weight:500; letter-spacing:.02em;
     white-space:nowrap; color:var(--sr-muted);
   }
   .cnt b{
-    font-size:calc(9.8px * var(--scale)); font-weight:700; letter-spacing:-.01em;
+    font-size:calc(10.2px * var(--scale)); font-weight:700; letter-spacing:-.01em;
     color:var(--sr-forest);
   }
   /* en mode de secours, le bandeau rend aussi ses millimetres */
@@ -330,7 +353,7 @@ const ETATS = [
      lire, et c'est ce qui permet d'aller droit à « chirurgie de convenance »
      ou « imagerie » quand on cherche un geste précis. */
   .fam-t{
-    font-size:calc(7.3px * var(--scale)); font-weight:700; line-height:1.25;
+    font-size:calc(7.6px * var(--scale)); font-weight:700; line-height:1.25;
     letter-spacing:.04em; text-transform:uppercase; color:var(--sr-forest);
     background:rgba(110,146,120,.16);
     border-radius:calc(1mm * var(--scale));
@@ -338,20 +361,46 @@ const ETATS = [
     margin-bottom:calc(.8mm * var(--scale));
   }
 
-  /* Une ligne d'acte : libelle a gauche, jauge a droite, alignees entre elles. */
+  /* Une ligne d'acte : la jauge D'ABORD, puis le libelle. La jauge a droite
+     mettait dix centimetres entre l'acte et son niveau sur une colonne pleine
+     largeur ; collee au libelle, elle se lit comme une puce, et les jauges
+     restent alignees verticalement comme dans la legende. */
   .li{
-    display:flex; align-items:center; gap:calc(1.6mm * var(--scale));
-    font-size:calc(8.4px * var(--scale)); line-height:1.35; color:var(--sr-forest);
+    display:flex; align-items:center; gap:calc(1.8mm * var(--scale));
+    font-size:calc(9.2px * var(--scale)); line-height:1.35; color:var(--sr-forest);
   }
-  .li + .li{ margin-top:calc(.45mm * var(--scale)); }
+  .li + .li{ margin-top:calc(.6mm * var(--scale)); }
   .li .nom{ flex:1 1 auto; min-width:0; overflow-wrap:break-word; }
+  /* Bilan sur une colonne (24 actes au plus) : la famille devient un intitule
+     a gauche (30 mm) et ses actes coulent a droite, plusieurs par ligne. Dix
+     actes ne justifient pas sept bandeaux pleine largeur ; une famille = une
+     ligne, separee de la suivante par un filet, se parcourt d'un regard. */
+  .bilan.mono .fam{
+    display:grid; grid-template-columns:calc(32mm * var(--scale)) 1fr;
+    column-gap:calc(3mm * var(--scale)); align-items:start;
+    margin-top:0; padding:calc(1.1mm * var(--scale)) 0;
+    border-bottom:1px solid var(--sr-line);
+  }
+  .bilan.mono .grp .fam:first-of-type{ margin-top:0; }
+  .bilan.mono .grp .fam:last-of-type{ border-bottom:0; }
+  .bilan.mono .fam-t{
+    background:none; border-radius:0; padding:calc(.45mm * var(--scale)) 0 0;
+    margin:0; color:var(--sr-muted); letter-spacing:.04em;
+    font-size:calc(7.3px * var(--scale));
+  }
+  .bilan.mono .fam-l{
+    display:flex; flex-wrap:wrap; gap:calc(.7mm * var(--scale)) calc(4.5mm * var(--scale));
+  }
+  .bilan.mono .li{ flex:0 0 auto; }
+  .bilan.mono .li + .li{ margin-top:0; }
+  .bilan.mono .li .nom{ flex:0 0 auto; }
   .li.no .nom{ color:var(--sr-muted); }
   .li.na .nom{ color:var(--sr-muted); }
 
   .jauge{ flex:0 0 auto; display:flex; gap:calc(.75mm * var(--scale)); }
   .jauge i{
     display:block; border-radius:999px;
-    width:calc(1.45mm * var(--scale)); height:calc(1.45mm * var(--scale));
+    width:calc(1.6mm * var(--scale)); height:calc(1.6mm * var(--scale));
     background:rgba(32,56,50,.13);            /* cran eteint */
   }
   /* Degrade des crans allumes, du plus tenu au moins tenu. L'orange est un ton
@@ -366,24 +415,35 @@ const ETATS = [
   /* Les non acquis restent affiches — l'honnetete sur les limites est ce qui
      rend le reste credible — mais en fin de bloc et en retrait : une ligne de
      texte, pas une pastille de plus a trier du regard. */
-  /* --- Parcours : un poste par bloc, sous le bilan ------------------------
-     Deux lignes par poste : l'intitule et la structure d'un cote, la periode
-     et la duree de l'autre ; la description en dessous, en gris. La duree est
-     ce que le lecteur cherche d'abord — elle dit la stabilite. */
-  .exp + .exp{ margin-top:calc(1.9mm * var(--scale)); }
+  /* --- Parcours : une frise, un poste par bloc, sous le bilan --------------
+     Colonne de gauche (27 mm) : la duree en gras, la periode dessous en gris ;
+     c'est ce que le lecteur cherche d'abord — la duree dit la stabilite — et
+     en colonne, les durees se comparent d'un coup d'oeil. A droite, l'intitule
+     et la structure sur une ligne pleine largeur (plus de titre casse en deux
+     par une date), puis la description. */
+  .exp{
+    display:grid; grid-template-columns:calc(27mm * var(--scale)) 1fr;
+    column-gap:calc(3.5mm * var(--scale)); align-items:start;
+  }
+  .exp + .exp{ margin-top:calc(2.1mm * var(--scale)); }
+  .exp-q{ padding-top:calc(.2mm * var(--scale)); }
+  .exp-q .duree{
+    display:block; font-size:calc(9.2px * var(--scale)); font-weight:600;
+    line-height:1.3; color:var(--sr-forest);
+  }
+  .exp-q .periode{
+    display:block; font-size:calc(7.9px * var(--scale)); font-weight:500;
+    line-height:1.3; color:var(--sr-muted);
+  }
   .exp-t{
-    display:flex; align-items:baseline; gap:calc(2.4mm * var(--scale));
-    font-size:calc(8.6px * var(--scale)); line-height:1.3; color:var(--sr-forest);
+    display:flex; flex-wrap:wrap; align-items:baseline; gap:0 calc(2.4mm * var(--scale));
+    font-size:calc(9.2px * var(--scale)); line-height:1.3; color:var(--sr-forest);
   }
   .exp-t b{ font-weight:600; }
   .exp-t .ou{ font-weight:500; color:var(--sr-green); }
-  .exp-t .quand{
-    margin-left:auto; white-space:nowrap; text-align:right;
-    font-size:calc(7.5px * var(--scale)); font-weight:500; color:var(--sr-muted);
-  }
   .exp-d{
-    font-size:calc(7.9px * var(--scale)); line-height:1.4; color:var(--sr-muted);
-    margin-top:calc(.4mm * var(--scale));
+    font-size:calc(8.6px * var(--scale)); line-height:1.42; color:#4C5F59;
+    margin-top:calc(.5mm * var(--scale));
   }
 
   .nonac{
@@ -397,7 +457,7 @@ const ETATS = [
 
   /* mode compact : une ligne de texte par etat, utilise si les pastilles debordent */
   .cl{
-    font-size:calc(8.6px * var(--scale)); line-height:1.5;
+    font-size:calc(9px * var(--scale)); line-height:1.5;
     display:flex; gap:calc(1.6mm * var(--scale)); align-items:flex-start;
   }
   .cl + .cl{ margin-top:calc(.7mm * var(--scale)); }
@@ -422,7 +482,7 @@ const ETATS = [
     flex:0 0 auto; margin:0 14mm; padding:calc(2.6mm * var(--scale)) 0 calc(5.5mm * var(--scale));
     border-top:1px solid var(--sr-line);
     display:flex; justify-content:space-between; align-items:center; gap:6mm;
-    font-size:calc(7.8px * var(--scale)); letter-spacing:.055em; text-transform:uppercase;
+    font-size:calc(8px * var(--scale)); letter-spacing:.055em; text-transform:uppercase;
     font-weight:500; color:var(--sr-muted);
   }
   .foot .sep{ color:var(--sr-sage); }
@@ -492,16 +552,20 @@ const ETATS = [
 
   /* ---------- colonne laterale ---------- */
   const A = [];
+  // Intitule et valeur cote a cote quand les deux sont courts ; sinon empiles
+  // (voir .kv.long). Les seuils suivent la largeur de la carte, pas le sens.
   const kv = rows => rows.filter(r => r[1])
-    .map(r => `<div class="kv"><dt>${esc(r[0])}</dt><dd>${esc(r[1])}</dd></div>`).join("");
+    .map(r => `<div class="kv${(String(r[0]).length > 13 || String(r[1]).length > 18) ? " long" : ""}">` +
+              `<dt>${esc(r[0])}</dt><dd>${esc(r[1])}</dd></div>`).join("");
 
   // Contact — jamais de localisation
   const ct = C.contact || {};
-  const contactHtml = ANONYME
-    ? kv([["Coordonnées", "Communiquées après accord de mise en relation"]])
-    : kv([["Email", ct.email], ["Téléphone", ct.telephone]]);
+  const contactHtml = (ANONYME
+    ? ["Communiquées après accord de mise en relation"]
+    : [ct.email, ct.telephone]).filter(Boolean)
+    .map(v => `<div class="ct">${esc(v)}</div>`).join("");
   if (contactHtml)
-    A.push(`<section class="block"><div class="label">Contact</div><dl class="card">${contactHtml}</dl></section>`);
+    A.push(`<section class="block"><div class="label">Contact</div><div class="card contact">${contactHtml}</div></section>`);
 
   // « Statut » et « En poste » ont ete retires du cadre le 07/09/2026 : un
   // dossier qui circule chez une clinique n'a pas a exposer la situation
@@ -656,11 +720,13 @@ const ETATS = [
 
       if (mode === "chips"){
         const ligne = a =>
-          `<div class="li ${a.etat}"><span class="nom">${esc(a.acte)}</span>` +
-          `${jauge(a.crans, a.teinte)}</div>`;
+          `<div class="li ${a.etat}">${jauge(a.crans, a.teinte)}` +
+          `<span class="nom">${esc(a.acte)}</span></div>`;
+        // Sans intitule de famille, la cellule de gauche reste (vide) pour
+        // que les actes s'alignent sur ceux des autres familles.
         const corps = familles.map(f =>
-          (f.nom ? `<div class="fam"><div class="fam-t">${esc(f.nom)}</div>` : `<div class="fam">`) +
-          f.actes.map(ligne).join("") + `</div>`
+          `<div class="fam"><div class="fam-t">${esc(f.nom)}</div>` +
+          `<div class="fam-l">` + f.actes.map(ligne).join("") + `</div></div>`
         ).join("");
         return `<div class="grp">${tete}${corps}</div>`;
       }
@@ -688,16 +754,17 @@ const ETATS = [
     const xp = (C.experiences || []).filter(e => e && (e.poste || e.structure));
     if (xp.length){
       html += `<section class="block"><div class="label">Parcours</div>` +
-        xp.map(e => {
-          const quand = [e.periode, e.duree].filter(Boolean).join(" · ");
-          return `<div class="exp"><div class="exp-t">` +
+        xp.map(e =>
+          `<div class="exp"><div class="exp-q">` +
+            (e.duree ? `<span class="duree">${esc(e.duree)}</span>` : "") +
+            (e.periode ? `<span class="periode">${esc(e.periode)}</span>` : "") +
+          `</div><div><div class="exp-t">` +
             (e.poste ? `<b>${esc(e.poste)}</b>` : "") +
             (e.structure ? `<span class="ou">${esc(e.structure)}</span>` : "") +
-            (quand ? `<span class="quand">${esc(quand)}</span>` : "") +
-            `</div>` +
+          `</div>` +
             (e.description ? `<div class="exp-d">${esc(e.description)}</div>` : "") +
-            `</div>`;
-        }).join("") +
+          `</div></div>`
+        ).join("") +
         `</section>`;
     }
 

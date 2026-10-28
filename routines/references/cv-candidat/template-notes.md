@@ -54,14 +54,27 @@ Décisions qui tiennent :
   texte ; « Non » n'apparaît jamais.
 - **`Echelon` et `Rémunération brute mensuelle CC`** sont des calculs internes de convention
   collective : jamais dans le dossier.
-- **Le parcours** : postes en clinique un par ligne, du plus récent au plus ancien ; stages, jobs
+- **Le parcours** : postes en clinique un par ligne, du plus récent à plus ancien ; stages, jobs
   étudiants et postes hors clinique regroupés sur une ligne finale (période couverte et nombre de
   postes, sans durée cumulée : plusieurs expériences sont cotées « moins d'un mois », une somme
-  produirait un chiffre que la base ne dit pas).
+  produirait un chiffre que la base ne dit pas). Depuis le 15/10/2026 le parcours est une **frise** :
+  colonne de gauche (27 mm) avec la durée en gras et la période en gris dessous, à droite l'intitulé
+  et la structure sur une ligne pleine largeur puis la description. Les durées se comparent en
+  colonne, et un intitulé long n'est plus cassé en deux par une date (« Remplacements vétérinaires
+  canins » tenait sur deux lignes à côté de deux noms de structure).
+- **La colonne latérale** (révision du 15/10/2026) : contact sans intitulés (un e-mail et un numéro
+  se reconnaissent seuls) ; dans « Cadre recherché », intitulé et valeur **sur la même ligne** quand
+  les deux sont courts (intitulé ≤ 13 caractères, valeur ≤ 18, classe `.kv.long` sinon, qui
+  reprend la forme empilée). La carte du cadre passe de douze lignes à huit, et c'est elle qui
+  bridait la page : les millimètres rendus ont financé un corps de texte plus grand partout (actes
+  8,4 → 9,2 px, descriptions 7,9 → 8,6 px en gris plus foncé, accroche 9,6 → 10,2 px et fer à
+  gauche au lieu de justifié, valeurs 9,2 → 9,6 px). Tailles de base, avant `--scale`.
 
 ## Le bilan de compétences : un acte par ligne, noté sur trois points
 
-Chaque acte s'écrit sur une ligne, intitulé à gauche, **jauge de trois crans** à droite. C'est la
+Chaque acte porte une **jauge de trois crans**, placée **devant** l'intitulé (révision de lisibilité
+du 15/10/2026 : à droite, sur une colonne pleine largeur, dix centimètres séparaient l'acte de son
+niveau ; devant, elle se lit comme une puce et les jauges restent alignées en colonne). C'est la
 table `NIVEAUX` en tête du template :
 
 | Niveau Airtable | Crans | Couleur |
@@ -76,9 +89,19 @@ table `NIVEAUX` en tête du template :
 Les décomptes restent sur trois états (« 11 acquis · 7 en cours »), parce que c'est ce qu'une
 clinique compte. Le regroupement est à deux niveaux, **espèce puis famille d'actes** ; l'ordre des
 familles suit le référentiel Airtable (constante `FAMILLES` en tête du moteur), pour qu'un chirurgien
-et un rural présentent leurs actes dans le même ordre. Le bilan passe sur deux colonnes
-typographiques au-delà de 24 actes. **Les « non acquis » s'affichent**, et c'est délibéré :
-l'honnêteté sur les limites est ce qui rend le reste crédible.
+et un rural présentent leurs actes dans le même ordre. **Les « non acquis » s'affichent**, et c'est
+délibéré : l'honnêteté sur les limites est ce qui rend le reste crédible.
+
+Deux mises en page selon la densité, décidées par le seul nombre d'actes (`.bilan.mono` à 24 au
+plus) :
+
+- **24 actes au plus — tableau** : la famille est un intitulé à gauche (32 mm, capitales grises),
+  ses actes coulent à droite, plusieurs par ligne, un filet entre deux familles. Dix actes ne
+  justifient pas sept bandeaux pleine largeur : avant le 15/10/2026, le dossier de Manon
+  Lecarpentier (10 actes, 7 familles) était une pile de bandeaux à un acte chacun.
+- **Au-delà — deux colonnes typographiques**, un acte par ligne sous un bandeau de famille sur fond
+  sauge (c'est le bandeau qui permet d'aller droit à « imagerie » sur cinquante actes). Le modèle
+  vierge (53 actes) sort ainsi à l'échelle 0,98.
 
 ## La contrainte qui structure tout : une seule page A4
 
@@ -92,6 +115,9 @@ famille) et la boucle recommence.
 **1.11 n'est pas arbitraire : c'est le format commun.** Le plafond est calé pour qu'une fiche
 complète l'atteigne elle aussi ; la quasi-totalité des dossiers sortent donc à la même taille de
 texte. Ne le remonte pas pour faire respirer un dossier léger : tu rendrais les dossiers inégaux.
+Pour rendre un dossier plus lisible, le levier est la taille de base des règles CSS (ce qui a été
+fait le 15/10/2026), pas le plafond. Mesures après cette révision : Lecarpentier 1,11 (latérale
+669 px pour 763), modèle vierge 0,98, jeu d'essai 136 actes / 8 espèces 1,00 en compact.
 
 **Une mesure prise trop tôt est fausse, et elle se fige.** Si la routine mesure avant le chargement
 des polices, elle trouve un débordement énorme, descend au plancher et n'y revient jamais. Trois
