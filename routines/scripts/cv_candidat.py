@@ -5,7 +5,9 @@ Héritier de la compétence `creer-cv-candidat` de Léo (0.5.0, retirée du plug
 dossier ne se génère plus que par le bouton de la fiche). Template et notes de maintenance dans
 `routines/references/cv-candidat/`. Lecture et écriture par l'API REST d'Airtable (clé
 AIRTABLE_API_KEY de l'environnement), rendu PDF par Chromium dans le conteneur. Le modèle n'écrit que
-l'accroche et le titre du dossier anonymisé, et relit le parcours ; tout le reste est déterministe.
+le titre du dossier anonymisé, et relit le parcours ; tout le reste est déterministe. L'accroche
+(« Accroche CV ») et les descriptions du parcours sont écrites par la routine d'enrichissement et
+recopiées telles quelles (28/10/2026) : ni notes, ni transcripts, ni CV, ni Profil IA ne sont lus.
 
 Chaque run produit DEUX dossiers (depuis le 28/10/2026) : le nominatif dans « CV IA », l'anonymisé
 dans « CV IA anonyme » (aucun nom, aucune coordonnée, aucun employeur), sous la même référence.
@@ -16,16 +18,15 @@ Sous-commandes, dans l'ordre d'un run :
       Trouve un moteur de rendu : Playwright (node) déjà installé, sinon l'installe sous DIR/pw si
       --installer, sinon un binaire Chrome/Chromium du PATH. Écrit DIR/moteur.json.
   fetch recXXXXXXXXXXXXXX [--dossier DIR]
-      Lit la fiche, ses Compétences et ses Expériences ; écrit DIR/candidat.json (le bloc de données
-      du template, accroche et titre vides), DIR/sources.json (les seules notes autorisées pour
-      l'accroche) et DIR/etat.json (ce que la note finale doit dire, et les termes interdits du
-      dossier anonymisé). Lecture seule.
+      Lit la fiche (seulement les champs du dossier), ses Compétences et ses Expériences ; écrit
+      DIR/candidat.json (le bloc de données du template, titre vide) et DIR/etat.json (ce que la note
+      finale doit dire, et les termes interdits du dossier anonymisé). Lecture seule.
   render [--dossier DIR] [--template FICHIER] [--anonyme]
       Insère DIR/candidat.json (ou candidat-anonyme.json) dans le template, rend le HTML, le PDF et
       un aperçu PNG, contrôle le PDF (pages, format A4, taille) et, en anonymisé, l'absence de tout
       terme interdit ; écrit DIR/rapport.json (ou rapport-anonyme.json). Code 2 si un contrôle échoue.
   anonymiser [--dossier DIR]
-      Dérive DIR/candidat-anonyme.json de candidat.json (après l'accroche) : prénom, nom, contact et
+      Dérive DIR/candidat-anonyme.json de candidat.json (après le titre) : prénom, nom, contact et
       structures vidés, structures entre parenthèses retirées des descriptions. Liste ce qui reste
       d'un terme interdit (nom, prénom, coordonnée, structure) : c'est au modèle de l'ôter.
   upload recXXXXXXXXXXXXXX [--dossier DIR] [--note-plus TEXTE] [--dry-run]
@@ -76,15 +77,16 @@ F = {
     "internat": "fld3eO9JuwrHyNkIJ", "desv": "fldnvfN95E23ng7ep",
     "diplome_sup": "fldmi2DQKpPmcpXEV", "habilitation": "fldSIVZ8UxggjhffA",
     "langues": "fld48WU9SCR9DkVN6", "emploi": "fldizV1UoejwizYSq",
-    "profil": "fldlnO9d1ctGABT9v", "notes": "fld0s84U1HdrHKqkg",
-    "notes_candidat": "fld8WaHsnucNvdEqW", "transcripts": "fldNMVoFoHx3t3O9D",
+    # Écrite par l'enrichissement depuis les entretiens (28/10/2026) : le script ne lit ni Profil, ni
+    # Notes, ni Notes du candidat, ni Transcripts, ni Profil IA — ces champs ne figurent pas ici.
+    "accroche_cv": "fld2iZ18Ayjx3m1Pi",
     "cv_ia": "fldDfGvVlyid0xacE", "cv_ia_anonyme": "fld457VMpd1CHCAxY", "competences": "fldjLpY32oHfdOW0Z",
     "experiences": "fldVb4FwwyjB4reVg",
     "cv_statut": "fldQ9g5Mlxauvo98o", "cv_note": "fldn0zi6Mh8kW77dE", "cv_genere_le": "fldJiqeHBG46k0dBU",
 }
 # Libellés Airtable des champs dont le vide se signale à la recruteuse (note finale)
 LIBELLES = {
-    "mail": "Mail", "telephone": "Téléphone", "annees_exp": "Années d'expérience",
+    "accroche_cv": "Accroche CV", "mail": "Mail", "telephone": "Téléphone", "annees_exp": "Années d'expérience",
     "dispo": "Date de disponibilité", "contrats": "Statuts contractuels souhaités",
     "temps": "Type de temps de travail", "gardes": "Gardes", "remuneration": "Rémunération souhaitée",
     "pratiques_m": "Pratiques maitrisées", "pratiques_r": "Pratiques requises",
@@ -141,10 +143,6 @@ def api(method, path, params=None, body=None, host="api.airtable.com"):
     except urllib.error.URLError as e:
         die(f"Airtable {method} {host} injoignable : {e.reason}. Dans le conteneur des routines, c'est le proxy "
             f"de sortie qui refuse l'hôte : ajouter « {host} » aux domaines autorisés de l'environnement cloud.")
-
-
-def lire_record(table, rec):
-    return api("GET", f"{BASE}/{table}/{rec}", {"returnFieldsByFieldId": "true"})
 
 
 def lire_par_ids(table, ids, champs):
@@ -391,8 +389,12 @@ def construire_experiences(records):
 
 def cmd_fetch(a):
     rec = a.record
-    r = lire_record(T_CANDIDATS, rec)
-    f = r.get("fields", {})
+    # Les seuls champs du dictionnaire F : les notes, les transcripts, le CV et le Profil IA ne
+    # transitent même pas par le script.
+    lus = lire_par_ids(T_CANDIDATS, [rec], list(F.values()))
+    if not lus:
+        die(f"{rec} : fiche candidat introuvable.")
+    f = lus[0].get("fields", {})
     prenom, nom_complet = sel(f.get(F["prenom"])), sel(f.get(F["nom"]))
     nom = nom_affiche(nom_complet)
     if not (prenom or nom):
@@ -430,7 +432,7 @@ def cmd_fetch(a):
         "reference": reference,
         "prenom": prenom, "nom": nom, "sousTitre": sous_titre,
         "titre": "",
-        "accroche": "",
+        "accroche": sel(f.get(F["accroche_cv"])),
         "contact": {"email": sel(f.get(F["mail"])), "telephone": sel(f.get(F["telephone"]))},
         "cadre": {
             "experience": annees(n_exp),
@@ -452,13 +454,6 @@ def cmd_fetch(a):
         "langues": sel(f.get(F["langues"])) or [],
         "experiences": experiences,
         "competences": competences,
-    }
-    sources = {
-        "consigne": "Seules sources de l'accroche (4 lignes max, ton factuel, rien de périmé, rien d'interne). "
-                    "Profil IA et CV ne sont pas fournis : ils ne sont jamais une source.",
-        "date_du_jour": dt.date.today().isoformat(),
-        "profil": sel(f.get(F["profil"])), "notes": sel(f.get(F["notes"])),
-        "notes_candidat": sel(f.get(F["notes_candidat"])), "transcripts": sel(f.get(F["transcripts"])),
     }
     vides = [LIBELLES[k] for k in LIBELLES if not sel(f.get(F[k]))]
     dispo = f.get(F["dispo"]) or ""
@@ -482,7 +477,7 @@ def cmd_fetch(a):
         "nb_competences": len(competences), "nb_competences_affichees": len([c for c in competences if c["niveau"] != "Non concerné"]),
         "nb_experiences_brutes": len(brutes), "nb_experiences_dossier": len(experiences),
         "experiences_brutes": brutes,
-        "longueur_sources": {k: len(sources[k]) for k in ("profil", "notes", "notes_candidat", "transcripts")},
+        "longueur_accroche": len(candidat["accroche"]),
         "nom_complet": nom_complet,
         "fichier_base": f"CV-{ascii_slug(prenom)}-{ascii_slug(nom)}-SaRecrute",
         # Le nom de fichier voyage avec la pièce jointe : jamais de nom de personne dedans.
@@ -490,11 +485,10 @@ def cmd_fetch(a):
         "interdits": interdits,
     }
     ecrire(a.dossier, "candidat.json", {"ANONYME": False, "CANDIDAT": candidat})
-    ecrire(a.dossier, "sources.json", sources)
     ecrire(a.dossier, "etat.json", etat)
     print(json.dumps({k: etat[k] for k in ("record_id", "prenom", "nom", "reference", "statut_actuel",
                                            "cv_ia_existants", "champs_vides", "nb_competences",
-                                           "nb_experiences_brutes", "nb_experiences_dossier", "longueur_sources")},
+                                           "nb_experiences_brutes", "nb_experiences_dossier", "longueur_accroche")},
                      ensure_ascii=False, indent=2))
 
 
@@ -580,10 +574,6 @@ def cmd_render(a):
         die("marqueurs DATA-START / DATA-END absents du template")
     C = data["CANDIDAT"]
     problemes = []
-    if not C.get("accroche", "").strip():
-        problemes.append("accroche vide")
-    if len(C.get("accroche", "")) > 520:
-        problemes.append(f"accroche trop longue ({len(C['accroche'])} caractères, 4 lignes ≈ 420)")
     if C["cadre"].get("mobilite"):
         problemes.append("cadre.mobilite renseigné : interdit (décision du 27/08/2026)")
     for k in ("internat", "desv", "habilitation"):
@@ -661,7 +651,12 @@ def cmd_render(a):
 def note_automatique(etat, rapport, plus="", remplaces=(), anonyme_absent=""):
     lignes = []
     for ch in etat.get("champs_vides", []):
-        lignes.append(f"{ch} : vide (ligne absente du dossier)")
+        if ch == "Accroche CV":
+            lignes.append("Accroche CV : vide, dossier sans accroche (relancer l'enrichissement de la fiche)")
+        else:
+            lignes.append(f"{ch} : vide (ligne absente du dossier)")
+    if etat.get("longueur_accroche", 0) > 520:
+        lignes.append(f"Accroche CV longue ({etat['longueur_accroche']} caractères pour 420 visés) : à resserrer dans la fiche")
     if etat.get("disponibilite_passee"):
         lignes.append("Date de disponibilité dans le passé : à mettre à jour")
     if etat.get("nb_competences_affichees", 0) == 0:
@@ -727,7 +722,10 @@ def cmd_upload(a):
             pdf_anon = Path(r_anon["pdf"])
 
     # Relecture juste avant d'écrire : la fiche a pu bouger entre fetch et upload
-    f = lire_record(T_CANDIDATS, a.record).get("fields", {})
+    lus = lire_par_ids(T_CANDIDATS, [a.record], [F["cv_ia"], F["cv_ia_anonyme"]])
+    if not lus:
+        die(f"{a.record} : fiche candidat introuvable au moment du dépôt.")
+    f = lus[0].get("fields", {})
     cibles = [(F["cv_ia"], pdf_p)] + ([(F["cv_ia_anonyme"], pdf_anon)] if pdf_anon else [])
     existants = {ch: f.get(ch) or [] for ch, _ in cibles}
     remplaces = [x.get("filename") for ch, _ in cibles for x in existants[ch]

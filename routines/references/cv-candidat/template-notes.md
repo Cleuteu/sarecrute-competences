@@ -29,7 +29,7 @@ latérale, fait chuter l'échelle, et le modèle cesse de ressembler aux dossier
 | Référence | `SR-` + les 5 derniers caractères de l'identifiant du record, la même sur les deux dossiers |
 | Sous-titre | `Emploi recherché` + `Pratiques requises` + `Années d'expérience` |
 | Titre (anonymisé seulement) | 3 à 8 mots rédigés par la routine depuis les seuls champs du bloc ; vide = sous-titre sans les années |
-| Accroche | quatre lignes rédigées depuis `Profil`, `Notes`, `Notes du candidat`, `Transcripts` — jamais `Profil IA`, jamais le CV |
+| Accroche | `Accroche CV` (`fld2iZ18Ayjx3m1Pi`), écrite par la routine d'enrichissement depuis les entretiens et recopiée telle quelle (depuis le 28/10/2026 ; avant, la routine du CV la rédigeait elle-même depuis `Profil`, `Notes`, `Notes du candidat` et `Transcripts`). Vide = pas d'accroche, et la note demande de relancer l'enrichissement |
 | Contact | `Mail`, `Téléphone` — **et rien d'autre : pas de localisation** |
 | Cadre recherché | `Années d'expérience`, `Date de disponibilité`, `Statuts contractuels souhaités`, `Type de temps de travail`, `Gardes` + `Fréquence tolérable des gardes`, `Rémunération souhaitée` |
 | Domaines maîtrisés | `Pratiques maitrisées` + `Spécialités maitrisées` |
@@ -37,7 +37,7 @@ latérale, fait chuter l'échelle, et le modèle cesse de ressembler aux dossier
 | Formation et diplômes | `Ecole véto`, `Année de sortie`, `Internat`, `DESV?`, `Diplôme supplémentaire`, `Habilitation sanitaire` |
 | Langues | `Langues` — noms seuls, jamais de niveau |
 | Compétences vérifiées | table `Compétences` (`tblH8Zym1DNu7PN3c`), un enregistrement par acte, avec `Espèce` et `Famille` (lookups de l'acte) |
-| Parcours | table `Expériences` (`tblTYdApkiHqKeBVi`) : `Poste`, `Structure`, `Période`, `Durée`, `Description` sans la mention de source entre parenthèses |
+| Parcours | table `Expériences` (`tblTYdApkiHqKeBVi`) : `Poste`, `Structure`, `Période`, `Durée`, `Description`. Depuis le 28/10/2026 la `Description` est écrite pour le client par l'enrichissement (missions, rien de personnel) ; citations, sources et réserves vont dans `Justification` (`fldoeq7bBWmigzIOf`), que le dossier ne lit jamais |
 
 Les identifiants exacts sont dans `cv_candidat.py` (dictionnaires `F`, `FC`, `FA`, `FE`) : c'est lui
 qui fait foi, cette table n'est qu'une lecture humaine.

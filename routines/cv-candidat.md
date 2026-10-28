@@ -9,7 +9,7 @@ Tu travailles dans le clone du dépôt Cleuteu/sarecrute-competences (répertoir
 - Le seul candidat que tu traites est celui du recordId. Tu ne lis, ne compares et ne modifies aucune autre fiche, aucune offre, aucune clinique.
 - Tu n'écris dans Airtable que par le script (sous-commandes `upload` et `erreur`), et seulement « CV IA », « CV IA anonyme », « CV IA - Statut », « CV IA - Note », « CV IA - Généré le ». Jamais « CV » (le CV d'origine transmis par le candidat), jamais « Notes » (l'espace du recruteur), jamais un autre champ. Aucune écriture par le connecteur Airtable.
 - Chaque valeur du dossier est la recopie d'un champ Airtable vérifié par les recruteuses : c'est le script qui recopie, tu ne retouches pas ces valeurs. Tu n'inventes rien et tu ne combles aucun trou : un champ vide fait disparaître sa ligne, et c'est un signal utile pour la recruteuse.
-- Ni le CV joint à la fiche, ni « Profil IA » ne sont des sources : le script ne te les donne pas, ne va pas les chercher.
+- **L'accroche et les descriptions du parcours sont écrites par la routine d'enrichissement** (`routines/profil-ia-candidat.md`), qui seule lit les entretiens : le dossier recopie « Accroche CV » et la `Description` de chaque expérience telles quelles. Tu ne lis ni les transcripts, ni les notes, ni le CV, ni « Profil IA » : le script ne te les donne pas, ne va pas les chercher. Une accroche vide sort vide, et la note demande de relancer l'enrichissement.
 - Tu ne touches ni au template ni au CSS, et tu ne reconstruis rien à la main : un dossier à la mise en page approximative abîme la marque plus sûrement que l'absence de dossier.
 
 ## ÉTAPE 0 — Lire le script avant de l'exécuter
@@ -31,29 +31,22 @@ python3 routines/scripts/cv_candidat.py fetch recXXXXXXXXXXXXXX
 ```
 
 Le script écrit :
-- `work-cv/candidat.json` — le bloc de données du template, complet sauf l'accroche et le titre ;
-- `work-cv/sources.json` — les seules notes autorisées pour l'accroche ;
+- `work-cv/candidat.json` — le bloc de données du template, complet sauf le titre (l'accroche y est déjà, recopiée de « Accroche CV ») ;
 - `work-cv/etat.json` — statut actuel, champs vides, dossier déjà présent dans « CV IA », expériences brutes, référence des dossiers, et `interdits` : les termes qui ne doivent apparaître nulle part dans le dossier anonymisé.
 
 Si le script s'arrête (fiche introuvable, fiche sans nom, clé absente, Airtable injoignable) : incident.
 
-## ÉTAPE 3 — Écrire l'accroche et le titre, relire le parcours
+## ÉTAPE 3 — Écrire le titre, relire le parcours
 
-Lis `work-cv/sources.json`. L'accroche est la seule zone rédigée du dossier : **quatre lignes au plus** (environ 300 à 420 caractères), tirées des **seuls** champs qui y figurent — Profil, Notes, Notes du candidat, Transcripts — c'est-à-dire les mots des recruteuses après entretien. **La même accroche sert aux deux dossiers.**
+L'accroche est déjà dans `CANDIDAT.accroche` : c'est « Accroche CV », écrite par l'enrichissement, et **tu n'y touches pas**, ni pour la raccourcir ni pour la compléter. Vide, elle reste vide.
 
-Ton SaRecrute : factuel, professionnel, sans superlatif ni adjectif non sourcé. Ce que la clinique achète : le parcours, l'autonomie réelle, ce que le candidat cherche. Troisième personne, sans le prénom. Le genre se prend sur les accords du texte des notes (« diplômée ») ; en l'absence d'indice, formulation neutre.
+Écris le **titre** du dossier anonymisé, qui prend la place du nom en tête de page : **3 à 8 mots**, le métier et ce qui distingue le profil, tirés des seuls champs de `candidat.json` (sous-titre, pratiques et spécialités maîtrisées, domaines recherchés, formation). Exemples : « Vétérinaire canine, médecine interne et urgences », « Vétérinaire rurale, pratique bovine ». Pas de nombre d'années (il est déjà au-dessus du titre), pas de superlatif. Le genre se prend sur les accords de l'accroche (« diplômée ») ; sans accroche ou sans indice, formulation neutre (« Vétérinaire canine » vaut pour les deux).
 
-Ce qui n'y va jamais : le nom d'une structure (clinique, cabinet, groupe, employeur passé ou actuel), une localisation (ville, département, zone, pays d'exercice), le nom d'une personne, une question du candidat sur un poste précis, un échange interne, une disponibilité périmée (compare la date de la note à `date_du_jour` : une note de janvier qui dit « disponible en mars » n'est plus une disponibilité en octobre), les honoraires, un jugement psychologique, des informations de santé ou familiales. Rien du CV, rien d'inventé. Les transcripts sont de la reconnaissance vocale : rétablis le sens, et dans le doute n'écris pas. L'école de diplôme peut y figurer.
-
-Si les quatre sources sont vides ou n'ont rien d'exploitable (une ligne de métadonnées, un lien), écris une phrase neutre construite uniquement sur ce qui est déjà dans `candidat.json` (sous-titre, école, année de sortie, domaines recherchés) — par exemple « Vétérinaire diplômée de Nantes en 2023, en recherche d'un poste en canine. » — et signale-le dans la note (ÉTAPE 7).
-
-Écris ensuite le **titre** du dossier anonymisé, qui prend la place du nom en tête de page : **3 à 8 mots**, le métier et ce qui distingue le profil, tirés des seuls champs de `candidat.json` (sous-titre, pratiques et spécialités maîtrisées, domaines recherchés, formation). Exemples : « Vétérinaire canine, médecine interne et urgences », « Vétérinaire rurale, pratique bovine ». Pas de nombre d'années (il est déjà au-dessus du titre), pas de superlatif ; l'accord suit la même règle que l'accroche.
-
-Écris l'accroche dans `work-cv/candidat.json`, clé `CANDIDAT.accroche`, et le titre dans `CANDIDAT.titre`, sans toucher à rien d'autre.
+Écris le titre dans `work-cv/candidat.json`, clé `CANDIDAT.titre`, sans toucher à rien d'autre.
 
 Une seule autre valeur peut se resserrer : `CANDIDAT.cadre.remuneration`, quand le champ dépasse une ligne (plus de 80 caractères, une phrase explicative). Garde la condition chiffrée telle quelle et retire l'explication — « Au-dessus de la convention collective (+ 15 %) » pour « En clinique : au-dessus de la convention collective, +15 % comme au dernier poste, majoration à maintenir si la CC évolue… ». Rien d'autre du cadre ne se touche.
 
-Relis ensuite `CANDIDAT.experiences` — le parcours proposé par le script : les postes en clinique un par ligne, du plus récent au plus ancien, les stages et postes hors clinique regroupés sur une ligne finale — contre `experiences_brutes` dans `etat.json`. Tu peux seulement **resserrer** : fusionner des remplacements courts d'une même période sur une ligne, ôter une mention de source oubliée en fin de description. Jamais rallonger, jamais réécrire une description, jamais calculer une durée cumulée. Quatre à cinq lignes au plus : au-delà, garde les plus récentes et les plus longues.
+Relis ensuite `CANDIDAT.experiences` — le parcours proposé par le script : les postes en clinique un par ligne, du plus récent au plus ancien, les stages et postes hors clinique regroupés sur une ligne finale — contre `experiences_brutes` dans `etat.json`. Tu peux seulement **resserrer** : fusionner des remplacements courts d'une même période sur une ligne, ôter une mention de source oubliée en fin de description. Jamais rallonger, jamais réécrire une description (elle est écrite pour le client par l'enrichissement), jamais calculer une durée cumulée. Quatre à cinq lignes au plus : au-delà, garde les plus récentes et les plus longues.
 
 ## ÉTAPE 4 — Rendre le dossier nominatif
 
@@ -61,7 +54,7 @@ Relis ensuite `CANDIDAT.experiences` — le parcours proposé par le script : le
 python3 routines/scripts/cv_candidat.py render
 ```
 
-Écrit `work-cv/CV-Prenom-Nom-SaRecrute.html`, `.pdf`, `work-cv/apercu.png` et `work-cv/rapport.json`. Code de sortie 2 = un contrôle a échoué, lis `problemes` dans le rapport : accroche vide ou trop longue → corrige-la et relance ; page qui déborde encore, PDF absent, pas au format A4, polices non chargées → incident.
+Écrit `work-cv/CV-Prenom-Nom-SaRecrute.html`, `.pdf`, `work-cv/apercu.png` et `work-cv/rapport.json`. Code de sortie 2 = un contrôle a échoué, lis `problemes` dans le rapport : page qui déborde encore, PDF absent, pas au format A4, polices non chargées → incident.
 
 ## ÉTAPE 5 — Anonymiser, puis rendre le dossier anonymisé
 
@@ -85,7 +78,7 @@ python3 routines/scripts/cv_candidat.py render --anonyme
 
 ## ÉTAPE 6 — Regarder les deux dossiers
 
-Ouvre `work-cv/apercu.png` avec l'outil Read et regarde-le une fois : en-tête vert foncé avec le logo, le sous-titre, le nom, les coordonnées à droite et l'accroche ; le filet en trois couleurs ; le bandeau des repères (expérience, disponibilité, contrat, gardes, rémunération) ; le parcours et la formation à gauche, les compétences, domaines et langues à droite (au-delà de 24 actes, compétences à gauche et formation à droite) ; et en pied le filet avec la mention « SaRecrute · Recrutement vétérinaire ». Un pied de page absent, c'est une page tronquée, donc un incident, même si le rapport est vert. Une fiche peu qualifiée donne un dossier maigre : c'est normal, pas une erreur.
+Ouvre `work-cv/apercu.png` avec l'outil Read et regarde-le une fois : en-tête vert foncé avec le logo, le sous-titre, le nom, les coordonnées à droite et l'accroche (absente si « Accroche CV » est vide) ; le filet en trois couleurs ; le bandeau des repères (expérience, disponibilité, contrat, gardes, rémunération) ; le parcours et la formation à gauche, les compétences, domaines et langues à droite (au-delà de 24 actes, compétences à gauche et formation à droite) ; et en pied le filet avec la mention « SaRecrute · Recrutement vétérinaire ». Un pied de page absent, c'est une page tronquée, donc un incident, même si le rapport est vert. Une fiche peu qualifiée donne un dossier maigre : c'est normal, pas une erreur.
 
 Ouvre ensuite `work-cv/apercu-anonyme.png` : même page, mais le titre à la place du nom, « Profil confidentiel » au-dessus, aucune coordonnée, aucun employeur dans le parcours, « Profil anonymisé » en pied. Un nom de personne ou de structure visible : retour à l'ÉTAPE 5.
 
@@ -97,7 +90,7 @@ python3 routines/scripts/cv_candidat.py upload recXXXXXXXXXXXXXX --note-plus "<u
 
 Ajoute `--dry-run` si le message contient « dryrun ». Le script relit la fiche, dépose le nominatif dans « CV IA » et l'anonymisé dans « CV IA anonyme » (celui-ci seulement si `rapport-anonyme.json` est sans problème), remplace dans chaque champ l'ancien dossier SaRecrute s'il y en a un (toute autre pièce jointe est gardée), et écrit Statut = Généré, Généré le = aujourd'hui, et la note : champs vides listés un par un (« Gardes : vide »), disponibilité passée, mode compact, dossier anonymisé non déposé et pourquoi, ancien dossier remplacé, et en dernière ligne la référence des deux dossiers (c'est ce qu'une clinique citera).
 
-`--note-plus` sert à ajouter **une** ligne qui demande l'attention de la recruteuse et que le script ne sait pas : accroche construite sans notes d'entretien, note d'entretien ancienne (plus de six mois), contradiction visible entre deux champs. Pas de commentaire tiré des notes sur un champ vide : le champ vide est le signal, la note ne dit jamais « alors que l'entretien dit qu'elle accepte les gardes ».
+`--note-plus` sert à ajouter **une** ligne qui demande l'attention de la recruteuse et que le script ne sait pas : une contradiction visible entre deux valeurs du dossier (l'accroche dit « temps plein », le cadre « temps partiel »), une description du parcours qui contient encore une citation, une source ou un détail personnel (à corriger dans la fiche, par l'enrichissement). Pas de commentaire sur un champ vide : le champ vide est le signal, et la note le liste déjà.
 
 Si `upload` s'arrête sur « content.airtable.com injoignable » : c'est le proxy de l'environnement, pas le dossier. Incident, en citant le message.
 
