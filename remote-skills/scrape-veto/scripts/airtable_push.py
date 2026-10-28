@@ -68,6 +68,12 @@ se signe sur le n° et le texte intégral (cf. sec_sig), donc elle n'est plus «
 elle REMPLACE l'ancienne version dans l'enregistrement cible (ligne « ↻ RÉVISION » en
 --dry) et les scalaires prennent ses valeurs. Les posts Facebook ne sont pas concernés.
 
+Profil de la CV-thèque TÉMAVet (0.17.0) : même règle, mais son identité est le n° du profil
+SEUL, toutes dates confondues. Un profil est un document que le candidat tient à jour, pas
+une suite de publications : sa nouvelle version (date de mise à jour plus récente, ou
+texte changé) REMPLACE la précédente au lieu de s'empiler, et « Date du post » avance avec
+elle.
+
 auteur_key = prénom+nom normalisés (sans accents, minuscules). Vide (donc pas
 de fusion) si : nom vide / "Membre anonyme" / pseudo FB auto-généré (contient des
 chiffres) / tout en capitales / > 6 mots (un titre d'annonce capté à la place de
@@ -331,6 +337,9 @@ def mark_comment(content, f):
 # Annonce du portail SVS : son n° l'identifie, et le portail la RÉVISE sur place (même n°,
 # même date de publication, texte changé). Cf. annonce_id / sec_sig.
 ANNONCE_RE = re.compile(r"gstsvs\.ch/\S*/annonce/(\d+)")
+# Profil de la CV-thèque TÉMAVet : le candidat le met à jour sur place, sa date avance à chaque
+# mise à jour. Cf. profil_id / rev_key.
+PROFIL_RE = re.compile(r"job\.temavet\.fr/users/veterinaire/(\d+)")
 
 
 def annonce_id(s):
@@ -339,10 +348,27 @@ def annonce_id(s):
     return m.group(1) if m else ""
 
 
+def profil_id(s):
+    """N° de profil TÉMAVet d'une section (depuis son lien), '' pour tout le reste."""
+    m = PROFIL_RE.search(s.get("link") or "")
+    return m.group(1) if m else ""
+
+
 def rev_key(s):
-    """Identité d'une publication RÉVISABLE : (date, n° d'annonce), None sinon."""
+    """Identité d'une publication RÉVISABLE : (date, n° d'annonce) pour une annonce SVS,
+    le n° seul pour un profil TÉMAVet (toutes ses versions sont la même publication),
+    None sinon."""
+    pid = profil_id(s)
+    if pid:
+        return ("profil", pid)
     aid = annonce_id(s)
     return (s["date"], aid) if aid else None
+
+
+def rev_label(s):
+    """Libellé d'une révision pour la sortie --dry."""
+    pid = profil_id(s)
+    return "profil TÉMAVet n°%s" % pid if pid else "annonce SVS n°%s" % annonce_id(s)
 
 
 def sec_sig(s):
@@ -357,8 +383,13 @@ def sec_sig(s):
     Pourquoi pas pour Facebook : le lien n'y identifie pas une publication — deux
     commentaires d'une même personne sous le même post, le même jour, portent le même
     lien, et l'un remplacerait l'autre. Les posts Facebook gardent la signature à 80
-    caractères, inchangée."""
+    caractères, inchangée.
+    Un profil TÉMAVet (0.17.0) se signe de même sur son n° et son texte intégral : une
+    compétence ajoutée en bas de fiche est une nouvelle version."""
     body = re.sub(r"\s+", " ", COMMENT_MARK_RE.sub("", s["body"] or "")).strip().lower()
+    pid = profil_id(s)
+    if pid:
+        return (s["date"], "profil:" + pid, body)
     aid = annonce_id(s)
     if aid:
         return (s["date"], "annonce:" + aid, body)
@@ -648,7 +679,7 @@ def main():
                 by_key[k] = r
 
     to_create, to_patch, to_link, skipped = [], [], [], 0
-    revised = []   # (recId, n° d'annonce SVS) : sections remplacées par leur révision
+    revised = []   # (recId, libellé de rev_label) : sections remplacées par leur révision
 
     def add_canaux(target, flist):
         """Le contenu est déjà en base : ne reste-t-il qu'un canal à ajouter ?
@@ -697,13 +728,14 @@ def main():
                 skipped += len(flist)
                 continue
             # Annonce SVS révisée : l'ancienne version de la même annonce (même date, même
-            # n°) s'efface devant la nouvelle — sinon les deux s'empileraient. Les scalaires
+            # n°) s'efface devant la nouvelle — sinon les deux s'empileraient. Idem pour un
+            # profil TÉMAVet, quelle que soit la date de l'ancienne version. Les scalaires
             # suivent via merged_scalars (flist d'abord : à date égale, le post entrant gagne).
             revs = {rev_key(s) for s in in_secs} - {None}
             old = [s for s in t_secs if rev_key(s) in revs]
             if old:
                 t_secs = [s for s in t_secs if rev_key(s) not in revs]
-                revised.extend(sorted({(target["id"], annonce_id(s)) for s in old}))
+                revised.extend(sorted({(target["id"], rev_label(s)) for s in old}))
             fields = merged_scalars(flist + [tf])
             fields["auteur_key"] = k
             # Union des canaux : la fusion ajoute une origine, elle n'en remplace pas.
@@ -764,8 +796,8 @@ def main():
             canal_txt = apres if avant == apres else "%s → %s" % (avant, apres)
             print("  ~ MAJ   ", rid, "|", who, "| nouveau top:", f.get("Date du post"),
                   "| canaux:", canal_txt)
-        for rid, aid in revised:
-            print("  ↻ RÉVISION", rid, "| annonce SVS n°%s : l'ancienne version est remplacée" % aid)
+        for rid, label in revised:
+            print("  ↻ RÉVISION", rid, "| %s : l'ancienne version est remplacée" % label)
         for rid, f, tf in to_link:
             who = ((tf.get("Prénom") or "") + " " + (tf.get("Nom") or "")).strip() or "(anonyme)"
             print("  ⊕ CANAL ", rid, "|", who, "| contenu déjà en base, canaux:",

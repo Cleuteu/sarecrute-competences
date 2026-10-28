@@ -1,4 +1,4 @@
-**scrape-veto — version 0.16.5 (2026-10-28)**
+**scrape-veto — version 0.17.0 (2026-10-28)**
 
 > Ce fichier est le corps de la compétence `scrape-veto` du plugin `sarecrute-admin`. Il n'est
 > **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -19,7 +19,7 @@
 
 Scraper les posts des **groupes Facebook vétérinaires** (tri chronologique) sur une **fenêtre temporelle**, en extraire les commentaires pertinents, et pousser chaque entrée dans Airtable **sans créer de doublon**, **rattachée au groupe d'où elle vient**.
 
-**Sources** : elles ne sont **pas** dans ce fichier. Ce sont les enregistrements de la table **« Canaux de diffusion »** (`tbluH5M2sogAN85dl`, base `appP0W2ISytaNyAhG`) dont la case **`Scraper les posts`** est cochée **et** dont l'`Url` contient `/groups/<id>` (groupe Facebook) **ou `gstsvs.ch`** (le marché de l'emploi de la SVS, traité en §7 sans Chrome, depuis 0.16.0). On peut donc ajouter une source sans republier le plugin. Un argument nommant un groupe (« scrape veto emploi véto 48h ») restreint à celui-là ; « scrape veto svs » ne fait que le portail.
+**Sources** : elles ne sont **pas** dans ce fichier. Ce sont les enregistrements de la table **« Canaux de diffusion »** (`tbluH5M2sogAN85dl`, base `appP0W2ISytaNyAhG`) dont la case **`Scraper les posts`** est cochée **et** dont l'`Url` contient `/groups/<id>` (groupe Facebook) **ou `gstsvs.ch`** (le marché de l'emploi de la SVS, traité en §7 sans Chrome, depuis 0.16.0) **ou `temavet.fr`** (la CV-thèque vétérinaire de TÉMAVet Job : des candidats, lus en §8 dans Chrome avec la session recruteur, depuis 0.17.0). On peut donc ajouter une source sans republier le plugin. Un argument nommant un groupe (« scrape veto emploi véto 48h ») restreint à celui-là ; « scrape veto svs » ne fait que le portail, « scrape veto temavet » que la CV-thèque.
 
 **Fenêtre** : par défaut, **depuis le dernier post déjà scrappé** — la borne se calcule en §0 depuis la base, canal par canal, on ne la demande pas à l'utilisateur. Un argument explicite la remplace (`aujourd'hui`, `48h`, `2 derniers jours`, `6h`). L'horloge de référence est celle du **navigateur** (`new Date()` dans la page), pas la date système — vérifie-la au début.
 
@@ -44,6 +44,8 @@ Scraper les posts des **groupes Facebook vétérinaires** (tri chronologique) su
 - **`scripts/scrape_helpers.js`** — Read ce fichier, injecte tout son contenu via `javascript_tool`. Fournit `__decodeTS` (quatre régimes de rendu du timestamp, dont `aria-labelledby` depuis le 14/09/2026 — cf. ⚠️ ci-dessous), `__parseTS`, `__harvestAll`, `__store`/`__merge`, `__expandPostText`, `__expandCommentText`, `__expandVisible` (expansion bornée au viewport, **obligatoire sur les fils longs**), `__commentFull`, `__truncated`, `__truncatedComments`, `__purgeStubs` / `__purgeCommentStubs` (appelés par `__exportBlocked`, pas à appeler soi-même), `__storyToken` (jeton `__cft__` = identité du post d'une ancre), `__isCommentArticle` / `__inComment` (frontière post ↔ commentaire, cf. §4), `__emptyBodies` (posts au corps vide), `__seenInit` / `__tailKnown` / `__unseen` (arrêt sur le déjà-scrappé, cf. §0 et §2), `__exportBlocked` (garde unique avant export), `__profileUrl`, `__gid` (id du groupe courant, jamais codé en dur), `__alive`, `__chrono` (contrôle du tri), `__orphanComments` (compteur). **Ré-injecte après toute navigation** (le window est vidé).
 - **`scripts/airtable_push.py`** — pousse un `records.json` en upsert-merge. Voir §5.
 - **`scripts/svs_portail.py`** — collecteur du marché de l'emploi de la SVS (HTML, sans Chrome) : liste les annonces, lit chaque fiche et son contact, détecte la langue, compare avec la base et prépare un squelette de champs. Voir §7.
+- **`scripts/temavet_cvtheque.js`** — à injecter dans l'onglet de la CV-thèque TÉMAVet : `__tvStart()` lit la liste et chaque fiche par `fetch` (aucun clic), en tâche de fond, et les sort par download blob ; `__tvStatus()` donne l'avancement. Voir §8.
+- **`scripts/temavet_cvtheque.py`** — lit cet export, compare avec la base (nouveaux, modifiés, réactualisés, disparus) et prépare un squelette de champs candidat. Voir §8.
 - **`scripts/focus_chrome.sh`** (macOS) / **`scripts/focus_chrome.ps1`** (Windows) — ramènent l'onglet du scrape au premier plan pour réveiller le rendu. Voir §1 bis.
 - **`scripts/keep_awake.sh`** (macOS) — empêche l'écran de s'éteindre pendant la collecte. À lancer **en préventif** dès §0 et à arrêter en §6. Voir §0.
 - **`references/matching_vocab.json`** — valeurs select valides (Zones/Statuts/Temps) + mapping `macro_regions` → départements. Source de vérité pour remplir les champs de matching (cf. §3). Régénérable depuis la base si le vocab change.
@@ -78,12 +80,15 @@ for r in json.load(sys.stdin)["records"]:
     if f.get("Scraper les posts") and g:
         print(r["id"], "facebook", g.group(1), f.get("Name"), sep="\t")
     elif f.get("Scraper les posts") and "gstsvs.ch" in u:
-        print(r["id"], "svs", "-", f.get("Name"), sep="\t")'
+        print(r["id"], "svs", "-", f.get("Name"), sep="\t")
+    elif f.get("Scraper les posts") and "temavet.fr" in u:
+        print(r["id"], "temavet", "-", f.get("Name"), sep="\t")'
 ```
 
-Tu obtiens `recId`, type de source (`facebook` ou `svs`), id de groupe et nom pour chaque source. L'`Url` du canal n'est **jamais** l'URL de scrape : elle décrit où l'on publie, on n'en extrait que l'id (cf. §1) ; pour le portail SVS c'est le script de §7 qui connaît les URL. Règles :
-- **Ne scrape que ce qui sort de cette requête.** Un canal coché qui n'est ni un groupe Facebook ni le portail SVS (Instagram, LinkedIn, `facebook.com/me`, une page) n'est pas scrapable : **signale-le et passe**, ne tente pas de deviner une URL.
+Tu obtiens `recId`, type de source (`facebook`, `svs` ou `temavet`), id de groupe et nom pour chaque source. L'`Url` du canal n'est **jamais** l'URL de scrape : elle décrit où l'on publie, on n'en extrait que l'id (cf. §1) ; pour le portail SVS et la CV-thèque TÉMAVet, ce sont les scripts de §7 et §8 qui connaissent les URL. Règles :
+- **Ne scrape que ce qui sort de cette requête.** Un canal coché qui n'est ni un groupe Facebook, ni le portail SVS, ni la CV-thèque TÉMAVet (Instagram, LinkedIn, `facebook.com/me`, une page) n'est pas scrapable : **signale-le et passe**, ne tente pas de deviner une URL.
 - Les canaux `svs` se traitent **après** tous les groupes Facebook, en §7, sans Chrome ; les étapes §1 à §4 ne les concernent pas (ni helpers, ni empreintes, ni fenêtre : le portail se relit en entier, la dédup se fait par numéro d'annonce).
+- Le canal `temavet` se traite en §8, dans le même Chrome que Facebook (la CV-thèque demande la session recruteur) mais sans rien de §1 à §4 : ni helpers Facebook, ni empreintes, ni fenêtre — la CV-thèque se relit en entier, la dédup se fait par numéro de profil.
 - Si un argument nomme un groupe, filtre sur son `Name` (insensible à la casse, sous-chaîne) ; si rien ne matche, dis-le et arrête plutôt que de tout scraper.
 - Si la liste est vide, arrête et explique qu'aucun canal n'est coché.
 - Annonce à l'utilisateur les groupes retenus **avant** de commencer (Chrome va passer devant, cf. §1 bis).
@@ -960,6 +965,94 @@ annonce modifiée qui ressort « ignorée » est un défaut à signaler, pas un 
 **6. Les disparues** ne se touchent pas : liste-les au résumé avec le n° de post et la clinique (le
 poste est sans doute pourvu). Archiver est le geste de la recruteuse, pas du scrape.
 
+### 8. CV-thèque vétérinaire TÉMAVet (source candidats, depuis 0.17.0)
+
+Le canal de type `temavet` sorti de §0 (`Url` sur temavet.fr) est la **CV-thèque vétérinaire** de
+TÉMAVet Job : des profils de vétérinaires qui cherchent un poste, avec leur mail et souvent leur
+téléphone. Elle est réservée aux recruteurs abonnés, donc elle se lit **dans le Chrome de
+l'utilisateur, avec sa session TÉMAVet**, comme Facebook — mais sans rien de la mécanique Facebook :
+le helper lit la liste et chaque fiche par `fetch`. Même doctrine qu'ailleurs : le helper et le
+script **capturent**, tu **juges**, `airtable_push.py` **écrit**.
+
+⛔ **Ne clique sur rien dans la CV-thèque.** « Télécharger le CV » consomme le quota quotidien du
+compte (30 CV par jour, celui des recruteuses) ; la fiche ne le consomme pas et contient déjà tout
+(vérifié le 28/10/2026 : 151 fiches lues, compteur inchangé). « Contacter ce candidat », « Proposer
+un poste », « Ajouter à mes CV favoris » sont des gestes visibles du candidat ou du compte. Le helper
+n'utilise que `fetch` : ne le remplace jamais par des clics.
+
+**1. Collecter** : nouvel onglet sur `https://job.temavet.fr/CV-theque/veterinaire`, injecte tout le
+contenu de `scripts/temavet_cvtheque.js` (`javascript_tool`), puis `__tvStart()`. La collecte tourne
+en tâche de fond (une à deux minutes pour 150 profils, `javascript_tool` coupant à 45 s) : relance
+`__tvStatus()` toutes les 20 à 30 s jusqu'à `etat: "terminé"`. Le fichier `temavet_cv_<date>.json`
+arrive dans `~/Downloads` : déplace-le dans le scratchpad.
+- **Un seul téléchargement par chargement de page.** Chrome bloque sans rien dire le téléchargement
+  automatique suivant d'une même page : `etat` dit « terminé » mais aucun fichier n'arrive. Pour
+  relancer, recharge l'onglet, réinjecte, puis `__tvStart()`.
+- `etat` commence par « arrêt : pas de session recruteur » : TÉMAVet a répondu par sa page de
+  connexion (`profil.temavet.fr`), ou l'accès à la CV-thèque a expiré. **Ne saisis jamais
+  d'identifiants** : signale-le (l'utilisateur se connecte lui-même au compte recruteur dans Chrome,
+  ou renouvelle l'accès) et passe aux autres sources.
+
+**2. Comparer avec la base** (dans le scratchpad) :
+
+```bash
+python3 <dossier_skill>/scripts/temavet_cvtheque.py collect --canal <recId du canal temavet> --export temavet_cv_<date>.json --out temavet_raw.json
+```
+
+Le script lit chaque fiche (identité, mail, téléphone, date de mise à jour, zones, statut,
+disponibilité, poste et temps recherchés, activité, expériences, diplômes, compétences), la compare
+aux profils déjà en base (sections dont le lien pointe sur `/users/veterinaire/<n°>`) et écrit
+`temavet_raw.json` :
+- `a_juger` : profils **nouveaux**, ou **modifiés** (texte changé), chacun avec un `squelette` ;
+- `reactualises` : même texte, date de mise à jour plus récente — le candidat a revalidé son profil.
+  Leurs `fields` sont **prêts**, à pousser tels quels sans jugement : le push remplace la section
+  et avance `Date du post`, sans toucher à ce qui a été jugé ou saisi sur l'enregistrement ;
+- `inchanges` ; `disparus` (en base, plus dans la CV-thèque) ; `inaccessibles` (fiche refusée par
+  TÉMAVet).
+Il n'écrit rien dans Airtable — pas de `Vu en ligne le` ici : la CV-thèque affiche encore des
+profils que personne n'a mis à jour depuis 2023, y être visible ne dit rien de l'activité du
+candidat. Sa date de mise à jour, si : c'est `Date du post`. Il affiche aussi le quota avant et après
+la collecte : **s'il a bougé, dis-le en tête du résumé**.
+
+**3. Juger chaque profil de `a_juger`.** C'est un post `Vétérinaire cherche poste` : §3 s'applique
+(Champs de matching côté candidat, Règles Expérience), avec ces règles propres à la CV-thèque.
+- **Hors périmètre** (pas d'entrée, compté au résumé) : un profil qui ne cherche **qu'**un poste non
+  praticien (`_poste_recherche` = « Non praticien » sans « Praticien » : industrie, fonction
+  publique, gestion), ou sans `Poste recherché` et dont le texte ne parle d'aucun exercice en
+  clinique. Un profil qui coche « Praticien » et « Non praticien » se garde.
+- **Posé par le script, ne le retouche pas** : `Zones de recherche` (régions développées en
+  départements, villes et départements traduits ; `_zones_hors_vocab` ne garde que le texte),
+  `Zone de recherche`, `Type de temps de travail`, `Mail1`, `Téléphone`, `Prénom` / `Nom` (capitales
+  remises en casse normale : tout en capitales, le push ne fusionnerait pas), `Contenu complet` (le
+  profil intégral, rendu ligne à ligne), `Lien du post`, `Date du post` (dernière mise à jour).
+- **Posé par le script depuis les cases du profil, à corriger seulement si le texte libre le
+  contredit** : `Pratiques requises` / `optionnelles` (chaque « Activité du poste » cochée est une
+  alternative acceptée : requises = ce qui est commun à toutes, optionnelles = le reste ; « Faune
+  sauvage », « Animaux exotiques », « Élevage industriel », « Autre » ne sont pas traduits) et
+  `Spécialités optionnelles` (les « Compétences spécialisées cliniques » déclarées). Une spécialité
+  ne passe en `Spécialités requises` que si la fiche la prouve par un titre (CES, CEAV, DESV, DE ou
+  DIE, college européen, résidanat) **et** que le candidat cherche à l'exercer.
+- **À remplir par toi**, depuis les clés `_…` et le texte : `Expérience` (`_annees_praticien` vaut
+  « Etudiant » ⇒ `Etudiant` ; sinon l'année de sortie et les postes datés, selon les Règles
+  Expérience ; `Spécialiste` seulement pour un spécialiste diplômé), `Statuts contractuels` (rarement
+  dit : vide sinon), `Date de disponibilité` (`_disponibilite`, règle du 1er jour estimé ; « dès
+  maintenant » ou « disponible » ⇒ la date de mise à jour), `Contrat court` (**toujours explicite** :
+  `false`, sauf une disponibilité bornée à moins d'un mois).
+- Retire les clés `_…` avant le push. **Pas de clé d'offre** : ce sont des candidats, le push calcule
+  `auteur_key` depuis Prénom + Nom, et rattache le profil à la même personne déjà vue sur Facebook
+  (une personne = un enregistrement). Un `auteur_key` présent dans le squelette est une clé figée à
+  la main sur l'enregistrement existant : garde-le.
+- La blacklist (« Auteurs posts exclus ») vise des auteurs d'annonces : elle ne s'applique pas ici.
+
+**4. Pousser** : `records.json` = les `fields` des profils retenus + ceux de `reactualises`, puis §5
+(`--dry`, relire, pousser). La nouvelle version d'un profil **remplace** l'ancienne dans
+l'enregistrement (ligne `↻ RÉVISION … profil TÉMAVet n°…` en `--dry`) au lieu de s'empiler : un
+profil est un document tenu à jour, pas une suite de posts.
+
+**5. Les disparus** ne se touchent pas : liste-les au résumé (n° de post et nom), le candidat a sans
+doute trouvé un poste ou retiré son profil. Archiver est le geste de la recruteuse. Rappelle aussi la
+date de fin d'accès (`acces_fin`) si elle tombe dans les quinze jours.
+
 ### 6. Résumé final
 
 **Avant de rédiger** : rends la main à la gestion d'énergie et ferme l'onglet du scrape.
@@ -997,3 +1090,6 @@ bash <dossier_skill>/scripts/keep_awake.sh stop
 - **Portail SVS** (§7), un bloc à part : annonces en ligne, nouvelles poussées (par langue),
   modifiées, inchangées, **disparues** (n° de post et clinique), exclues avec la raison, annonces en
   italien laissées sans `Langues requises`, et les groupes non arbitrés rencontrés.
+- **CV-thèque TÉMAVet** (§8), un bloc à part : profils annoncés et lus, nouveaux poussés, modifiés,
+  réactualisés, inchangés, **disparus** (n° de post et nom), inaccessibles, exclus avec la raison,
+  le quota avant et après (il ne doit pas bouger) et la date de fin d'accès.

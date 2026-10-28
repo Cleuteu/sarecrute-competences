@@ -11,6 +11,7 @@ npm i --no-save jsdom@22 && node tests/attribution_commentaires.test.js
 node tests/expansion_clic.test.js                   # jsdom aussi
 node tests/queue_et_libelles.test.js                # jsdom aussi
 python3 tests/revision_svs.test.py                  # aucune dépendance
+python3 tests/temavet_cvtheque.test.py             # aucune dépendance
 node tests/liens_markdown.test.mjs                  # aucune dépendance
 python3 tools/manifests.py --check                  # les MANIFEST des compétences distantes sont à jour
 python3 tests/compte_rendu_commun.test.py           # aucune dépendance
@@ -74,6 +75,15 @@ l'ancienne section au lieu de s'empiler, les scalaires suivent, une annonce inch
 une republication à une autre date s'empile comme avant. Côté Facebook rien ne bouge : un post
 re-capté plus long reste ignoré, et deux commentaires de la même personne sous le même post, le même
 jour (même lien), ne se remplacent pas.
+
+**`temavet_cvtheque.test.py`** — la CV-thèque TÉMAVet (0.17.0), sur une fiche synthétique qui reprend
+la structure réelle de la page. Lecture : contact lu même sans nom, numéro répété dédoublonné,
+interface (bouton, fenêtre de contact) hors du texte, section vide sans titre. Nom tout en capitales
+remis en casse — sinon `auteur_key` est vide et le profil ne fusionne jamais. Zones : région
+développée, Corse tranchée par le code postal, DOM, hors vocabulaire jamais forcé. Pratiques : les
+activités cochées sont des alternatives. Push : un profil revalidé ou modifié REMPLACE sa version
+précédente (toutes dates), `Date du post` avance, les champs jugés restent, le post Facebook de la même
+personne n'est pas touché.
 
 **`troncature.test.mjs`** — `__truncated()` ne regarde que les **posts**. Un commentaire figé sur
 « Bonjour,… Voir plus » passait donc l'export sans aucun signal. Le test vérifie que
