@@ -6,6 +6,7 @@ const CANDIDAT = {
   prenom:      "Dossier candidat",
   nom:         "",
   sousTitre:   "Modèle standard · toutes les valeurs viennent des champs Airtable",
+  titre:       "Titre du dossier anonymisé",
 
   accroche:    "Modèle de référence des dossiers de présentation SaRecrute : tous portent ces champs, dans cet ordre, et à cette taille. Chaque valeur affichée est la recopie d'un champ Airtable vérifié par les recruteuses — ni le CV joint à la fiche, ni l'enrichissement automatique ne l'alimentent. Un champ vide fait disparaître sa ligne. Chaque ligne ci-dessous porte le nom du champ qui l'alimente, et les compétences reprennent le référentiel complet des actes, groupé par espèce puis par famille.",
 

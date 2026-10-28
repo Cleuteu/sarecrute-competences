@@ -5,23 +5,34 @@ Héritier de la compétence `creer-cv-candidat` de Léo (0.5.0, retirée du plug
 dossier ne se génère plus que par le bouton de la fiche). Template et notes de maintenance dans
 `routines/references/cv-candidat/`. Lecture et écriture par l'API REST d'Airtable (clé
 AIRTABLE_API_KEY de l'environnement), rendu PDF par Chromium dans le conteneur. Le modèle n'écrit que
-l'accroche et relit le parcours ; tout le reste est déterministe.
+l'accroche et le titre du dossier anonymisé, et relit le parcours ; tout le reste est déterministe.
+
+Chaque run produit DEUX dossiers (depuis le 28/10/2026) : le nominatif dans « CV IA », l'anonymisé
+dans « CV IA anonyme » (aucun nom, aucune coordonnée, aucun employeur), sous la même référence.
 
 Sous-commandes, dans l'ordre d'un run :
 
   preparer [--dossier DIR] [--installer]
       Trouve un moteur de rendu : Playwright (node) déjà installé, sinon l'installe sous DIR/pw si
       --installer, sinon un binaire Chrome/Chromium du PATH. Écrit DIR/moteur.json.
-  fetch recXXXXXXXXXXXXXX [--dossier DIR] [--anonyme]
+  fetch recXXXXXXXXXXXXXX [--dossier DIR]
       Lit la fiche, ses Compétences et ses Expériences ; écrit DIR/candidat.json (le bloc de données
-      du template, accroche vide), DIR/sources.json (les seules notes autorisées pour l'accroche) et
-      DIR/etat.json (ce que la note finale doit dire). Lecture seule.
-  render [--dossier DIR] [--template FICHIER]
-      Insère DIR/candidat.json dans le template, rend le HTML, le PDF et un aperçu PNG, contrôle le
-      PDF (pages, format A4, taille) ; écrit DIR/rapport.json. Code 2 si un contrôle échoue.
+      du template, accroche et titre vides), DIR/sources.json (les seules notes autorisées pour
+      l'accroche) et DIR/etat.json (ce que la note finale doit dire, et les termes interdits du
+      dossier anonymisé). Lecture seule.
+  render [--dossier DIR] [--template FICHIER] [--anonyme]
+      Insère DIR/candidat.json (ou candidat-anonyme.json) dans le template, rend le HTML, le PDF et
+      un aperçu PNG, contrôle le PDF (pages, format A4, taille) et, en anonymisé, l'absence de tout
+      terme interdit ; écrit DIR/rapport.json (ou rapport-anonyme.json). Code 2 si un contrôle échoue.
+  anonymiser [--dossier DIR]
+      Dérive DIR/candidat-anonyme.json de candidat.json (après l'accroche) : prénom, nom, contact et
+      structures vidés, structures entre parenthèses retirées des descriptions. Liste ce qui reste
+      d'un terme interdit (nom, prénom, coordonnée, structure) : c'est au modèle de l'ôter.
   upload recXXXXXXXXXXXXXX [--dossier DIR] [--note-plus TEXTE] [--dry-run]
-      Dépose le PDF dans « CV IA » (API uploadAttachment), remplace l'ancien dossier SaRecrute s'il y
-      en a un (les autres pièces jointes sont gardées), écrit Statut = Généré, Généré le, Note.
+      Dépose les deux PDF (API uploadAttachment) dans « CV IA » et « CV IA anonyme », remplace dans
+      chacun l'ancien dossier SaRecrute (les autres pièces jointes sont gardées), écrit Statut =
+      Généré, Généré le, Note. Un dossier anonymisé absent ou en échec n'empêche pas le dépôt du
+      nominatif : la note le dit.
   erreur recXXXXXXXXXXXXXX --note TEXTE
       Statut = Erreur et la note. Seule écriture d'un run qui échoue.
 
@@ -67,7 +78,7 @@ F = {
     "langues": "fld48WU9SCR9DkVN6", "emploi": "fldizV1UoejwizYSq",
     "profil": "fldlnO9d1ctGABT9v", "notes": "fld0s84U1HdrHKqkg",
     "notes_candidat": "fld8WaHsnucNvdEqW", "transcripts": "fldNMVoFoHx3t3O9D",
-    "cv_ia": "fldDfGvVlyid0xacE", "competences": "fldjLpY32oHfdOW0Z",
+    "cv_ia": "fldDfGvVlyid0xacE", "cv_ia_anonyme": "fld457VMpd1CHCAxY", "competences": "fldjLpY32oHfdOW0Z",
     "experiences": "fldVb4FwwyjB4reVg",
     "cv_statut": "fldQ9g5Mlxauvo98o", "cv_note": "fldn0zi6Mh8kW77dE", "cv_genere_le": "fldJiqeHBG46k0dBU",
 }
@@ -93,6 +104,8 @@ TYPES_CLINIQUE = {"Salarié", "Remplacement", "Collaborateur libéral", "Libéra
                   "Internat", "Résidanat / Assistanat"}
 SOURCE_EN_FIN = re.compile(r"\s*\((?=[^()]*(?:\bCV\b|compl[ée]ment|TemaVet|entretien|transcript|post|annuaire|LinkedIn))[^()]*\)\s*$", re.I)
 NOM_DOSSIER_SARECRUTE = re.compile(r"^CV-.*-SaRecrute.*\.pdf$", re.I)
+# Noms des champs pièce jointe, au cas où la réponse d'uploadAttachment serait rendue par nom
+NOMS_PIECES = {F["cv_ia"]: "CV IA", F["cv_ia_anonyme"]: "CV IA anonyme"}
 TAILLE_MAX = 5 * 1024 * 1024
 
 HERE = Path(__file__).resolve().parent
@@ -410,11 +423,13 @@ def cmd_fetch(a):
     if gardes == "Oui" and freq:
         gardes = f"Oui · {freq}"
     oui = lambda v: "Oui" if sel(v) == "Oui" else ""
-    annee_ref = dt.date.today().year
-    initiales = (prenom[:1] + nom[:1]).upper() or "XX"
+    # Même référence sur les deux dossiers, tirée du record et non des initiales (qui se liraient
+    # sur le dossier anonymisé), stable d'une génération à l'autre.
+    reference = f"SR-{rec[-5:].upper()}"
     candidat = {
-        "reference": f"SR-{annee_ref}-{ascii_slug(initiales)}",
+        "reference": reference,
         "prenom": prenom, "nom": nom, "sousTitre": sous_titre,
+        "titre": "",
         "accroche": "",
         "contact": {"email": sel(f.get(F["mail"])), "telephone": sel(f.get(F["telephone"]))},
         "cadre": {
@@ -448,8 +463,18 @@ def cmd_fetch(a):
     vides = [LIBELLES[k] for k in LIBELLES if not sel(f.get(F[k]))]
     dispo = f.get(F["dispo"]) or ""
     cv_ia = [{"id": x.get("id"), "filename": x.get("filename")} for x in (f.get(F["cv_ia"]) or [])]
+    # Ce qui ne doit apparaître nulle part dans le dossier anonymisé : prénom, chaque mot du nom (nom
+    # d'usage entre parenthèses compris), coordonnées, et toute structure du parcours brut.
+    candidats_interdits = [prenom, sel(f.get(F["mail"])), sel(f.get(F["telephone"]))]
+    candidats_interdits += re.split(r"[\s()\-]+", nom_complet or "")
+    candidats_interdits += [e["structure"] for e in brutes]
+    interdits = []
+    for t in candidats_interdits:
+        t = (t or "").strip()
+        if len(t) >= 3 and t.lower() not in {x.lower() for x in interdits}:
+            interdits.append(t)
     etat = {
-        "record_id": rec, "prenom": prenom, "nom": nom, "anonyme": bool(a.anonyme),
+        "record_id": rec, "prenom": prenom, "nom": nom, "reference": reference,
         "statut_actuel": sel(f.get(F["cv_statut"])), "cv_ia_existants": cv_ia,
         "a_remplacer": [x["filename"] for x in cv_ia if x.get("filename") and NOM_DOSSIER_SARECRUTE.match(x["filename"])],
         "champs_vides": vides,
@@ -460,14 +485,69 @@ def cmd_fetch(a):
         "longueur_sources": {k: len(sources[k]) for k in ("profil", "notes", "notes_candidat", "transcripts")},
         "nom_complet": nom_complet,
         "fichier_base": f"CV-{ascii_slug(prenom)}-{ascii_slug(nom)}-SaRecrute",
+        # Le nom de fichier voyage avec la pièce jointe : jamais de nom de personne dedans.
+        "fichier_base_anonyme": f"CV-anonyme-{reference}-SaRecrute",
+        "interdits": interdits,
     }
-    ecrire(a.dossier, "candidat.json", {"ANONYME": bool(a.anonyme), "CANDIDAT": candidat})
+    ecrire(a.dossier, "candidat.json", {"ANONYME": False, "CANDIDAT": candidat})
     ecrire(a.dossier, "sources.json", sources)
     ecrire(a.dossier, "etat.json", etat)
-    print(json.dumps({k: etat[k] for k in ("record_id", "prenom", "nom", "statut_actuel", "cv_ia_existants",
-                                           "champs_vides", "nb_competences", "nb_experiences_brutes",
-                                           "nb_experiences_dossier", "longueur_sources", "anonyme")},
+    print(json.dumps({k: etat[k] for k in ("record_id", "prenom", "nom", "reference", "statut_actuel",
+                                           "cv_ia_existants", "champs_vides", "nb_competences",
+                                           "nb_experiences_brutes", "nb_experiences_dossier", "longueur_sources")},
                      ensure_ascii=False, indent=2))
+
+
+# ----------------------------------------------------------------------------- anonymiser
+def fuites(candidat, interdits):
+    """Chaque terme interdit retrouvé dans une valeur du bloc, avec son emplacement. Comparaison sans
+    casse, sur mot entier : « Paul » ne se lit pas dans « Pauline », mais bien dans « Saint-Paul »."""
+    trouves = []
+
+    def parcourir(v, chemin):
+        if isinstance(v, dict):
+            for k, x in v.items():
+                if k != "reference":
+                    parcourir(x, f"{chemin}.{k}" if chemin else k)
+        elif isinstance(v, list):
+            for i, x in enumerate(v):
+                parcourir(x, f"{chemin}[{i}]")
+        elif isinstance(v, str) and v:
+            for t in interdits:
+                if re.search(r"(?<!\w)" + re.escape(t) + r"(?!\w)", v, re.I):
+                    trouves.append({"terme": t, "champ": chemin})
+
+    parcourir(candidat, "")
+    return trouves
+
+
+def cmd_anonymiser(a):
+    dossier = Path(a.dossier)
+    data = charger(dossier, "candidat.json")
+    etat = charger(dossier, "etat.json")
+    C = json.loads(json.dumps(data["CANDIDAT"]))
+    C["prenom"], C["nom"] = "", ""
+    C["contact"] = {"email": "", "telephone": ""}
+    structures = sorted({e.get("structure", "") for e in C.get("experiences", [])} |
+                        {t for t in etat.get("interdits", [])}, key=len, reverse=True)
+    for e in C.get("experiences", []):
+        e["structure"] = ""
+        d = e.get("description", "")
+        # La ligne « Stages et postes courts » est montée par le script en « intitulé (structure) » :
+        # la parenthèse part avec la structure. Une structure citée hors parenthèses reste, et le
+        # contrôle ci-dessous la signale au modèle.
+        for s in structures:
+            if s:
+                d = re.sub(r"\s*\(\s*" + re.escape(s) + r"\s*\)", "", d, flags=re.I)
+        # Sans leur structure, deux stages de même intitulé deviennent identiques : un seul suffit.
+        items = []
+        for x in d.split(" · "):
+            if x.strip() and x.strip() not in items:
+                items.append(x.strip())
+        e["description"] = " · ".join(items)
+    ecrire(dossier, "candidat-anonyme.json", {"ANONYME": True, "CANDIDAT": C})
+    reste = fuites(C, etat.get("interdits", []))
+    print(json.dumps({"ecrit": str(dossier / "candidat-anonyme.json"), "fuites": reste}, ensure_ascii=False, indent=2))
 
 
 # ----------------------------------------------------------------------------- render
@@ -488,7 +568,7 @@ def verifier_pdf(p):
 
 def cmd_render(a):
     dossier = Path(a.dossier)
-    data = charger(dossier, "candidat.json")
+    data = charger(dossier, "candidat-anonyme.json" if a.anonyme else "candidat.json")
     etat = charger(dossier, "etat.json")
     moteur = charger(dossier, "moteur.json")
     tpl_path = Path(a.template)
@@ -509,9 +589,15 @@ def cmd_render(a):
     for k in ("internat", "desv", "habilitation"):
         if C["formation"].get(k, "").strip().lower() == "non":
             problemes.append(f"formation.{k} = Non : ne s'affiche que positif")
+    if a.anonyme:
+        if not data.get("ANONYME"):
+            problemes.append("candidat-anonyme.json sans ANONYME = true : relancer anonymiser")
+        for x in fuites(C, etat.get("interdits", [])):
+            problemes.append(f"dossier anonymisé : « {x['terme']} » dans {x['champ']}")
     html = tpl[: i + len("/*DATA-START*/")] + js_bloc(data) + tpl[j:]
-    base = etat["fichier_base"]
-    html_p, pdf_p, png_p = dossier / f"{base}.html", dossier / f"{base}.pdf", dossier / "apercu.png"
+    base = etat["fichier_base_anonyme" if a.anonyme else "fichier_base"]
+    html_p, pdf_p = dossier / f"{base}.html", dossier / f"{base}.pdf"
+    png_p = dossier / ("apercu-anonyme.png" if a.anonyme else "apercu.png")
     html_p.write_text(html, encoding="utf-8")
     for p in (pdf_p, png_p):
         if p.exists():
@@ -564,15 +650,15 @@ def cmd_render(a):
     rapport = {"html": str(html_p), "pdf": str(pdf_p) if pdf_p.exists() else None,
                "apercu": str(png_p) if png_p.exists() else None, "moteur": moteur, "page": page, "pdf_controle": pdf,
                "problemes": problemes, "nb_competences": len(C.get("competences", [])),
-               "nb_experiences": len(C.get("experiences", []))}
-    ecrire(dossier, "rapport.json", rapport)
+               "nb_experiences": len(C.get("experiences", [])), "anonyme": bool(a.anonyme)}
+    ecrire(dossier, "rapport-anonyme.json" if a.anonyme else "rapport.json", rapport)
     print(json.dumps(rapport, ensure_ascii=False, indent=2))
     if problemes:
         sys.exit(2)
 
 
 # ----------------------------------------------------------------------------- upload / erreur
-def note_automatique(etat, rapport, plus=""):
+def note_automatique(etat, rapport, plus="", remplaces=(), anonyme_absent=""):
     lignes = []
     for ch in etat.get("champs_vides", []):
         lignes.append(f"{ch} : vide (ligne absente du dossier)")
@@ -582,13 +668,35 @@ def note_automatique(etat, rapport, plus=""):
         lignes.append("Aucune compétence cotée : le bilan est vide")
     if rapport.get("page", {}).get("mode") == "compact":
         lignes.append("Dossier dense : rendu en mode compact (familles d'actes non affichées)")
-    if etat.get("a_remplacer"):
-        lignes.append("Ancien dossier remplacé : " + ", ".join(etat["a_remplacer"]))
+    if anonyme_absent:
+        lignes.append("Dossier anonymisé non déposé : " + anonyme_absent)
+    if remplaces:
+        lignes.append("Ancien dossier remplacé : " + ", ".join(remplaces))
     if plus:
         lignes.append(plus.strip())
     if not lignes:
         lignes.append("Rien à signaler.")
+    # La référence est ce qu'une clinique cite après avoir reçu le dossier anonymisé : dans la note,
+    # la recherche d'Airtable retrouve la fiche.
+    if etat.get("reference"):
+        lignes.append(f"Référence des dossiers : {etat['reference']}")
     return "\n".join(lignes)
+
+
+def deposer(record, champ, pdf_p, existants):
+    """Dépose un PDF dans un champ pièce jointe et rend la valeur à réécrire : la nouvelle pièce plus
+    les pièces étrangères au dossier (l'API ajoute, elle ne remplace pas)."""
+    corps = {"contentType": "application/pdf", "filename": pdf_p.name,
+             "file": base64.b64encode(pdf_p.read_bytes()).decode()}
+    r = api("POST", f"{BASE}/{record}/{champ}/uploadAttachment", body=corps, host="content.airtable.com")
+    apres = r.get("fields", {}).get(champ) or r.get("fields", {}).get(NOMS_PIECES.get(champ, "")) or []
+    avant_ids = {x["id"] for x in existants}
+    nouveaux = [x for x in apres if x["id"] not in avant_ids]
+    if not nouveaux:
+        die(f"dépôt de {pdf_p.name} accepté mais pièce jointe introuvable dans la réponse : vérifier la fiche "
+            "à la main. " + json.dumps(r)[:400])
+    gardes = [{"id": x["id"]} for x in existants if not NOM_DOSSIER_SARECRUTE.match(x.get("filename") or "")]
+    return gardes + [{"id": nouveaux[-1]["id"]}]
 
 
 def cmd_upload(a):
@@ -602,34 +710,45 @@ def cmd_upload(a):
     pdf_p = Path(rapport["pdf"])
     if not pdf_p.exists():
         die(f"{pdf_p} introuvable")
-    nom_fichier = pdf_p.name
-    note = note_automatique(etat, rapport, a.note_plus)
+
+    # Le dossier anonymisé ne part que s'il a passé tous ses contrôles, absence de fuite comprise.
+    # Sinon le nominatif part seul et la note dit pourquoi.
+    pdf_anon, anonyme_absent = None, ""
+    p_anon = dossier / "rapport-anonyme.json"
+    if not p_anon.exists():
+        anonyme_absent = "non généré"
+    else:
+        r_anon = json.loads(p_anon.read_text(encoding="utf-8"))
+        if r_anon.get("problemes"):
+            anonyme_absent = " ; ".join(r_anon["problemes"])
+        elif not (r_anon.get("pdf") and Path(r_anon["pdf"]).exists()):
+            anonyme_absent = "PDF introuvable"
+        else:
+            pdf_anon = Path(r_anon["pdf"])
 
     # Relecture juste avant d'écrire : la fiche a pu bouger entre fetch et upload
     f = lire_record(T_CANDIDATS, a.record).get("fields", {})
-    existants = f.get(F["cv_ia"]) or []
-    gardes = [{"id": x["id"]} for x in existants if not NOM_DOSSIER_SARECRUTE.match(x.get("filename") or "")]
-    remplaces = [x.get("filename") for x in existants if NOM_DOSSIER_SARECRUTE.match(x.get("filename") or "")]
+    cibles = [(F["cv_ia"], pdf_p)] + ([(F["cv_ia_anonyme"], pdf_anon)] if pdf_anon else [])
+    existants = {ch: f.get(ch) or [] for ch, _ in cibles}
+    remplaces = [x.get("filename") for ch, _ in cibles for x in existants[ch]
+                 if NOM_DOSSIER_SARECRUTE.match(x.get("filename") or "")]
+    note = note_automatique(etat, rapport, a.note_plus, remplaces, anonyme_absent)
     if a.dry_run:
-        print(json.dumps({"dry_run": True, "record": a.record, "fichier": nom_fichier, "octets": pdf_p.stat().st_size,
-                          "remplacerait": remplaces, "garderait": len(gardes), "note": note}, ensure_ascii=False, indent=2))
+        print(json.dumps({"dry_run": True, "record": a.record,
+                          "fichiers": [{"champ": ch, "fichier": p.name, "octets": p.stat().st_size,
+                                        "garderait": len([x for x in existants[ch]
+                                                          if not NOM_DOSSIER_SARECRUTE.match(x.get("filename") or "")])}
+                                       for ch, p in cibles],
+                          "remplacerait": remplaces, "note": note}, ensure_ascii=False, indent=2))
         return
-    corps = {"contentType": "application/pdf", "filename": nom_fichier,
-             "file": base64.b64encode(pdf_p.read_bytes()).decode()}
-    r = api("POST", f"{BASE}/{a.record}/{F['cv_ia']}/uploadAttachment", body=corps, host="content.airtable.com")
-    apres = (r.get("fields", {}).get(F["cv_ia"]) or r.get("fields", {}).get("CV IA") or [])
-    avant_ids = {x["id"] for x in existants}
-    nouveaux = [x for x in apres if x["id"] not in avant_ids]
-    if not nouveaux:
-        die("dépôt accepté mais pièce jointe introuvable dans la réponse : vérifier la fiche à la main. " + json.dumps(r)[:400])
-    champs = {
-        F["cv_ia"]: gardes + [{"id": nouveaux[-1]["id"]}],
+    champs = {ch: deposer(a.record, ch, p, existants[ch]) for ch, p in cibles}
+    champs.update({
         F["cv_statut"]: "Généré",
         F["cv_genere_le"]: dt.date.today().isoformat(),
         F["cv_note"]: note,
-    }
+    })
     api("PATCH", f"{BASE}/{T_CANDIDATS}/{a.record}", body={"fields": champs})
-    print(json.dumps({"depose": nom_fichier, "octets": pdf_p.stat().st_size, "remplaces": remplaces,
+    print(json.dumps({"deposes": [p.name for _, p in cibles], "remplaces": remplaces,
                       "note": note, "lien": f"https://airtable.com/{BASE}/{T_CANDIDATS}/{a.record}"},
                      ensure_ascii=False, indent=2))
 
@@ -646,9 +765,12 @@ def main():
     sp = p.add_subparsers(dest="cmd", required=True)
     s = sp.add_parser("preparer"); s.add_argument("--dossier", default="work-cv"); s.add_argument("--installer", action="store_true")
     s.set_defaults(fn=cmd_preparer)
-    s = sp.add_parser("fetch"); s.add_argument("record"); s.add_argument("--dossier", default="work-cv"); s.add_argument("--anonyme", action="store_true")
+    s = sp.add_parser("fetch"); s.add_argument("record"); s.add_argument("--dossier", default="work-cv")
     s.set_defaults(fn=cmd_fetch)
+    s = sp.add_parser("anonymiser"); s.add_argument("--dossier", default="work-cv")
+    s.set_defaults(fn=cmd_anonymiser)
     s = sp.add_parser("render"); s.add_argument("--dossier", default="work-cv"); s.add_argument("--template", default=str(TEMPLATE_DEFAUT))
+    s.add_argument("--anonyme", action="store_true")
     s.set_defaults(fn=cmd_render)
     s = sp.add_parser("upload"); s.add_argument("record"); s.add_argument("--dossier", default="work-cv")
     s.add_argument("--note-plus", default=""); s.add_argument("--dry-run", action="store_true")

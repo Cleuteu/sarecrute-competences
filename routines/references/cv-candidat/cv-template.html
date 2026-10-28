@@ -5,7 +5,7 @@
 <title>Dossier de présentation candidat — SaRecrute</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 <script>
 /* ==========================================================================
    BLOC DE DONNEES — la seule zone a editer d'un candidat a l'autre.
@@ -17,22 +17,33 @@
    Un champ Airtable vide reste vide : sa ligne disparait du document.
    ========================================================================== */
 /*DATA-START*/
+// ANONYME = true : aucun nom (le titre prend sa place), aucune coordonnee,
+// aucun employeur. C'est le script qui vide prenom, nom, contact et
+// structures dans le bloc (cv_candidat.py anonymiser) : le template ne fait
+// que ne pas afficher ce qui reste.
 const ANONYME = false;
 
 const CANDIDAT = {
-  reference:   "SR-AAAA-XX",
+  // SR- + les 5 derniers caracteres de l'identifiant du record : la meme
+  // reference sur les deux dossiers, sans initiales, et stable d'une
+  // generation a l'autre.
+  reference:   "SR-XXXXX",
 
   // --- Identite -----------------------------------------------------------
   prenom:      "Prénom",                    // fld1WR6pNpe8sAya6
   nom:         "NOM",                       // fld6yzzWrqBZBtXly
   sousTitre:   "Vétérinaire · Pratique · N ans d'expérience",
                                             // fldizV1UoejwizYSq + fldKxF494zI5Kgc6n + fldSGOptEz0Api4wN
+  // Dossier anonymise seulement : le gros titre a la place du nom, 3 a 8 mots
+  // (« Vétérinaire canine, médecine interne et urgences »), ecrit depuis les
+  // seuls champs de ce bloc. Vide = sous-titre sans les annees.
+  titre:       "",
 
   // 4 lignes maximum. Redigees a partir des seuls champs de la section
   // "Notes et entretiens" : Profil (fldlnO9d1ctGABT9v), Notes (fld0s84U1HdrHKqkg),
   // Notes du candidat (fld8WaHsnucNvdEqW), Transcripts (fldNMVoFoHx3t3O9D).
-  // Jamais depuis "Profil IA", jamais depuis le CV PDF.
-  // Aucun echange interne consultant-client, aucune information perimee.
+  // Jamais depuis "Profil IA", jamais depuis le CV PDF. Jamais de nom de
+  // structure, de ville ou de personne : la meme accroche sert aux deux dossiers.
   accroche:    "Quatre lignes factuelles issues des notes d'entretien : parcours, niveau d'autonomie, ce que le candidat cherche. Pas de superlatif, pas d'adjectif non sourcé.",
 
   // --- Contact (fldmtHKu93RMqkVw6 / fldZ9229oPu876Ls2) ---------------------
@@ -42,7 +53,7 @@ const CANDIDAT = {
     telephone: ""
   },
 
-  // --- Cadre recherche — toute valeur vide masque sa ligne -----------------
+  // --- Cadre recherche (bandeau des reperes) — valeur vide = case absente --
   // "statut" (Statut Recherche) et "enPoste" (En poste ?) ont ete retires du
   // dossier le 07/09/2026 : ne pas les remettre, meme si la fiche les renseigne.
   cadre: {
@@ -50,11 +61,9 @@ const CANDIDAT = {
     disponibilite: "",   // fldlCCJY7quJEqbyv Date de disponibilité
     contrat:       "",   // fldZaUsTcNsN7HlWe Statuts contractuels souhaités
     tempsTravail:  "",   // fldGZhonpYwDW78ze Type de temps de travail
-    gardes:        "",   // fldI1xWGed3dcQIUs + fldZ3kGzgXLhj5UJv
+    gardes:        "",   // fldI1xWGed3dcQIUs + fldZ3kGzgXLhj5UJv (« Oui · fréquence »)
     remuneration:  "",   // fldZZj7aCQpzQKgZx Rémunération souhaitée
-    mobilite:      ""    // NE PAS RENSEIGNER (decision du 27/08/2026) : la ligne
-                         // reste vide et disparait du dossier. La zone de
-                         // recherche se discute de vive voix, pas sur le document.
+    mobilite:      ""    // NE PAS RENSEIGNER (decision du 27/08/2026)
   },
 
   // --- Domaines -----------------------------------------------------------
@@ -63,9 +72,8 @@ const CANDIDAT = {
   recherche:    [],      // fldKxF494zI5Kgc6n Pratiques requises + fldYpaOYuUBHpqlqU Spécialités requises
 
   // --- Formation et diplomes ----------------------------------------------
-  // Une valeur exactement egale a "Oui" sort en pastille verte portant son
-  // intitule ; une valeur detaillee garde un bloc intitule + texte.
-  // Internat et DESV ne se renseignent que positifs : jamais "Non".
+  // Une valeur exactement egale a "Oui" sort en etiquette portant son
+  // intitule ; une valeur detaillee garde un bloc. Jamais "Non".
   formation: {
     ecole:        "",    // fldEUkJLo4ygiEZHZ Ecole véto
     anneeSortie:  "",    // fldp6whT8yfZdETi4 Année de sortie
@@ -79,47 +87,28 @@ const CANDIDAT = {
   langues: [],
 
   // --- Parcours (table Expériences, tblTYdApkiHqKeBVi) --------------------
-  // Un objet par poste, du plus recent au plus ancien :
-  //   poste       = fldKL9vuSGhrwgV4c (Poste)
-  //   structure   = fldZsxMqiU6OuTCBH (Structure)
-  //   periode     = fldblqIgDkZX08ScY (Période)   duree = flduZveIw1rViotNt (Durée)
-  //   description = fldf4RmAB4BbabJgI (Description), SANS la mention de source
-  //                 entre parentheses en fin de champ (« (CV) », « (complément
-  //                 TemaVet du …) ») : c'est de la tracabilite interne.
-  // Ne retiens que les postes en clinique (Salarié, Remplacement). Les stages
-  // d'etudiant et les jobs hors clinique allongent la page sans repondre a la
-  // question que se pose le lecteur. Bloc vide = section absente.
+  // { poste, structure, periode, duree, description }, du plus recent au plus
+  // ancien, propose par le script (cv_candidat.py construire_experiences).
+  // Une description en « a · b · c » sort en liste a tirets. Une ligne
+  // « Stages et postes courts » sans structure prend la pastille creuse.
   experiences: [],
 
-  // --- Bilan de competences ----------------------------------------------
-  // Table Compétences (tblH8Zym1DNu7PN3c), un enregistrement par acte :
-  //   acte    = fldUZQyIvlhNeZhzG (Acte)      espece = fldlREgGF38TczqNi (Espèce)
-  //   famille = fldroKCZqI4OLndpo (Famille), lookup de la famille de l'acte
-  //   niveau  = fld0SGFcuffxHSSq0 (Niveau), valeur Airtable recopiee telle quelle :
-  //   "Autonome" | "Ponctuel" | "En apprentissage" | "Jamais fait" | "Non concerné"
-  // Le regroupement (espece puis famille) et le tri par niveau sont automatiques :
-  // ne les pre-calcule pas, recopie le plat { espece, famille, acte, niveau }.
+  // --- Bilan de competences (table Compétences, tblH8Zym1DNu7PN3c) ---------
+  // A plat { espece, famille, acte, niveau }, niveau recopie tel quel :
+  // "Autonome" | "Ponctuel" | "En apprentissage" | "Jamais fait" | "Non concerné".
+  // Regroupement, tri et decomptes sont automatiques.
   competences: []
 };
 /*DATA-END*/
 
-/* Traduction des niveaux Airtable vers les trois etats lisibles d'un coup d'oeil,
-   plus le nombre de crans allumes de la jauge. "Non concerné" n'est pas affiche.
-   La jauge a trois crans porte les QUATRE niveaux Airtable sans en fondre deux :
-   « Ponctuel » (2 crans) et « En apprentissage » (1 cran) restent distincts, la
-   ou les pastilles les affichaient tous deux en « en cours ». Rien n'est invente
-   pour autant — chaque cran est la recopie d'un Niveau saisi par une recruteuse.
-   Les decomptes, eux, restent sur les trois etats : c'est ce que la clinique
-   compte.
-   La teinte des crans suit la meme progression que le nombre de crans, pour que
-   la jauge se lise autant a la couleur qu'au remplissage : vert (tenu seul),
-   orange (ponctuel), or (en apprentissage), gris (jamais fait). */
+/* Niveaux Airtable -> trois etats (decomptes) et jauge a trois crans (affichage).
+   Voir template-notes.md, « Le bilan de competences ». */
 const NIVEAUX = {
   "Autonome":         { etat:"ok",  rang:0, crans:3, teinte:"t3" },
   "Ponctuel":         { etat:"wip", rang:1, crans:2, teinte:"t2" },
   "En apprentissage": { etat:"wip", rang:2, crans:1, teinte:"t1" },
   "Jamais fait":      { etat:"no",  rang:3, crans:0, teinte:"t0" },
-  "Non évalué":       { etat:"na",  rang:4, crans:0, teinte:"na" },  // referentiel seul, aucune cotation
+  "Non évalué":       { etat:"na",  rang:4, crans:0, teinte:"na" },
   "Non concerné":     { etat:null,  rang:9, crans:0, teinte:null }
 };
 const ETATS = [
@@ -131,11 +120,12 @@ const ETATS = [
 </script>
 <style>
   :root{
-    --sr-cream:#F8F4EA; --sr-paper:#FFFDF8; --sr-forest:#203832; --sr-green:#426354;
-    --sr-sage:#6E9278;  --sr-muted:#64736E; --sr-terracotta:#C87355; --sr-gold:#DCA85E;
-    --sr-orange:#CE8734;   /* cran « ponctuel » : entre l'or et le terracotta */
-    --sr-line:rgba(32,56,50,.11); --sr-line-2:rgba(32,56,50,.18);
-    --sr-wash:rgba(110,146,120,.09);
+    --sr-forest:#203832; --sr-green:#426354; --sr-sage:#6E9278; --sr-muted:#64736E;
+    --sr-terracotta:#C87355; --sr-gold:#DCA85E; --sr-cream:#F8F4EA;
+    --sr-orange:#CE8734;
+    --sr-ink-2:#3B4F49;                       /* texte courant secondaire */
+    --sr-wash:#EEF2EF;                        /* sauge a 12 % sur blanc : bandeau des reperes */
+    --sr-line:rgba(32,56,50,.12);
     --scale:1;
   }
   @page{ size:A4; margin:0; }
@@ -146,346 +136,267 @@ const ETATS = [
     color:var(--sr-forest); -webkit-font-smoothing:antialiased;
     display:flex; justify-content:center; padding:18px 0;
   }
-
   .page{
-    width:210mm; height:297mm; background:var(--sr-cream);
+    width:210mm; height:297mm; background:#fff;
     position:relative; overflow:hidden;
     display:flex; flex-direction:column;
     box-shadow:0 10px 34px rgba(32,56,50,.16);
   }
+  .serif{ font-family:Fraunces,Georgia,serif; }
 
-  /* ---------- Bandeau ---------- */
-  .band{
-    height:32mm; flex:0 0 32mm; background:var(--sr-green);
-    display:flex; align-items:center; justify-content:space-between;
-    padding:0 14mm; color:var(--sr-cream);
+  /* ---------- En-tete sombre ----------
+     Le logo est dessine en SVG sur le fond meme du bandeau : pas d'image
+     collee avec son propre fond (le rectangle visible de la reference), et il
+     s'aligne sur la meme marge de 14 mm que tout le reste. */
+  .hero{
+    flex:0 0 auto; background:var(--sr-forest); color:var(--sr-cream);
+    padding:calc(8mm * var(--scale)) 14mm calc(6.5mm * var(--scale));
   }
-  .brand{ display:flex; align-items:center; gap:9px; }
-  .brand svg{ width:46px; height:31px; display:block; }
+  .hero-top{ display:flex; justify-content:space-between; align-items:center; }
+  .brand{ display:flex; align-items:center; gap:calc(2.2mm * var(--scale)); }
+  .brand svg{ width:calc(8.6mm * var(--scale)); height:auto; display:block; }
   .wordmark{
-    font-family:Fraunces,Georgia,serif; font-weight:600; font-size:20.5px;
-    letter-spacing:-.03em; color:var(--sr-cream); line-height:1;
+    font-family:Fraunces,Georgia,serif; font-weight:600;
+    font-size:calc(17px * var(--scale)); letter-spacing:-.025em; line-height:1;
   }
   .wordmark .r{ color:var(--sr-terracotta); }
-  .band-label{
-    font-size:9.5px; letter-spacing:.10em; text-transform:uppercase;
-    font-weight:600; color:rgba(248,244,234,.82); text-align:right; line-height:1.5;
+  .ref{ text-align:right; line-height:1.25; }
+  .k{
+    display:block; font-size:calc(7.2px * var(--scale)); font-weight:600;
+    letter-spacing:.16em; text-transform:uppercase; color:rgba(248,244,234,.55);
   }
-  .band-label .ref{ display:block; color:rgba(248,244,234,.55); letter-spacing:.06em; }
-
-  /* ---------- Corps ---------- */
-  .body{
-    flex:1 1 auto; min-height:0; padding:calc(7mm * var(--scale)) 14mm 0;
-    display:flex; flex-direction:column;
+  .ref b{
+    display:block; margin-top:calc(.6mm * var(--scale));
+    font-size:calc(10.4px * var(--scale)); font-weight:700; letter-spacing:.07em;
   }
 
-  .identity{ padding-bottom:calc(4.4mm * var(--scale)); border-bottom:1px solid var(--sr-line); }
+  .hero-main{ margin-top:calc(7mm * var(--scale)); }
+  /* Le contact se range a droite du nom, pas de l'accroche : l'accroche garde
+     toute la largeur et tient en quatre lignes. */
+  .hero-row{ display:flex; justify-content:space-between; align-items:flex-end; gap:10mm; }
+  .hero-id{ flex:1 1 auto; min-width:0; }
+  .eyebrow{
+    font-size:calc(8.4px * var(--scale)); font-weight:600; letter-spacing:.15em;
+    text-transform:uppercase; color:var(--sr-gold);
+  }
   .name{
     font-family:Fraunces,Georgia,serif; font-weight:600;
-    font-size:calc(31px * var(--scale)); letter-spacing:-.02em;
-    line-height:1.06; color:var(--sr-forest);
+    font-size:calc(29px * var(--scale)); letter-spacing:-.02em; line-height:1.05;
+    margin-top:calc(2.2mm * var(--scale)); color:#fff;
   }
-  .subtitle{
-    font-weight:500; font-size:calc(11.6px * var(--scale)); color:var(--sr-terracotta);
-    margin-top:calc(2.2mm * var(--scale)); letter-spacing:.005em;
-  }
-  /* Fer a gauche, pas justifie : sur quatre lignes, la justification ouvre
-     des rivieres de blanc qui coutent plus en lecture qu'un bord droit irregulier. */
+  /* Le titre metier du dossier anonymise est plus long qu'un nom : il passe
+     sur deux lignes plutot que de courir sur toute la largeur. */
+  .name.titre{ max-width:150mm; font-size:calc(26px * var(--scale)); line-height:1.12; text-wrap:balance; }
+  /* Fer a gauche : la justification ouvre des rivieres sur quatre lignes. */
   .accroche{
-    margin-top:calc(3.2mm * var(--scale));
-    font-size:calc(10.2px * var(--scale)); line-height:1.55; color:#2F433D;
-    max-width:172mm; text-align:left;
+    margin-top:calc(3.2mm * var(--scale)); max-width:176mm;
+    font-size:calc(10.2px * var(--scale)); line-height:1.55; color:rgba(248,244,234,.82);
+  }
+  .contact{ flex:0 0 auto; text-align:right; padding-bottom:calc(.4mm * var(--scale)); }
+  .contact .v{
+    display:block; margin-top:calc(.9mm * var(--scale));
+    font-size:calc(9.4px * var(--scale)); line-height:1.35; color:rgba(248,244,234,.92);
+    white-space:nowrap;
   }
 
-  .cols{
-    flex:1 1 auto; min-height:0; display:flex; gap:calc(7mm * var(--scale));
-    padding-top:calc(4.6mm * var(--scale));
+  /* Trois tiers egaux : dans la reference les segments ne suivaient aucune grille. */
+  .tri{ flex:0 0 auto; display:flex; height:calc(2.2mm * var(--scale)); }
+  .tri i{ flex:1 1 0; }
+  .tri i:nth-child(1){ background:var(--sr-sage); }
+  .tri i:nth-child(2){ background:var(--sr-terracotta); }
+  .tri i:nth-child(3){ background:var(--sr-gold); }
+
+  /* ---------- Reperes (cadre recherche) ----------
+     Chaque case apres la premiere porte son filet ET une marge interieure : le
+     texte ne touche plus le separateur. Une valeur courte garde sa largeur
+     naturelle (elle ne passe jamais a la ligne) ; les valeurs longues se
+     partagent le reste. Une fiche a deux cases ne s'etire donc pas. */
+  .facts{
+    flex:0 0 auto; background:var(--sr-wash);
+    padding:calc(4.2mm * var(--scale)) 14mm calc(4.4mm * var(--scale));
+    display:flex; align-items:stretch;
   }
-  /* 54mm et non 62 : la colonne laterale ne remplit jamais sa hauteur, alors
-     que la colonne principale, elle, paie chaque retour a la ligne. Les
-     millimetres rendus au bilan financent la lisibilite des competences. */
-  .aside{ flex:0 0 54mm; width:54mm; }
+  .fact{ flex:0 0 auto; min-width:calc(22mm * var(--scale)); white-space:nowrap; }
+  .fact.long{ flex:1 1 0; min-width:calc(30mm * var(--scale)); max-width:64mm; white-space:normal; }
+  .fact + .fact{
+    border-left:1px solid rgba(110,146,120,.32);
+    margin-left:calc(3.4mm * var(--scale)); padding-left:calc(3.4mm * var(--scale));
+  }
+  .fact .k{ color:var(--sr-sage); letter-spacing:.13em; font-size:calc(7.4px * var(--scale)); }
+  .fact .v1{
+    display:block; margin-top:calc(1.3mm * var(--scale));
+    font-size:calc(10px * var(--scale)); font-weight:600; line-height:1.32; color:var(--sr-forest);
+  }
+  .fact .v2{
+    display:block; margin-top:calc(.4mm * var(--scale));
+    font-size:calc(9.2px * var(--scale)); font-weight:500; line-height:1.32; color:#4C5F59;
+  }
+
+  /* ---------- Corps a deux colonnes ---------- */
+  .body{
+    flex:1 1 auto; min-height:0; padding:calc(6.5mm * var(--scale)) 14mm 0;
+    display:flex; flex-direction:column;
+  }
+  .cols{ flex:1 1 auto; min-height:0; display:flex; gap:calc(9mm * var(--scale)); }
   .main{ flex:1 1 auto; min-width:0; }
+  .aside{ flex:0 0 64mm; width:64mm; }
 
-  .label{
-    font-size:calc(9.8px * var(--scale)); text-transform:uppercase; font-weight:600;
-    letter-spacing:.09em; color:var(--sr-muted);
-    margin-bottom:calc(2.4mm * var(--scale));
+  .block + .block{ margin-top:calc(5.6mm * var(--scale)); }
+  .h{
+    display:flex; align-items:baseline; gap:calc(2.4mm * var(--scale));
+    border-bottom:1px solid var(--sr-terracotta);
+    padding-bottom:calc(1.5mm * var(--scale)); margin-bottom:calc(3.2mm * var(--scale));
   }
-  .main .label{ letter-spacing:.10em; }
-  .block + .block{ margin-top:calc(3.4mm * var(--scale)); }
+  .h .t{
+    font-family:Fraunces,Georgia,serif; font-weight:600;
+    font-size:calc(13.4px * var(--scale)); letter-spacing:-.01em; line-height:1.15;
+  }
+  .h .tag{
+    font-size:calc(7.2px * var(--scale)); font-weight:600; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--sr-sage);
+  }
 
-  /* --- carte laterale --- */
-  .card{
-    background:var(--sr-paper); border:1px solid var(--sr-line);
-    border-radius:14px; padding:calc(3.1mm * var(--scale)) calc(3.8mm * var(--scale));
+  /* ---------- Parcours : frise ----------
+     Un seul code couleur : pastille terracotta pleine pour un poste, pastille
+     creuse pour la ligne qui regroupe stages et postes courts. Dans la
+     reference, les couleurs alternaient sans rien signifier. Un filet relie
+     les pastilles. */
+  .tl-i{ position:relative; padding-left:calc(5.6mm * var(--scale)); }
+  .tl-i + .tl-i{ margin-top:calc(3.6mm * var(--scale)); }
+  .tl-i::before{
+    content:""; position:absolute; left:0; top:calc(.9mm * var(--scale));
+    width:calc(2.1mm * var(--scale)); height:calc(2.1mm * var(--scale));
+    border-radius:50%; background:var(--sr-terracotta);
   }
-  .card.soft{ background:var(--sr-wash); border-color:rgba(110,146,120,.20); }
-  /* Intitule et valeur sur la meme ligne (intitule a gauche, 19,5 mm) : la
-     carte du cadre passe de douze lignes a huit, et c'est elle qui bride la
-     page. Les millimetres rendus financent un corps de texte plus grand
-     partout. */
-  .kv{
-    display:grid; grid-template-columns:calc(19.5mm * var(--scale)) 1fr;
-    column-gap:calc(1.8mm * var(--scale)); align-items:baseline;
+  .tl-i.groupe::before{ background:#fff; box-shadow:inset 0 0 0 1.5px var(--sr-sage); }
+  .tl-i:not(:last-child)::after{
+    content:""; position:absolute; left:calc(1.05mm * var(--scale) - .5px);
+    top:calc(3.6mm * var(--scale)); bottom:calc(-3.1mm * var(--scale));
+    width:1px; background:rgba(200,115,85,.28);
   }
-  /* Un intitule long ou une valeur longue (plus de 13 / 18 caracteres, decide
-     au rendu) reprend la forme empilee : intitule au-dessus, valeur pleine
-     largeur, plutot qu'une valeur hachee sur quatre lignes dans 24 mm. */
-  .kv.long{ grid-template-columns:1fr; row-gap:calc(.2mm * var(--scale)); }
-  .kv + .kv{ margin-top:calc(1.25mm * var(--scale)); }
-  .kv dt{
-    font-size:calc(7.6px * var(--scale)); text-transform:uppercase; font-weight:600;
-    letter-spacing:.05em; color:var(--sr-muted); line-height:1.4; white-space:nowrap;
+  .tl-d{
+    font-size:calc(7.8px * var(--scale)); font-weight:700; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--sr-terracotta); line-height:1.3;
+    margin-bottom:calc(.7mm * var(--scale));
   }
-  .kv dd{ font-size:calc(9.6px * var(--scale)); line-height:1.4; color:var(--sr-forest); }
-  /* Contact : une ligne par coordonnee, sans intitule — un e-mail et un
-     numero de telephone se reconnaissent seuls. Corps un peu plus petit et
-     marges reduites : une adresse de 30 caracteres doit tenir sur sa ligne. */
-  .card.contact{ padding-left:calc(3mm * var(--scale)); padding-right:calc(3mm * var(--scale)); }
-  .ct{
-    font-size:calc(9.2px * var(--scale)); line-height:1.45; letter-spacing:-.01em;
-    color:var(--sr-forest); overflow-wrap:anywhere;
+  .tl-i.groupe .tl-d{ color:var(--sr-sage); }
+  .tl-d .du{ color:var(--sr-muted); font-weight:600; }
+  .tl-t{ font-size:calc(10.8px * var(--scale)); font-weight:600; line-height:1.3; }
+  .tl-s{ font-size:calc(9.4px * var(--scale)); font-style:italic; color:var(--sr-muted); line-height:1.35; margin-top:calc(.2mm * var(--scale)); }
+  .tl-x{ margin-top:calc(1mm * var(--scale)); }
+  .tl-x li{
+    list-style:none; position:relative; padding-left:calc(3.6mm * var(--scale));
+    font-size:calc(9.3px * var(--scale)); line-height:1.45; color:var(--sr-ink-2);
   }
-  .ct + .ct{ margin-top:calc(.9mm * var(--scale)); }
+  .tl-x li + li{ margin-top:calc(.4mm * var(--scale)); }
+  .tl-x li::before{ content:"—"; position:absolute; left:0; color:var(--sr-muted); }
 
-  .pills{ display:flex; flex-wrap:wrap; gap:calc(1.5mm * var(--scale)); }
-  .pills + .sublabel{ margin-top:calc(2mm * var(--scale)); }
-  .pills.apres{ margin-top:calc(1.8mm * var(--scale)); }
-  .sublabel{
-    font-size:calc(8.2px * var(--scale)); text-transform:uppercase; font-weight:600;
-    letter-spacing:.07em; color:var(--sr-muted); margin-bottom:calc(1.4mm * var(--scale));
+  /* ---------- Formation ---------- */
+  .ed + .ed{ margin-top:calc(2.6mm * var(--scale)); }
+  .ed-d{
+    font-size:calc(7.8px * var(--scale)); font-weight:700; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--sr-sage); margin-bottom:calc(.5mm * var(--scale));
   }
-  .pill{
-    display:inline-block; border-radius:999px; padding:calc(1.1mm * var(--scale)) calc(2.6mm * var(--scale));
-    font-size:calc(8.8px * var(--scale)); font-weight:500; line-height:1.35;
-    background:var(--sr-paper); border:1px solid var(--sr-line-2); color:var(--sr-green);
+  .ed-t{ font-size:calc(10.2px * var(--scale)); font-weight:600; line-height:1.3; }
+  .ed-s{ font-size:calc(9.3px * var(--scale)); color:var(--sr-ink-2); line-height:1.4; }
+  .badges{ display:flex; flex-wrap:wrap; gap:calc(1.4mm * var(--scale)); margin-top:calc(2.6mm * var(--scale)); }
+
+  /* ---------- Etiquettes ----------
+     Coins arrondis (1,6 mm), pas de pilule : c'est le dessin de la reference. */
+  .chip{
+    display:inline-flex; align-items:center; gap:calc(1.4mm * var(--scale));
+    border-radius:calc(1.6mm * var(--scale));
+    padding:calc(1.15mm * var(--scale)) calc(2.3mm * var(--scale));
+    font-size:calc(8.9px * var(--scale)); font-weight:600; line-height:1.25;
+    background:var(--sr-wash); color:#2E4B3F;
   }
-  .pill.accent{ background:rgba(110,146,120,.15); border-color:rgba(110,146,120,.38); color:#2E4B3F; }
+  .chip.out{ background:#fff; box-shadow:inset 0 0 0 1px rgba(110,146,120,.45); color:var(--sr-green); }
+  .chips{ display:flex; flex-wrap:wrap; gap:calc(1.4mm * var(--scale)); }
 
-  .lang{ font-size:calc(9.6px * var(--scale)); line-height:1.55; color:var(--sr-forest); }
-
-  .edu + .edu{ margin-top:calc(1.3mm * var(--scale)); }
-  .edu-t{ font-size:calc(9.6px * var(--scale)); font-weight:600; line-height:1.35; }
-  .edu-s{ font-size:calc(9px * var(--scale)); color:#4C5F59; line-height:1.4; }
-
-  /* ---------- Bilan de competences ---------- */
-  .bil-head{
-    display:flex; justify-content:space-between; align-items:baseline;
-    gap:4mm; margin-bottom:calc(2.4mm * var(--scale));
-  }
-  .bil-head .label{ margin-bottom:0; white-space:nowrap; }
-  /* La legende porte quatre niveaux, jauge comprise : elle doit pouvoir passer
-     a la ligne, sinon le dernier sort du cadre sans laisser de trace. */
+  /* ---------- Bilan de competences ----------
+     La couleur de l'etiquette porte le niveau, et la jauge la repete (lisible
+     sans la couleur) ; la legende sous le titre dit ce que chaque teinte veut
+     dire. Dans la reference, deux teintes sans legende. Le terracotta reste
+     hors des competences : il s'y lirait comme une alerte. */
   .legend{
-    display:flex; flex-wrap:wrap; justify-content:flex-end;
-    gap:calc(1mm * var(--scale)) calc(2.6mm * var(--scale)); align-items:center;
+    display:flex; flex-wrap:wrap; gap:calc(1mm * var(--scale)) calc(3mm * var(--scale));
+    margin:calc(-1.2mm * var(--scale)) 0 calc(3mm * var(--scale));
   }
   .lg{
-    display:flex; align-items:center; gap:calc(1.1mm * var(--scale));
-    font-size:calc(7.8px * var(--scale)); font-weight:600; letter-spacing:.05em;
+    display:inline-flex; align-items:center; gap:calc(1.1mm * var(--scale));
+    font-size:calc(7.2px * var(--scale)); font-weight:600; letter-spacing:.06em;
     text-transform:uppercase; color:var(--sr-muted); white-space:nowrap;
   }
-
-  .dot{
-    flex:0 0 auto; display:inline-block; border-radius:999px;
-    width:calc(1.7mm * var(--scale)); height:calc(1.7mm * var(--scale));
-  }
-  .ok  .dot{ background:var(--sr-sage); }
-  .wip .dot{ background:var(--sr-gold); }
-  .no  .dot{ background:transparent; box-shadow:inset 0 0 0 1px rgba(32,56,50,.34); }
-  .na  .dot{ background:transparent; box-shadow:inset 0 0 0 1px rgba(32,56,50,.20); }
-
-  /* Une espece = un bloc, ouvert par un bandeau qui porte le chiffre que la
-     clinique cherche : combien d'actes tenus seul. */
-  .grp + .grp{ margin-top:calc(2.4mm * var(--scale)); }
-  .grp-t{
-    display:flex; align-items:center; gap:calc(2.2mm * var(--scale));
-    margin-bottom:calc(1.3mm * var(--scale));
-    border-bottom:1px solid var(--sr-line-2); padding-bottom:calc(.9mm * var(--scale));
-  }
-  .grp-n{
-    font-family:"Fraunces", Georgia, serif;
-    font-size:calc(12.5px * var(--scale)); font-weight:600; letter-spacing:-.015em;
-    line-height:1.2; color:var(--sr-forest);
-  }
-  /* Les decomptes se lisent a cote du nom de l'espece, en texte. Chiffres en
-     noir : ce sont des quantites, pas des etats — l'etat est deja porte par le
-     libelle qui suit et par la couleur des pastilles en dessous. Pas de
-     pastille ici non plus, elles entreraient en concurrence avec les actes. */
-  .grp-c{ display:flex; align-items:baseline; gap:calc(2mm * var(--scale)); }
-  .cnt{
-    display:inline-flex; align-items:baseline; gap:calc(.8mm * var(--scale));
-    font-size:calc(7.8px * var(--scale)); font-weight:500; letter-spacing:.02em;
-    white-space:nowrap; color:var(--sr-muted);
-  }
-  .cnt b{
-    font-size:calc(10.2px * var(--scale)); font-weight:700; letter-spacing:-.01em;
-    color:var(--sr-forest);
-  }
-  /* en mode de secours, le bandeau rend aussi ses millimetres */
-  .grp.compact + .grp.compact{ margin-top:calc(2mm * var(--scale)); }
-  .grp.compact .grp-t{ border-bottom:0; padding-bottom:0; margin-bottom:calc(.9mm * var(--scale)); }
-  .grp.compact .grp-n{ font-size:calc(10.4px * var(--scale)); }
-
-  /* --- Variante « jauge » : un acte par ligne, note sur trois points --------
-     Le bilan se lit comme un releve : l'acte a gauche, sa jauge a droite. Les
-     jauges s'alignent en colonne, donc le niveau se lit verticalement sans
-     lire un seul intitule. La famille devient un intertitre suivi d'un filet,
-     au lieu d'un element mele aux actes.
-     Le referentiel compte une cinquantaine d'actes : a une ligne par acte, la
-     colonne principale est montee sur DEUX colonnes typographiques, chaque
-     espece formant un bloc insecable. */
-  .bilan{ column-count:2; column-gap:calc(5.5mm * var(--scale)); }
-  /* Un bilan peu fourni ne se met pas sur deux colonnes : la seconde se
-     retrouve avec une espece et deux lignes, et le vide a cote se lit comme
-     une erreur de mise en page plutot que comme une fiche peu qualifiee. */
-  .bilan.mono{ column-count:1; }
-  .grp{ break-inside:avoid; page-break-inside:avoid; }
-  .grp:first-child .grp-t{ margin-top:0; }
-
-  .fam{ margin-top:calc(1.5mm * var(--scale)); }
-  .grp .fam:first-of-type{ margin-top:calc(.9mm * var(--scale)); }
-  /* intitule de famille suivi d'un filet qui file jusqu'au bord de la colonne */
-  /* La famille est un bandeau, pas une ligne de texte : sur un relevé de
-     cinquante actes, un intitulé qui ne se distingue que par sa couleur se
-     noie. Le fond sauge pâle découpe la colonne en sections qu'on repère sans
-     lire, et c'est ce qui permet d'aller droit à « chirurgie de convenance »
-     ou « imagerie » quand on cherche un geste précis. */
+  .grp + .grp{ margin-top:calc(3.4mm * var(--scale)); }
+  .grp-t{ display:flex; align-items:baseline; justify-content:space-between; gap:2mm; margin-bottom:calc(1.6mm * var(--scale)); }
+  .grp-n{ font-family:Fraunces,Georgia,serif; font-weight:600; font-size:calc(11.4px * var(--scale)); line-height:1.2; }
+  .grp-c{ display:flex; gap:calc(2mm * var(--scale)); }
+  .cnt{ font-size:calc(7.6px * var(--scale)); font-weight:500; color:var(--sr-muted); white-space:nowrap; }
+  .cnt b{ font-size:calc(9.6px * var(--scale)); font-weight:700; color:var(--sr-forest); margin-right:.6mm; }
+  .fam + .fam{ margin-top:calc(2mm * var(--scale)); }
   .fam-t{
-    font-size:calc(7.6px * var(--scale)); font-weight:700; line-height:1.25;
-    letter-spacing:.04em; text-transform:uppercase; color:var(--sr-forest);
-    background:rgba(110,146,120,.16);
-    border-radius:calc(1mm * var(--scale));
-    padding:calc(.5mm * var(--scale)) calc(1.5mm * var(--scale));
-    margin-bottom:calc(.8mm * var(--scale));
+    font-size:calc(7px * var(--scale)); font-weight:700; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--sr-muted); margin-bottom:calc(1mm * var(--scale));
   }
+  .li.t3{ background:#E3ECE5; color:#24402F; }
+  .li.t2{ background:#FBEEDC; color:#73501C; }
+  .li.t1{ background:#FCF5E7; color:#7A6230; }
+  .li.t0, .li.na{ background:#fff; box-shadow:inset 0 0 0 1px var(--sr-line); color:var(--sr-muted); font-weight:500; }
 
-  /* Une ligne d'acte : la jauge D'ABORD, puis le libelle. La jauge a droite
-     mettait dix centimetres entre l'acte et son niveau sur une colonne pleine
-     largeur ; collee au libelle, elle se lit comme une puce, et les jauges
-     restent alignees verticalement comme dans la legende. */
-  .li{
-    display:flex; align-items:center; gap:calc(1.8mm * var(--scale));
-    font-size:calc(9.2px * var(--scale)); line-height:1.35; color:var(--sr-forest);
-  }
-  .li + .li{ margin-top:calc(.6mm * var(--scale)); }
-  .li .nom{ flex:1 1 auto; min-width:0; overflow-wrap:break-word; }
-  /* Bilan sur une colonne (24 actes au plus) : la famille devient un intitule
-     a gauche (30 mm) et ses actes coulent a droite, plusieurs par ligne. Dix
-     actes ne justifient pas sept bandeaux pleine largeur ; une famille = une
-     ligne, separee de la suivante par un filet, se parcourt d'un regard. */
-  .bilan.mono .fam{
-    display:grid; grid-template-columns:calc(32mm * var(--scale)) 1fr;
-    column-gap:calc(3mm * var(--scale)); align-items:start;
-    margin-top:0; padding:calc(1.1mm * var(--scale)) 0;
-    border-bottom:1px solid var(--sr-line);
-  }
-  .bilan.mono .grp .fam:first-of-type{ margin-top:0; }
-  .bilan.mono .grp .fam:last-of-type{ border-bottom:0; }
-  .bilan.mono .fam-t{
-    background:none; border-radius:0; padding:calc(.45mm * var(--scale)) 0 0;
-    margin:0; color:var(--sr-muted); letter-spacing:.04em;
-    font-size:calc(7.3px * var(--scale));
-  }
-  .bilan.mono .fam-l{
-    display:flex; flex-wrap:wrap; gap:calc(.7mm * var(--scale)) calc(4.5mm * var(--scale));
-  }
-  .bilan.mono .li{ flex:0 0 auto; }
-  .bilan.mono .li + .li{ margin-top:0; }
-  .bilan.mono .li .nom{ flex:0 0 auto; }
-  .li.no .nom{ color:var(--sr-muted); }
-  .li.na .nom{ color:var(--sr-muted); }
-
-  .jauge{ flex:0 0 auto; display:flex; gap:calc(.75mm * var(--scale)); }
+  .jauge{ flex:0 0 auto; display:inline-flex; gap:calc(.55mm * var(--scale)); }
   .jauge i{
-    display:block; border-radius:999px;
-    width:calc(1.6mm * var(--scale)); height:calc(1.6mm * var(--scale));
-    background:rgba(32,56,50,.13);            /* cran eteint */
+    display:block; border-radius:50%;
+    width:calc(1.25mm * var(--scale)); height:calc(1.25mm * var(--scale));
+    background:rgba(32,56,50,.16);
   }
-  /* Degrade des crans allumes, du plus tenu au moins tenu. L'orange est un ton
-     propre a la jauge, volontairement distinct du terracotta de la marque : le
-     terracotta reste au logo et au sous-titre metier, et se lirait comme une
-     alerte sur une competence. */
   .jauge.t3 i.on{ background:var(--sr-green); }
   .jauge.t2 i.on{ background:var(--sr-orange); }
   .jauge.t1 i.on{ background:var(--sr-gold); }
-  .jauge.na i{ background:transparent; box-shadow:inset 0 0 0 1px rgba(32,56,50,.20); }
+  .jauge.na i{ background:transparent; box-shadow:inset 0 0 0 1px rgba(32,56,50,.22); }
 
-  /* Les non acquis restent affiches — l'honnetete sur les limites est ce qui
-     rend le reste credible — mais en fin de bloc et en retrait : une ligne de
-     texte, pas une pastille de plus a trier du regard. */
-  /* --- Parcours : une frise, un poste par bloc, sous le bilan --------------
-     Colonne de gauche (27 mm) : la duree en gras, la periode dessous en gris ;
-     c'est ce que le lecteur cherche d'abord — la duree dit la stabilite — et
-     en colonne, les durees se comparent d'un coup d'oeil. A droite, l'intitule
-     et la structure sur une ligne pleine largeur (plus de titre casse en deux
-     par une date), puis la description. */
-  .exp{
-    display:grid; grid-template-columns:calc(27mm * var(--scale)) 1fr;
-    column-gap:calc(3.5mm * var(--scale)); align-items:start;
+  /* bilan dense, dans la colonne large : une famille = une ligne filetee */
+  .dense .main .fam{
+    display:grid; grid-template-columns:calc(30mm * var(--scale)) 1fr;
+    column-gap:calc(3mm * var(--scale)); align-items:start;
+    padding:calc(1.1mm * var(--scale)) 0; border-top:1px solid var(--sr-line);
   }
-  .exp + .exp{ margin-top:calc(2.1mm * var(--scale)); }
-  .exp-q{ padding-top:calc(.2mm * var(--scale)); }
-  .exp-q .duree{
-    display:block; font-size:calc(9.2px * var(--scale)); font-weight:600;
-    line-height:1.3; color:var(--sr-forest);
-  }
-  .exp-q .periode{
-    display:block; font-size:calc(7.9px * var(--scale)); font-weight:500;
-    line-height:1.3; color:var(--sr-muted);
-  }
-  .exp-t{
-    display:flex; flex-wrap:wrap; align-items:baseline; gap:0 calc(2.4mm * var(--scale));
-    font-size:calc(9.2px * var(--scale)); line-height:1.3; color:var(--sr-forest);
-  }
-  .exp-t b{ font-weight:600; }
-  .exp-t .ou{ font-weight:500; color:var(--sr-green); }
-  .exp-d{
-    font-size:calc(8.6px * var(--scale)); line-height:1.42; color:#4C5F59;
-    margin-top:calc(.5mm * var(--scale));
-  }
+  .dense .main .fam + .fam{ margin-top:0; }
+  .dense .main .fam-t{ margin:calc(1.2mm * var(--scale)) 0 0; }
+  .dense .main .grp-t{ justify-content:flex-start; gap:calc(4mm * var(--scale)); margin-bottom:calc(.6mm * var(--scale)); }
 
-  .nonac{
-    margin-top:calc(1.4mm * var(--scale));
-    font-size:calc(7.9px * var(--scale)); line-height:1.4; color:var(--sr-muted);
-  }
-  .nonac b{
-    font-weight:600; letter-spacing:.05em; text-transform:uppercase;
-    font-size:calc(7px * var(--scale)); color:var(--sr-muted);
-  }
+  /* mode compact (secours d'un bilan qui deborde) : une ligne par etat */
+  .grp.compact + .grp.compact{ margin-top:calc(2.4mm * var(--scale)); }
+  .cl{ display:flex; gap:calc(1.6mm * var(--scale)); font-size:calc(8.6px * var(--scale)); line-height:1.45; }
+  .cl + .cl{ margin-top:calc(.8mm * var(--scale)); }
+  .cl .jauge{ margin-top:calc(1.2mm * var(--scale)); }
+  .cl.no span, .cl.na span{ color:var(--sr-muted); }
 
-  /* mode compact : une ligne de texte par etat, utilise si les pastilles debordent */
-  .cl{
-    font-size:calc(9px * var(--scale)); line-height:1.5;
-    display:flex; gap:calc(1.6mm * var(--scale)); align-items:flex-start;
+  .sub{
+    font-size:calc(7px * var(--scale)); font-weight:700; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--sr-muted); margin-bottom:calc(1.2mm * var(--scale));
   }
-  .cl + .cl{ margin-top:calc(.7mm * var(--scale)); }
-  .cl .dot{ margin-top:calc(1.5mm * var(--scale)); }
-  .cl .fam-i{
-    font-weight:600; letter-spacing:.06em; text-transform:uppercase;
-    font-size:calc(7.1px * var(--scale)); color:var(--sr-muted);
-  }
-  .cl.ok  span{ color:#2E4B3F; }
-  .cl.wip span{ color:#7A5620; }
-  .cl.no  span{ color:var(--sr-muted); }
-  .cl.na  span{ color:var(--sr-muted); }
+  .chips + .sub{ margin-top:calc(2.4mm * var(--scale)); }
+
+  /* Langues : noms seuls (jamais de niveau), une ligne filetee chacune */
+  .lang{ font-size:calc(9.6px * var(--scale)); font-weight:600; line-height:1.3; padding:calc(1.5mm * var(--scale)) 0; }
+  .lang + .lang{ border-top:1px solid var(--sr-line); }
 
   .empty{
-    border:1px dashed var(--sr-line-2); border-radius:12px;
-    padding:calc(3.4mm * var(--scale)) calc(4mm * var(--scale));
-    font-size:calc(9px * var(--scale)); line-height:1.5; color:var(--sr-muted);
+    border:1px dashed rgba(32,56,50,.22); border-radius:calc(1.6mm * var(--scale));
+    padding:calc(3mm * var(--scale)) calc(3.4mm * var(--scale));
+    font-size:calc(8.8px * var(--scale)); line-height:1.5; color:var(--sr-muted);
   }
 
   /* ---------- Pied ---------- */
   .foot{
-    flex:0 0 auto; margin:0 14mm; padding:calc(2.6mm * var(--scale)) 0 calc(5.5mm * var(--scale));
+    flex:0 0 auto; margin:0 14mm; padding:calc(2.6mm * var(--scale)) 0 calc(5.4mm * var(--scale));
     border-top:1px solid var(--sr-line);
     display:flex; justify-content:space-between; align-items:center; gap:6mm;
-    font-size:calc(8px * var(--scale)); letter-spacing:.055em; text-transform:uppercase;
+    font-size:calc(7.4px * var(--scale)); letter-spacing:.08em; text-transform:uppercase;
     font-weight:500; color:var(--sr-muted);
   }
   .foot .sep{ color:var(--sr-sage); }
+  .foot b{ font-weight:700; color:var(--sr-sage); }
 
   @media print{
     html,body{ background:#fff; padding:0; }
@@ -496,31 +407,38 @@ const ETATS = [
 <body>
 <div class="page" id="page">
 
-  <header class="band">
-    <div class="brand">
-      <svg viewBox="0 0 120 80" xmlns="http://www.w3.org/2000/svg" aria-label="SaRecrute">
-        <path d="M60 18a24 24 0 0 1 0 44 24 24 0 0 1 0-44z" fill="#426354"/>
-        <circle cx="46" cy="40" r="24" fill="none" stroke="#6E9278" stroke-width="7"/>
-        <circle cx="74" cy="40" r="24" fill="none" stroke="#C87355" stroke-width="7"/>
-      </svg>
-      <div class="wordmark">Sa<span class="r">R</span>ecrute</div>
+  <header class="hero">
+    <div class="hero-top">
+      <div class="brand">
+        <!-- viewBox recadre au trait exterieur des anneaux : sans quoi le logo
+             rentre de 2 mm par rapport a la marge, comme dans la reference -->
+        <svg viewBox="18.5 12.5 83 55" xmlns="http://www.w3.org/2000/svg" aria-label="SaRecrute">
+          <path d="M60 18a24 24 0 0 1 0 44 24 24 0 0 1 0-44z" fill="#426354"/>
+          <circle cx="46" cy="40" r="24" fill="none" stroke="#6E9278" stroke-width="7"/>
+          <circle cx="74" cy="40" r="24" fill="none" stroke="#C87355" stroke-width="7"/>
+        </svg>
+        <span class="wordmark">Sa<span class="r">R</span>ecrute</span>
+      </div>
+      <div class="ref"><span class="k">Dossier de présentation</span><b id="ref"></b></div>
     </div>
-    <div class="band-label">
-      Dossier de présentation candidat
-      <span class="ref" id="ref"></span>
+    <div class="hero-main">
+      <div class="hero-row">
+        <div class="hero-id">
+          <div class="eyebrow" id="eyebrow"></div>
+          <h1 class="name" id="name"></h1>
+        </div>
+        <div class="contact" id="contact"></div>
+      </div>
+      <p class="accroche" id="accroche"></p>
     </div>
   </header>
+  <div class="tri"><i></i><i></i><i></i></div>
+  <section class="facts" id="facts"></section>
 
   <div class="body" id="fit">
-    <section class="identity">
-      <h1 class="name" id="name"></h1>
-      <div class="subtitle" id="subtitle"></div>
-      <p class="accroche" id="accroche"></p>
-    </section>
-
     <div class="cols">
-      <aside class="aside" id="aside"></aside>
       <main class="main" id="main"></main>
+      <aside class="aside" id="aside"></aside>
     </div>
   </div>
 
@@ -534,268 +452,214 @@ const ETATS = [
 (function(){
   const esc = s => String(s == null ? "" : s)
     .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  // Espace fine insecable devant % : « +25 % » ne se casse plus en « +25 » / « % ».
+  const typo = s => esc(s).replace(/ (%|€)/g, "\u202F$1");
   const C = CANDIDAT;
 
-  /* ---------- identite ---------- */
-  const nomAffiche = ANONYME
-    ? C.prenom + " " + String(C.nom || "").trim().charAt(0).toUpperCase() + "."
-    : C.prenom + " " + C.nom;
-
-  document.getElementById("name").textContent     = nomAffiche;
-  document.getElementById("subtitle").textContent = C.sousTitre || "";
+  /* ---------- en-tete ----------
+     Anonymise : pas de nom, le titre metier prend sa place (comme la reference
+     « Vétérinaire référente en médecine féline ») et le sur-titre annonce le
+     profil confidentiel. Le titre du PDF (metadonnee lue par tout lecteur) ne
+     porte pas non plus de nom. */
+  const morceaux = String(C.sousTitre || "").split(" · ").filter(Boolean);
+  const titreAnonyme = C.titre || morceaux.filter(m => !/\bans?\b.*exp/i.test(m)).join(" · ") || "Profil vétérinaire";
+  const titre = ANONYME ? titreAnonyme : [C.prenom, C.nom].filter(Boolean).join(" ");
+  const NAME = document.getElementById("name");
+  NAME.textContent = titre;
+  if (ANONYME) NAME.classList.add("titre");
+  document.getElementById("eyebrow").textContent = ANONYME
+    ? ["Profil confidentiel"].concat(morceaux.slice(1)).join(" · ")
+    : (C.sousTitre || "");
   document.getElementById("accroche").textContent = C.accroche || "";
-  document.getElementById("ref").textContent      = C.reference ? "Réf. " + C.reference : "";
-  document.getElementById("foot-ref").textContent = C.reference
-    ? "Réf. " + C.reference + (ANONYME ? " · Profil anonymisé" : "")
-    : (ANONYME ? "Profil anonymisé" : "");
-  document.title = nomAffiche + " — Dossier de présentation candidat · SaRecrute";
+  document.getElementById("ref").textContent      = C.reference || "";
+  document.getElementById("foot-ref").innerHTML   = "<b>sarecrute.com</b>" +
+    (C.reference ? ` <span class="sep">·</span> Réf. ${esc(C.reference)}` : "") +
+    (ANONYME ? ` <span class="sep">·</span> Profil anonymisé` : "");
+  document.title = ANONYME
+    ? "Profil vétérinaire anonyme" + (C.reference ? " — " + C.reference : "") + " · SaRecrute"
+    : titre + " — Dossier de présentation candidat · SaRecrute";
 
-  /* ---------- colonne laterale ---------- */
-  const A = [];
-  // Intitule et valeur cote a cote quand les deux sont courts ; sinon empiles
-  // (voir .kv.long). Les seuils suivent la largeur de la carte, pas le sens.
-  const kv = rows => rows.filter(r => r[1])
-    .map(r => `<div class="kv${(String(r[0]).length > 13 || String(r[1]).length > 18) ? " long" : ""}">` +
-              `<dt>${esc(r[0])}</dt><dd>${esc(r[1])}</dd></div>`).join("");
-
-  // Contact — jamais de localisation
+  // Contact dans l'en-tete, jamais de localisation ; aucun en anonymise.
   const ct = C.contact || {};
-  const contactHtml = (ANONYME
-    ? ["Communiquées après accord de mise en relation"]
-    : [ct.email, ct.telephone]).filter(Boolean)
-    .map(v => `<div class="ct">${esc(v)}</div>`).join("");
-  if (contactHtml)
-    A.push(`<section class="block"><div class="label">Contact</div><div class="card contact">${contactHtml}</div></section>`);
+  const lignes = ANONYME ? []
+    : [ct.email, ct.telephone].filter(Boolean).map(v => `<span class="v">${esc(v)}</span>`);
+  document.getElementById("contact").innerHTML = lignes.length
+    ? `<span class="k">Contact</span>${lignes.join("")}` : "";
 
-  // « Statut » et « En poste » ont ete retires du cadre le 07/09/2026 : un
-  // dossier qui circule chez une clinique n'a pas a exposer la situation
-  // courante du candidat, et les deux lignes se perimaient entre l'envoi et
-  // la lecture. Elles ne sont plus ni dans le bloc de donnees ni ici.
+  /* ---------- reperes : le cadre recherche ----------
+     « Statut » et « En poste » restent hors du dossier (07/09/2026). */
   const cd = C.cadre || {};
-  const cadreHtml = kv([
-    ["Expérience",       cd.experience],
-    ["Disponibilité",    cd.disponibilite],
-    ["Contrat",          cd.contrat],
-    ["Temps de travail", cd.tempsTravail],
-    ["Gardes",           cd.gardes],
-    ["Rémunération",     cd.remuneration],
-    ["Mobilité",         cd.mobilite]
-  ]);
-  if (cadreHtml)
-    A.push(`<section class="block"><div class="label">Cadre recherché</div><dl class="card soft">${cadreHtml}</dl></section>`);
+  const coupe = s => { const i = String(s).indexOf(" · "); return i < 0 ? [s, ""] : [s.slice(0, i), s.slice(i + 3)]; };
+  const facts = [];
+  if (cd.experience)    facts.push(["Expérience", cd.experience, ""]);
+  if (cd.disponibilite) facts.push(["Disponibilité", cd.disponibilite, ""]);
+  if (cd.contrat)       facts.push(["Contrat", cd.contrat, cd.tempsTravail || ""]);
+  else if (cd.tempsTravail) facts.push(["Temps de travail", cd.tempsTravail, ""]);
+  if (cd.gardes)        facts.push(["Gardes"].concat(coupe(cd.gardes)));
+  if (cd.remuneration)  facts.push(["Rémunération", cd.remuneration, ""]);
+  if (cd.mobilite)      facts.push(["Mobilité", cd.mobilite, ""]);
+  const FACTS = document.getElementById("facts");
+  if (facts.length){
+    FACTS.innerHTML = facts.map(f => {
+      const long = Math.max(String(f[1]).length, String(f[2]).length) > 22;
+      return `<div class="fact${long ? " long" : ""}"><span class="k">${esc(f[0])}</span>` +
+        `<span class="v1">${typo(f[1])}</span>` + (f[2] ? `<span class="v2">${typo(f[2])}</span>` : "") + `</div>`;
+    }).join("");
+  } else FACTS.remove();
 
-  // Domaines : maitrises (accent) puis recherches
-  const maitrises = [].concat(C.pratiques || [], C.specialites || []);
-  const dom = [];
-  if (maitrises.length)
-    dom.push(`<div class="sublabel">Maîtrisés</div><div class="pills">` +
-      maitrises.map(p => `<span class="pill accent">${esc(p)}</span>`).join("") + `</div>`);
-  if ((C.recherche || []).length)
-    dom.push(`<div class="sublabel">Recherchés</div><div class="pills">` +
-      C.recherche.map(p => `<span class="pill">${esc(p)}</span>`).join("") + `</div>`);
-  if (dom.length)
-    A.push(`<section class="block"><div class="label">Domaines</div>${dom.join("")}</section>`);
+  const bloc = (titre, corps, tag) =>
+    `<section class="block"><div class="h"><span class="t">${esc(titre)}</span>` +
+    (tag ? `<span class="tag">${esc(tag)}</span>` : "") + `</div>${corps}</section>`;
+
+  /* ---------- colonne principale : parcours puis formation ---------- */
+  const M = [];
+  const fleche = s => String(s || "").replace(/\s+[-–—]\s+/g, " → ");
+  const xp = (C.experiences || []).filter(e => e && (e.poste || e.structure));
+  if (xp.length){
+    M.push(bloc("Parcours professionnel", xp.map(e => {
+      const groupe = !e.structure && /stages|postes courts/i.test(e.poste || "");
+      const date = fleche(e.periode);
+      const d = (date || e.duree)
+        ? `<div class="tl-d">${esc(date)}${date && e.duree ? " " : ""}${e.duree ? `<span class="du">${date ? "· " : ""}${esc(e.duree)}</span>` : ""}</div>` : "";
+      const items = String(e.description || "").split(" · ").map(s => s.trim()).filter(Boolean);
+      return `<div class="tl-i${groupe ? " groupe" : ""}">${d}` +
+        (e.poste ? `<div class="tl-t">${esc(e.poste)}</div>` : "") +
+        (e.structure ? `<div class="tl-s">${esc(e.structure)}</div>` : "") +
+        (items.length ? `<ul class="tl-x">${items.map(i => `<li>${typo(i)}</li>`).join("")}</ul>` : "") +
+        `</div>`;
+    }).join("")));
+  }
 
   const f = C.formation || {};
   const edu = [];
   if (f.ecole || f.anneeSortie)
-    edu.push(`<div class="edu"><div class="edu-t">Docteur vétérinaire</div>` +
-      `<div class="edu-s">${esc([f.ecole, f.anneeSortie].filter(Boolean).join(" · "))}</div></div>`);
-  // Une qualification binaire ("Oui") devient une pastille : deux lignes de
-  // colonne economisees a chaque fois, et un badge se lit mieux qu'un couple
-  // intitule/valeur qui repete « Oui ». Un intitule detaille garde son bloc.
+    edu.push(`<div class="ed">${f.anneeSortie ? `<div class="ed-d">${esc(f.anneeSortie)}</div>` : ""}` +
+      `<div class="ed-t">Docteur vétérinaire</div>${f.ecole ? `<div class="ed-s">${esc(f.ecole)}</div>` : ""}</div>`);
+  // « Oui » devient une etiquette portant l'intitule ; un texte detaille garde son bloc.
   const badges = [];
   [["Internat", f.internat], ["DESV", f.desv], ["Diplôme complémentaire", f.diplomeSup],
    ["Habilitation sanitaire", f.habilitation]]
     .filter(r => r[1])
     .forEach(r => {
       if (/^oui$/i.test(String(r[1]).trim())) badges.push(r[0]);
-      else edu.push(`<div class="edu"><div class="edu-t">${esc(r[0])}</div><div class="edu-s">${esc(r[1])}</div></div>`);
+      else edu.push(`<div class="ed"><div class="ed-t">${esc(r[1])}</div><div class="ed-s">${esc(r[0])}</div></div>`);
     });
-  if (edu.length || badges.length)
-    A.push(`<section class="block"><div class="label">Formation et diplômes</div>` +
-      (edu.length ? `<div>${edu.join("")}</div>` : "") +
-      (badges.length ? `<div class="pills${edu.length ? " apres" : ""}">` +
-        badges.map(b => `<span class="pill accent">${esc(b)}</span>`).join("") + `</div>` : "") +
-      `</section>`);
+  const formation = (edu.length || badges.length)
+    ? bloc("Formation", edu.join("") +
+        (badges.length ? `<div class="badges">${badges.map(b => `<span class="chip">${esc(b)}</span>`).join("")}</div>` : ""))
+    : "";
 
-  // Langues — noms seuls, aucun niveau
-  if ((C.langues || []).length)
-    A.push(`<section class="block"><div class="label">Langues</div>` +
-      `<div class="lang">${esc(C.langues.join(" · "))}</div></section>`);
+  const MAIN = document.getElementById("main");
 
-  document.getElementById("aside").innerHTML = A.join("");
-
-  /* ---------- bilan de competences ---------- */
-  // Regroupement a deux niveaux : espece (ordre d'apparition dans les donnees),
-  // puis famille d'actes. Le tri par etat se fait a l'interieur d'une famille.
-  //
-  // L'ordre des familles ne suit ni l'ordre d'apparition ni l'alphabet : il suit
-  // le referentiel Airtable (ordre des choix du champ Famille de la table Actes).
-  // C'est ce qui fait qu'un chirurgien et un rural presentent leurs actes dans le
-  // meme ordre — le but d'un format standard. Une famille absente de cette liste
-  // passe a la fin, par ordre alphabetique ; un acte sans famille est regroupe
-  // sous un sous-groupe sans intitule, plutot que perdu.
+  /* ---------- colonne laterale : bilan, domaines, langues ---------- */
   const FAMILLES = [
     "Chirurgie de convenance", "Chirurgie tissus mous", "Chirurgie orthopédique",
     "Reproduction / obstétrique", "Imagerie", "Anesthésie / réanimation",
     "Médecine / consultation", "Dentisterie", "Laboratoire",
     "Élevage / troupeau", "Soins techniques"
   ];
-  const rangFamille = f => { const i = FAMILLES.indexOf(f); return i < 0 ? FAMILLES.length : i; };
-
+  const rangFamille = x => { const i = FAMILLES.indexOf(x); return i < 0 ? FAMILLES.length : i; };
   const groupes = [];
   (C.competences || []).forEach(c => {
     const n = NIVEAUX[c.niveau];
-    if (!n || !n.etat) return;                 // "Non concerné" ou niveau inconnu : ignore
+    if (!n || !n.etat) return;
     let g = groupes.find(g => g.espece === c.espece);
     if (!g) groupes.push(g = { espece: c.espece, actes: [], familles: [] });
-    const acte = { acte: c.acte, etat: n.etat, rang: n.rang, crans: n.crans,
-                   teinte: n.teinte, niveau: c.niveau };
-    g.actes.push(acte);                        // conserve pour le decompte de l'espece
+    const acte = { acte: c.acte, etat: n.etat, rang: n.rang, crans: n.crans, teinte: n.teinte, niveau: c.niveau };
+    g.actes.push(acte);
     const nom = c.famille || "";
-    let f = g.familles.find(f => f.nom === nom);
-    if (!f) g.familles.push(f = { nom: nom, actes: [] });
-    f.actes.push(acte);
+    let fa = g.familles.find(x => x.nom === nom);
+    if (!fa) g.familles.push(fa = { nom: nom, actes: [] });
+    fa.actes.push(acte);
   });
   const triActes = (a,b) => a.rang - b.rang || a.acte.localeCompare(b.acte,"fr");
   groupes.forEach(g => {
     g.actes.sort(triActes);
-    g.familles.sort((a,b) => rangFamille(a.nom) - rangFamille(b.nom)
-                          || a.nom.localeCompare(b.nom,"fr"));
-    g.familles.forEach(f => f.actes.sort(triActes));
+    g.familles.sort((a,b) => rangFamille(a.nom) - rangFamille(b.nom) || a.nom.localeCompare(b.nom,"fr"));
+    g.familles.forEach(x => x.actes.sort(triActes));
   });
-
-  // Trois crans, allumes de gauche a droite selon le niveau ; la teinte donne
-  // le degrade (voir NIVEAUX), l'etat ne sert qu'aux decomptes.
   function jauge(crans, teinte){
     let s = `<span class="jauge ${teinte || ""}">`;
     for (let i = 0; i < 3; i++) s += `<i class="${i < crans ? "on" : ""}"></i>`;
     return s + `</span>`;
   }
 
-  const MAIN = document.getElementById("main");
-  function renderMain(mode){
+  const ASIDE = document.getElementById("aside");
+  const reste = [];
+  const maitrises = [].concat(C.pratiques || [], C.specialites || []);
+  const dom = [];
+  if (maitrises.length)
+    dom.push(`<div class="sub">Maîtrisés</div><div class="chips">` +
+      maitrises.map(p => `<span class="chip">${esc(p)}</span>`).join("") + `</div>`);
+  if ((C.recherche || []).length)
+    dom.push(`<div class="sub">Recherchés</div><div class="chips">` +
+      C.recherche.map(p => `<span class="chip out">${esc(p)}</span>`).join("") + `</div>`);
+  if (dom.length) reste.push(bloc("Domaines", dom.join("")));
+  if ((C.langues || []).length)
+    reste.push(bloc("Langues", C.langues.map(l => `<div class="lang">${esc(l)}</div>`).join("")));
+
+  // Au-dela de 24 actes, le bilan passe dans la colonne large (familles en
+  // intitule a gauche, etiquettes a droite) et la formation dans la laterale :
+  // 53 actes dans 64 mm finissaient en mode texte a cote d'une colonne vide.
+  const nbActes = groupes.reduce((n, g) => n + g.actes.length, 0);
+  const dense = nbActes > 24;
+  if (dense) MAIN.parentNode.classList.add("dense");
+
+  function render(mode){
+    let html;
     if (!groupes.length){
-      MAIN.innerHTML = `<section class="block"><div class="label">Bilan de compétences</div>` +
-        `<div class="empty">Aucune compétence évaluée n'est renseignée dans la fiche candidat.</div></section>`;
-      return;
-    }
-    // La legende ne montre que les etats reellement presents : afficher
-    // « non acquis » sur un dossier qui n'en compte aucun est un contresens.
-    const presents = new Set();
-    let total = 0;
-    groupes.forEach(g => g.actes.forEach(a => { presents.add(a.etat); total++; }));
-    // La legende montre la jauge elle-meme : sans elle, trois points ne se
-    // lisent pas. Elle ne liste que les niveaux reellement presents au dossier.
-    const nivPresents = new Set();
-    groupes.forEach(g => g.actes.forEach(a => nivPresents.add(a.niveau)));
-    const legende = Object.keys(NIVEAUX)
-      .filter(k => nivPresents.has(k) && NIVEAUX[k].etat)
-      .map(k => {
-        const n = NIVEAUX[k];
-        return `<span class="lg ${n.etat}">${jauge(n.crans, n.teinte)}${esc(k)}</span>`;
+      html = bloc("Compétences", `<div class="empty">Aucune compétence évaluée n'est renseignée dans la fiche candidat.</div>`);
+    } else {
+      const nivPresents = new Set();
+      groupes.forEach(g => g.actes.forEach(a => nivPresents.add(a.niveau)));
+      const legende = Object.keys(NIVEAUX)
+        .filter(k => nivPresents.has(k) && NIVEAUX[k].etat)
+        .map(k => `<span class="lg">${jauge(NIVEAUX[k].crans, NIVEAUX[k].teinte)}${esc(k)}</span>`).join("");
+      const corps = groupes.map(g => {
+        const n = {}; ETATS.forEach(e => n[e.cle] = 0);
+        g.actes.forEach(a => n[a.etat]++);
+        const compteurs = ETATS.filter(e => n[e.cle]).map(e =>
+          `<span class="cnt"><b>${n[e.cle]}</b>${esc(e.libelle.toLowerCase())}</span>`).join("");
+        const tete = `<div class="grp-t"><span class="grp-n">${esc(g.espece)}</span><span class="grp-c">${compteurs}</span></div>`;
+        const familles = g.familles.filter(x => x.actes.length);
+        if (mode === "chips"){
+          return `<div class="grp">${tete}` + familles.map(x =>
+            `<div class="fam">${x.nom ? `<div class="fam-t">${esc(x.nom)}</div>` : ""}<div class="chips">` +
+            x.actes.map(a => `<span class="chip li ${a.teinte}">${jauge(a.crans, a.teinte)}<span>${esc(a.acte)}</span></span>`).join("") +
+            `</div></div>`).join("") + `</div>`;
+        }
+        // compact : une ligne de texte par niveau, sans intitule de famille
+        const lignes = Object.keys(NIVEAUX).filter(k => NIVEAUX[k].etat).map(k => {
+          const l = familles.reduce((acc, x) => acc.concat(x.actes.filter(a => a.niveau === k).map(a => a.acte)), []);
+          return l.length ? `<div class="cl ${NIVEAUX[k].etat}">${jauge(NIVEAUX[k].crans, NIVEAUX[k].teinte)}<span>${esc(l.join(" · "))}</span></div>` : "";
+        }).join("");
+        return `<div class="grp compact">${tete}${lignes}</div>`;
       }).join("");
-
-    let html = `<section class="block">
-      <div class="bil-head"><div class="label">Compétences vérifiées</div>
-      <div class="legend">${legende}</div></div>` +
-      `<div class="bilan${total <= 24 ? " mono" : ""}">`;
-
-    html += groupes.map(g => {
-      const n = {}; ETATS.forEach(e => n[e.cle] = 0);
-      g.actes.forEach(a => n[a.etat]++);
-      // Les decomptes se rangent a cote du nom de l'espece : c'est la premiere
-      // chose que lit une clinique, avant meme le detail des actes.
-      const compteurs = ETATS.filter(e => n[e.cle]).map(e =>
-        `<span class="cnt ${e.cle}"><b>${n[e.cle]}</b>${esc(e.libelle.toLowerCase())}</span>`).join("");
-      const tete = `<div class="grp-t"><span class="grp-n">${esc(g.espece)}</span>` +
-                   `<span class="grp-c">${compteurs}</span></div>`;
-
-      // Ici les non acquis restent a leur place dans leur famille : la jauge a
-      // zero cran les distingue deja sans les sortir du releve, et les mettre a
-      // part romprait l'alignement des jauges qui fait tout l'interet du format.
-      const familles = g.familles.filter(f => f.actes.length);
-      const pied = "";
-
-      if (mode === "chips"){
-        const ligne = a =>
-          `<div class="li ${a.etat}">${jauge(a.crans, a.teinte)}` +
-          `<span class="nom">${esc(a.acte)}</span></div>`;
-        // Sans intitule de famille, la cellule de gauche reste (vide) pour
-        // que les actes s'alignent sur ceux des autres familles.
-        const corps = familles.map(f =>
-          `<div class="fam"><div class="fam-t">${esc(f.nom)}</div>` +
-          `<div class="fam-l">` + f.actes.map(ligne).join("") + `</div></div>`
-        ).join("");
-        return `<div class="grp">${tete}${corps}</div>`;
-      }
-      // Mode compact : UNE ligne par etat, sans intitule de famille. C'est le
-      // mode de secours d'un dossier qui deborde deja — sa seule mission est
-      // que la page ne se coupe pas. Mesures sur 136 actes / 8 especes :
-      // une ligne par famille = 1515 px pour 852 disponibles ; les intitules
-      // conserves en jalons = 891 px, encore trop. Les actes gardent leur
-      // ordre par famille, l'intitule seul disparait.
-      const corps = ETATS.map(e => {
-        const l = familles.reduce((acc, f) =>
-          acc.concat(f.actes.filter(a => a.etat === e.cle).map(a => a.acte)), []);
-        return l.length
-          ? `<div class="cl ${e.cle}"><i class="dot"></i><span>${esc(l.join(" · "))}</span></div>`
-          : "";
-      }).join("");
-      return `<div class="grp compact">${tete}${corps}${pied}</div>`;
-    }).join("");
-
-    html += `</div></section>`;
-
-    // Parcours, sous le bilan : le bilan dit ce qu'elle sait faire, le parcours
-    // dit ou elle l'a fait et combien de temps. Absent si le bloc est vide —
-    // une fiche sans experience saisie ne montre pas une section creuse.
-    const xp = (C.experiences || []).filter(e => e && (e.poste || e.structure));
-    if (xp.length){
-      html += `<section class="block"><div class="label">Parcours</div>` +
-        xp.map(e =>
-          `<div class="exp"><div class="exp-q">` +
-            (e.duree ? `<span class="duree">${esc(e.duree)}</span>` : "") +
-            (e.periode ? `<span class="periode">${esc(e.periode)}</span>` : "") +
-          `</div><div><div class="exp-t">` +
-            (e.poste ? `<b>${esc(e.poste)}</b>` : "") +
-            (e.structure ? `<span class="ou">${esc(e.structure)}</span>` : "") +
-          `</div>` +
-            (e.description ? `<div class="exp-d">${esc(e.description)}</div>` : "") +
-          `</div></div>`
-        ).join("") +
-        `</section>`;
+      html = bloc("Compétences", `<div class="legend">${legende}</div>${corps}`, "vérifiées");
     }
-
-    MAIN.innerHTML = html;
+    if (dense){
+      MAIN.innerHTML  = M.join("") + html;
+      ASIDE.innerHTML = formation + reste.join("");
+    } else {
+      MAIN.innerHTML  = M.join("") + formation;
+      ASIDE.innerHTML = html + reste.join("");
+    }
   }
 
-  /* ---------- ajustement automatique a la page ---------- */
+  /* ---------- ajustement automatique a la page ----------
+     Meme moteur que la version precedente (voir template-notes.md) : 1.11 vers
+     0.82 par pas de 0.01, puis bascule chips -> compact. */
   const PAGE = document.getElementById("page");
   const FIT  = document.getElementById("fit");
   const overflow = () => FIT.scrollHeight > FIT.clientHeight + 1 || PAGE.scrollHeight > PAGE.clientHeight + 1;
-
-  // Les fiches sont de densite tres inegale : l'echelle monte jusqu'a 1.11 pour
-  // qu'un dossier leger occupe la page, et descend jusqu'a 0.82 pour qu'un
-  // dossier dense y tienne. Le premier palier qui ne deborde pas fait foi.
-  // La colonne principale est rendue tout de suite, en dehors de la routine
-  // d'ajustement. C'est vital : si le rendu ne depend que de fit(), une passe
-  // qui n'aboutit jamais laisse la page SANS ses competences — invisible a
-  // l'ecran (ou une passe finit par passer) mais bien reel dans le PDF.
-  renderMain("chips");
-
-  // Garde-fou : une mesure prise avant que les polices soient chargees et la
-  // page composee est fausse, et elle se figerait. On abandonne la passe plutot
-  // que d'arreter une echelle absurde ; d'autres passes sont planifiees plus bas.
+  render("chips");
   const pret = () =>
     (!document.fonts || document.fonts.status === "loaded") &&
     PAGE.clientHeight > 0 && FIT.clientHeight > 0;
-
   function fit(force){
     if (!force && !pret()) return false;
     for (const mode of ["chips", "compact"]){
-      renderMain(mode);
+      render(mode);
       for (let s = 1.11; s >= 0.8199; s -= 0.01){
         document.documentElement.style.setProperty("--scale", s.toFixed(2));
         if (!overflow()) return true;
@@ -804,17 +668,11 @@ const ETATS = [
     document.documentElement.style.setProperty("--scale", "0.82");
     return true;
   }
-
-  // Plusieurs passes : chacune repart du haut, la derniere valide fait foi.
-  // Les passes planifiees n'empruntent pas toutes requestAnimationFrame : a
-  // l'impression, sous --virtual-time-budget, rAF peut ne jamais etre servi.
   const passe = () => requestAnimationFrame(() => requestAnimationFrame(() => fit(false)));
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => fit(false));
   window.addEventListener("load", () => fit(false));
   setTimeout(() => fit(false), 300);
   setTimeout(() => fit(false), 900);
-  // Dernier recours : au-dela de ce delai, mieux vaut une echelle approximative
-  // qu'une page amputee. On force l'ajustement meme si les polices se taisent.
   setTimeout(() => fit(true), 2000);
   passe();
   fit(false);
