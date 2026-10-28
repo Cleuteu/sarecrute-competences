@@ -533,12 +533,13 @@ def cmd_anonymiser(a):
         for s in structures:
             if s:
                 d = re.sub(r"\s*\(\s*" + re.escape(s) + r"\s*\)", "", d, flags=re.I)
-        # Sans leur structure, deux stages de même intitulé deviennent identiques : un seul suffit.
-        items = []
+        # Sans leur structure, deux stages de même intitulé deviennent identiques : ils se regroupent
+        # en « intitulé ×2 », pour que la liste compte encore autant de postes que la ligne en annonce.
+        items = {}
         for x in d.split(" · "):
-            if x.strip() and x.strip() not in items:
-                items.append(x.strip())
-        e["description"] = " · ".join(items)
+            if x.strip():
+                items[x.strip()] = items.get(x.strip(), 0) + 1
+        e["description"] = " · ".join(f"{x} ×{n}" if n > 1 else x for x, n in items.items())
     ecrire(dossier, "candidat-anonyme.json", {"ANONYME": True, "CANDIDAT": C})
     reste = fuites(C, etat.get("interdits", []))
     print(json.dumps({"ecrit": str(dossier / "candidat-anonyme.json"), "fuites": reste}, ensure_ascii=False, indent=2))

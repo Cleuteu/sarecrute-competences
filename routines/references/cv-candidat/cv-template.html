@@ -217,7 +217,7 @@ const ETATS = [
     display:flex; align-items:stretch;
   }
   .fact{ flex:0 0 auto; min-width:calc(22mm * var(--scale)); white-space:nowrap; }
-  .fact.long{ flex:1 1 0; min-width:calc(30mm * var(--scale)); max-width:64mm; white-space:normal; }
+  .fact.long{ flex:1 1 0; min-width:calc(30mm * var(--scale)); max-width:88mm; white-space:normal; }
   .fact + .fact{
     border-left:1px solid rgba(110,146,120,.32);
     margin-left:calc(3.4mm * var(--scale)); padding-left:calc(3.4mm * var(--scale));
@@ -225,11 +225,11 @@ const ETATS = [
   .fact .k{ color:var(--sr-sage); letter-spacing:.13em; font-size:calc(7.4px * var(--scale)); }
   .fact .v1{
     display:block; margin-top:calc(1.3mm * var(--scale));
-    font-size:calc(10px * var(--scale)); font-weight:600; line-height:1.32; color:var(--sr-forest);
+    font-size:calc(9.4px * var(--scale)); font-weight:600; line-height:1.32; color:var(--sr-forest);
   }
   .fact .v2{
     display:block; margin-top:calc(.4mm * var(--scale));
-    font-size:calc(9.2px * var(--scale)); font-weight:500; line-height:1.32; color:#4C5F59;
+    font-size:calc(8.7px * var(--scale)); font-weight:500; line-height:1.32; color:#4C5F59;
   }
 
   /* ---------- Corps a deux colonnes ---------- */
@@ -303,11 +303,13 @@ const ETATS = [
 
   /* ---------- Etiquettes ----------
      Coins arrondis (1,6 mm), pas de pilule : c'est le dessin de la reference. */
+  /* Tailles resserrees avec le plafond a 1.20 : deux etiquettes courantes
+     (« Castration CN », « Castration CT ») tiennent cote a cote dans 64 mm. */
   .chip{
-    display:inline-flex; align-items:center; gap:calc(1.4mm * var(--scale));
+    display:inline-flex; align-items:center; gap:calc(1.1mm * var(--scale));
     border-radius:calc(1.6mm * var(--scale));
-    padding:calc(1.15mm * var(--scale)) calc(2.3mm * var(--scale));
-    font-size:calc(8.9px * var(--scale)); font-weight:600; line-height:1.25;
+    padding:calc(1.05mm * var(--scale)) calc(1.9mm * var(--scale));
+    font-size:calc(8.4px * var(--scale)); font-weight:600; line-height:1.25;
     background:var(--sr-wash); color:#2E4B3F;
   }
   .chip.out{ background:#fff; box-shadow:inset 0 0 0 1px rgba(110,146,120,.45); color:var(--sr-green); }
@@ -375,11 +377,17 @@ const ETATS = [
     font-size:calc(7px * var(--scale)); font-weight:700; letter-spacing:.09em;
     text-transform:uppercase; color:var(--sr-muted); margin-bottom:calc(1.2mm * var(--scale));
   }
-  .chips + .sub{ margin-top:calc(2.4mm * var(--scale)); }
+  /* Domaines : l'intitule a gauche, les etiquettes a droite, une ligne par
+     intitule. Empiles, deux intitules et deux etiquettes prenaient quatre
+     lignes pour dire « Canine ». */
+  .dl{ display:grid; grid-template-columns:calc(19mm * var(--scale)) 1fr; column-gap:calc(2mm * var(--scale)); align-items:center; }
+  .dl + .dl{ margin-top:calc(1.6mm * var(--scale)); }
+  .dl .sub{ margin:0; }
 
-  /* Langues : noms seuls (jamais de niveau), une ligne filetee chacune */
-  .lang{ font-size:calc(9.6px * var(--scale)); font-weight:600; line-height:1.3; padding:calc(1.5mm * var(--scale)) 0; }
-  .lang + .lang{ border-top:1px solid var(--sr-line); }
+  /* Langues : noms seuls (jamais de niveau), sur une ligne. Une ligne filetee
+     par langue, sans niveau en face, ne servait qu'a occuper la colonne. */
+  .langs{ font-size:calc(9.6px * var(--scale)); font-weight:600; line-height:1.45; }
+  .langs .sep{ color:var(--sr-sage); font-weight:500; margin:0 calc(1.2mm * var(--scale)); }
 
   .empty{
     border:1px dashed rgba(32,56,50,.22); border-radius:calc(1.6mm * var(--scale));
@@ -453,7 +461,9 @@ const ETATS = [
   const esc = s => String(s == null ? "" : s)
     .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   // Espace fine insecable devant % : « +25 % » ne se casse plus en « +25 » / « % ».
-  const typo = s => esc(s).replace(/ (%|€)/g, "\u202F$1");
+  // et espace insecable entre un nombre et son unite : « 35 h », « 3 mois » ne se coupent plus.
+  const typo = s => esc(s).replace(/ (%|€)/g, "\u202F$1")
+    .replace(/(\d) (h|ans?|mois|semaines?|jours?)(?![\wÀ-ÿ])/g, "$1\u00A0$2");
   const C = CANDIDAT;
 
   /* ---------- en-tete ----------
@@ -589,14 +599,15 @@ const ETATS = [
   const maitrises = [].concat(C.pratiques || [], C.specialites || []);
   const dom = [];
   if (maitrises.length)
-    dom.push(`<div class="sub">Maîtrisés</div><div class="chips">` +
-      maitrises.map(p => `<span class="chip">${esc(p)}</span>`).join("") + `</div>`);
+    dom.push(`<div class="dl"><div class="sub">Maîtrisés</div><div class="chips">` +
+      maitrises.map(p => `<span class="chip">${esc(p)}</span>`).join("") + `</div></div>`);
   if ((C.recherche || []).length)
-    dom.push(`<div class="sub">Recherchés</div><div class="chips">` +
-      C.recherche.map(p => `<span class="chip out">${esc(p)}</span>`).join("") + `</div>`);
+    dom.push(`<div class="dl"><div class="sub">Recherchés</div><div class="chips">` +
+      C.recherche.map(p => `<span class="chip out">${esc(p)}</span>`).join("") + `</div></div>`);
   if (dom.length) reste.push(bloc("Domaines", dom.join("")));
   if ((C.langues || []).length)
-    reste.push(bloc("Langues", C.langues.map(l => `<div class="lang">${esc(l)}</div>`).join("")));
+    reste.push(bloc("Langues", `<div class="langs">` +
+      C.langues.map(esc).join(`<span class="sep">·</span>`) + `</div>`));
 
   // Au-dela de 24 actes, le bilan passe dans la colonne large (familles en
   // intitule a gauche, etiquettes a droite) et la formation dans la laterale :
@@ -605,7 +616,17 @@ const ETATS = [
   const dense = nbActes > 24;
   if (dense) MAIN.parentNode.classList.add("dense");
 
-  function render(mode){
+  // Une espece de huit actes au plus se lit d'un regard : ses familles n'ont
+  // pas d'intitule (les etiquettes restent dans l'ordre des familles). Sans
+  // cette regle, sept actes repartis sur cinq familles donnaient cinq lignes
+  // d'intitule pour sept etiquettes.
+  const SEUIL_FAMILLES = 8;
+
+  // place = nombre de blocs de fin de colonne laterale (Langues, puis Domaines)
+  // descendus sous la formation, dans la colonne principale. L'ajustement
+  // essaie chaque valeur et garde la plus equilibree (voir fit).
+  function render(mode, place){
+    place = place || 0;
     let html;
     if (!groupes.length){
       html = bloc("Compétences", `<div class="empty">Aucune compétence évaluée n'est renseignée dans la fiche candidat.</div>`);
@@ -623,10 +644,13 @@ const ETATS = [
         const tete = `<div class="grp-t"><span class="grp-n">${esc(g.espece)}</span><span class="grp-c">${compteurs}</span></div>`;
         const familles = g.familles.filter(x => x.actes.length);
         if (mode === "chips"){
+          const etiquette = a => `<span class="chip li ${a.teinte}">${jauge(a.crans, a.teinte)}<span>${esc(a.acte)}</span></span>`;
+          if (g.actes.length <= SEUIL_FAMILLES)
+            return `<div class="grp">${tete}<div class="chips">` +
+              familles.map(x => x.actes.map(etiquette).join("")).join("") + `</div></div>`;
           return `<div class="grp">${tete}` + familles.map(x =>
             `<div class="fam">${x.nom ? `<div class="fam-t">${esc(x.nom)}</div>` : ""}<div class="chips">` +
-            x.actes.map(a => `<span class="chip li ${a.teinte}">${jauge(a.crans, a.teinte)}<span>${esc(a.acte)}</span></span>`).join("") +
-            `</div></div>`).join("") + `</div>`;
+            x.actes.map(etiquette).join("") + `</div></div>`).join("") + `</div>`;
         }
         // compact : une ligne de texte par niveau, sans intitule de famille
         const lignes = Object.keys(NIVEAUX).filter(k => NIVEAUX[k].etat).map(k => {
@@ -641,31 +665,53 @@ const ETATS = [
       MAIN.innerHTML  = M.join("") + html;
       ASIDE.innerHTML = formation + reste.join("");
     } else {
-      MAIN.innerHTML  = M.join("") + formation;
-      ASIDE.innerHTML = html + reste.join("");
+      const reste_lat = reste.slice(0, reste.length - place), descendus = reste.slice(reste.length - place);
+      MAIN.innerHTML  = M.join("") + formation + descendus.join("");
+      ASIDE.innerHTML = html + reste_lat.join("");
     }
   }
 
   /* ---------- ajustement automatique a la page ----------
-     Meme moteur que la version precedente (voir template-notes.md) : 1.11 vers
-     0.82 par pas de 0.01, puis bascule chips -> compact. */
+     Du plafond vers le plancher par pas de 0.01, pour chaque placement des
+     blocs (equilibrage), puis bascule chips -> compact. Voir template-notes.md. */
   const PAGE = document.getElementById("page");
   const FIT  = document.getElementById("fit");
   const overflow = () => FIT.scrollHeight > FIT.clientHeight + 1 || PAGE.scrollHeight > PAGE.clientHeight + 1;
-  render("chips");
+  render("chips", 0);
   const pret = () =>
     (!document.fonts || document.fonts.status === "loaded") &&
     PAGE.clientHeight > 0 && FIT.clientHeight > 0;
+  // 1.20 = la taille commune (recalee le 28/10/2026 sur la v2 : Gill 1.29, Voutaz 1.25,
+  // Bolognin 1.17, Lecarpentier 1.13 sans plafond). Voir template-notes.md.
+  const PLAFOND = 1.20, PLANCHER = 0.82;
+  const echelle = s => document.documentElement.style.setProperty("--scale", s.toFixed(2));
+  // Hauteur reelle du contenu d'une colonne, par le bas du dernier enfant (les
+  // colonnes sont des elements flex etires : leur propre hauteur ne dit rien).
+  const hauteur = c => { const d = c.lastElementChild; return d ? d.getBoundingClientRect().bottom - c.getBoundingClientRect().top : 0; };
+  function plusGrandeEchelle(){
+    for (let s = PLAFOND; s >= PLANCHER - 0.0001; s -= 0.01){ echelle(s); if (!overflow()) return s; }
+    return null;
+  }
+  // Equilibrage : pour chaque mode, on essaie de descendre 0, 1 ou 2 blocs de
+  // la laterale dans la principale. On garde la plus grande echelle, puis, a
+  // echelle egale, les colonnes les plus proches en hauteur. Une colonne
+  // pleine a cote d'une colonne a moitie vide etait le defaut du dossier Gill.
+  const essais = dense ? [0] : Array.from({ length: reste.length + 1 }, (_, i) => i);
   function fit(force){
     if (!force && !pret()) return false;
     for (const mode of ["chips", "compact"]){
-      render(mode);
-      for (let s = 1.11; s >= 0.8199; s -= 0.01){
-        document.documentElement.style.setProperty("--scale", s.toFixed(2));
-        if (!overflow()) return true;
+      let retenu = null;
+      for (const place of essais){
+        render(mode, place);
+        const s = plusGrandeEchelle();
+        if (s === null) continue;
+        const ecart = Math.abs(hauteur(ASIDE) - hauteur(MAIN));
+        if (!retenu || s > retenu.s + 0.001 || (Math.abs(s - retenu.s) < 0.001 && ecart < retenu.ecart - 2))
+          retenu = { place, s, ecart };
       }
+      if (retenu){ render(mode, retenu.place); echelle(retenu.s); return true; }
     }
-    document.documentElement.style.setProperty("--scale", "0.82");
+    render("compact", 0); echelle(PLANCHER);
     return true;
   }
   const passe = () => requestAnimationFrame(() => requestAnimationFrame(() => fit(false)));

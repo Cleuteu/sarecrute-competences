@@ -85,11 +85,19 @@ tableau) est dans l'historique git, au commit qui précède ce remplacement.
   seconde ligne, rémunération). Chaque case après la première porte son filet **et** une marge
   intérieure (dans la référence, le texte touchait le séparateur). Une valeur de 22 caractères au
   plus garde sa largeur naturelle et ne passe jamais à la ligne (`.fact`) ; les plus longues se
-  partagent le reste (`.fact.long`, 30 à 64 mm). Une fiche à deux cases ne s'étire donc pas.
+  partagent le reste (`.fact.long`, 30 à 88 mm ; à 64 mm, « pour 35 h » passait seul à la ligne
+  alors que le bandeau avait de la place). Une fiche à deux cases ne s'étire donc pas.
 - **Deux colonnes** sous le bandeau : principale (parcours, formation) et latérale de 64 mm
   (compétences, domaines, langues). Au-delà de 24 actes, le bilan passe dans la principale et la
   formation dans la latérale (classe `.dense`) : 53 actes dans 64 mm finissaient en mode texte à côté
   d'une colonne presque vide.
+- **Équilibrage des colonnes** (v2, 28/10/2026) : l'ajustement essaie de descendre 0, 1 ou 2 blocs
+  de fin de latérale (Langues, puis Domaines) sous la formation, et garde la plus grande échelle,
+  puis, à échelle égale, les colonnes les plus proches en hauteur. Le premier dossier réel de Louane
+  Gill avait 749 px de latérale pour 402 de principale, et c'est la latérale qui bridait l'échelle.
+- **Domaines** : l'intitulé (« Maîtrisés », « Recherchés ») à gauche, les étiquettes à droite, une
+  ligne chacun. **Langues** : sur une ligne (« Français · Anglais · Espagnol »). La ligne filetée
+  par langue de la référence n'avait de sens qu'avec un niveau en face, et le dossier n'en donne pas.
 - **Titres de section** en Fraunces 600 sur un filet terracotta.
 - **Frise du parcours** : une pastille terracotta pleine par poste, reliées par un filet ; une
   pastille creuse sauge pour la ligne « Stages et postes courts ». Dans la référence, les pastilles
@@ -99,7 +107,8 @@ tableau) est dans l'historique git, au commit qui précède ce remplacement.
   en « a · b · c » donne trois tirets).
 - **Étiquettes à coins arrondis** (1,6 mm, pas des pilules), comme la référence. Mais la couleur porte
   ici un sens, avec sa légende : voir le bilan.
-- `+25 %` ne se coupe plus avant le `%` : espace fine insécable devant `%` et `€` (fonction `typo`).
+- `+25 %` ne se coupe plus avant le `%` : espace fine insécable devant `%` et `€`, insécable entre un
+  nombre et son unité (`35 h`, `3 mois`, `2 ans`) — fonction `typo`.
 - Fond de page blanc, pas crème : c'est la référence, et un dossier imprimé.
 
 ## Le bilan de compétences : une étiquette par acte, notée sur trois points
@@ -129,7 +138,9 @@ délibéré : l'honnêteté sur les limites est ce qui rend le reste crédible.
 Deux mises en page selon la densité, décidées par le seul nombre d'actes :
 
 - **24 actes au plus — colonne latérale** : l'espèce et ses décomptes, puis chaque famille en
-  capitales grises au-dessus de ses étiquettes.
+  capitales grises au-dessus de ses étiquettes. **Une espèce de huit actes au plus n'a pas
+  d'intitulés de famille** (`SEUIL_FAMILLES`) : ses étiquettes se suivent dans l'ordre des familles.
+  Sept actes de Louane Gill répartis sur cinq familles donnaient cinq lignes d'intitulé.
 - **Au-delà — colonne principale** (`.dense`), sous le parcours : une famille par ligne filetée,
   l'intitulé à gauche (30 mm), les étiquettes à droite. Si la page déborde encore, le mode
   `compact` donne une ligne de texte par niveau et par espèce, jauge en tête.
@@ -138,19 +149,24 @@ Deux mises en page selon la densité, décidées par le seul nombre d'actes :
 
 `@page { size: A4; margin: 0; }`. Le contenu ne doit jamais déborder sur une deuxième page, ni pour
 une fiche à peine qualifiée, ni pour 136 actes sur huit espèces. D'où la routine d'auto-ajustement :
-après rendu, mesurer la hauteur réelle et faire varier `--scale` **de 1.11 vers 0.82 par pas de
-0.01**, en retenant la première valeur qui ne déborde pas. Si 0.82 déborde encore, le rendu bascule
+après rendu, mesurer la hauteur réelle et faire varier `--scale` **de 1.20 vers 0.82 par pas de
+0.01** (constantes `PLAFOND` et `PLANCHER`), en retenant la première valeur qui ne déborde pas,
+pour chaque placement de l'équilibrage. Si 0.82 déborde encore, le rendu bascule
 du mode `chips` au mode `compact` (une ligne de texte par état et par espèce, sans intitulé de
 famille) et la boucle recommence.
 
-**1.11 n'est pas arbitraire : c'est le format commun.** Le plafond est calé pour qu'une fiche
+**Le plafond n'est pas arbitraire : c'est le format commun.** Il est calé pour qu'une fiche
 complète l'atteigne elle aussi ; la quasi-totalité des dossiers sortent donc à la même taille de
 texte. Ne le remonte pas pour faire respirer un dossier léger : tu rendrais les dossiers inégaux.
-Pour rendre un dossier plus lisible, le levier est la taille de base des règles CSS, pas le
-plafond. Mesures de la mise en page du 28/10/2026 : Voutaz (6 actes, 5 lignes de parcours) 1,11,
-Lecarpentier (10 actes) 1,07 et 1,04 en anonymisé (le titre métier tient deux lignes), Delastre (ni
-acte ni parcours) 1,11, modèle vierge (53 actes, sans parcours) 1,11 en compact, Lecarpentier avec
-les 53 actes du référentiel 0,83 en compact.
+Il se recale seulement quand la mise en page change, en mesurant l'échelle « naturelle » de
+plusieurs fiches réelles (plafond provisoirement levé) : c'est ce qui a été fait le 28/10/2026.
+La v2, plus compacte, laissait un quart de page blanc sous Louane Gill à 1,11 ; sans plafond, Gill
+tenait jusqu'à 1,29, Voutaz 1,25, Bolognin 1,17, Lecarpentier 1,13. D'où **1,20** (décision
+d'Alex : « texte un peu plus grand »), soit un corps de texte d'environ 11 px, celui de la
+référence. Les étiquettes et les valeurs du bandeau ont été resserrées en même temps (étiquettes
+8,9 → 8,4 px et padding réduit, pour en garder deux par ligne dans 64 mm ; valeurs 10 → 9,4 px).
+Mesures après recalage : Gill, Voutaz et Delastre 1,20, Bolognin 1,17, Lecarpentier 1,13 (1,10 en
+anonymisé), Lecarpentier avec les 53 actes du référentiel 0,84 en compact.
 
 **Une mesure prise trop tôt est fausse, et elle se fige.** Si la routine mesure avant le chargement
 des polices, elle trouve un débordement énorme, descend au plancher et n'y revient jamais. Trois
@@ -225,7 +241,8 @@ initiale » d'avant, « Margot F. », est abandonné).
 - **Le bloc est vidé par le script, pas masqué par le template** (`cv_candidat.py anonymiser`) :
   prénom, nom, coordonnées et structures du parcours sont mis à vide dans
   `candidat-anonyme.json`, les « intitulé (structure) » de la ligne des stages perdent leur
-  parenthèse, et deux stages devenus identiques n'en font plus qu'un. Ce qui n'est pas dans le bloc
+  parenthèse, et deux stages devenus identiques se regroupent en « intitulé ×2 » (la ligne annonce
+  toujours autant de postes qu'elle en liste). Ce qui n'est pas dans le bloc
   ne peut pas fuiter par le texte du PDF, ses métadonnées ou le HTML.
 - **Le template** met le titre métier (`titre`, rédigé par la routine) à la place du nom, sur deux
   lignes équilibrées (`text-wrap: balance`), « Profil confidentiel » en sur-titre, aucune
