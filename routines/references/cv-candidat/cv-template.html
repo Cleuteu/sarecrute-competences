@@ -24,11 +24,6 @@
 const ANONYME = false;
 
 const CANDIDAT = {
-  // SR- + les 5 derniers caracteres de l'identifiant du record : la meme
-  // reference sur les deux dossiers, sans initiales, et stable d'une
-  // generation a l'autre.
-  reference:   "SR-XXXXX",
-
   // --- Identite -----------------------------------------------------------
   prenom:      "Prénom",                    // fld1WR6pNpe8sAya6
   nom:         "NOM",                       // fld6yzzWrqBZBtXly
@@ -427,7 +422,7 @@ const ETATS = [
         </svg>
         <span class="wordmark">Sa<span class="r">R</span>ecrute</span>
       </div>
-      <div class="ref"><span class="k">Dossier de présentation</span><b id="ref"></b></div>
+      <div class="ref"><span class="k">Dossier de présentation</span></div>
     </div>
     <div class="hero-main">
       <div class="hero-row">
@@ -481,12 +476,10 @@ const ETATS = [
     ? ["Profil confidentiel"].concat(morceaux.slice(1)).join(" · ")
     : (C.sousTitre || "");
   document.getElementById("accroche").textContent = C.accroche || "";
-  document.getElementById("ref").textContent      = C.reference || "";
   document.getElementById("foot-ref").innerHTML   = "<b>sarecrute.com</b>" +
-    (C.reference ? ` <span class="sep">·</span> Réf. ${esc(C.reference)}` : "") +
     (ANONYME ? ` <span class="sep">·</span> Profil anonymisé` : "");
   document.title = ANONYME
-    ? "Profil vétérinaire anonyme" + (C.reference ? " — " + C.reference : "") + " · SaRecrute"
+    ? "Profil vétérinaire anonyme · SaRecrute"
     : titre + " — Dossier de présentation candidat · SaRecrute";
 
   // Contact dans l'en-tete, jamais de localisation ; aucun en anonymise.

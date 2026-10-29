@@ -1,4 +1,4 @@
-**maj-offres — version 0.3.2 (2026-10-09)**
+**maj-offres — version 0.3.3 (2026-10-29)**
 
 > Ce fichier est le corps de la compétence `maj-offres` du plugin `sarecrute-admin`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -30,6 +30,7 @@ Synchronise les offres publiées sur le site avec l'Airtable **PROD** (`appP0W2I
 |---|---|
 | `offres.html` | tableau `const OFFRES` (toutes les offres) |
 | `site_sarecrute_v4.html` (local) / `index.html` (dépôt Pages) | cartes du carousel + `const OFFRES_TEASER` (uniquement les offres taguées « Nouvelle offre ») |
+| `candidats.html`, `.candidats-state.json`, panneau « Candidats » de l'accueil | **pas touchés par cette compétence** : c'est le volet candidats (`remote-skills/maj-candidats`), que la routine de nuit enchaîne après les offres depuis le 29/10/2026. `publier_site.py` les publie avec les offres et ajoute leur partie au compte rendu. |
 | `.offres-state.json` | (dans le dossier du site) état persistant : description + empreinte du texte source par offre. Sert à savoir quelles descriptions existent déjà et lesquelles doivent être réécrites. **Versionné dans le dépôt Pages** depuis le 18/09/2026 (la routine cloud en a besoin) : il ne contient que des descriptions déjà publiques et des empreintes, rien d'identifiant, et Pages ne sert pas les fichiers cachés (pas de `.nojekyll`). |
 
 ## Ressources bundlées

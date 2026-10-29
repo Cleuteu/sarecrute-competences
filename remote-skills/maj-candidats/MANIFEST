@@ -1,0 +1,10 @@
+version=0.1.0
+PROMPT.md
+assets/candidats.js
+assets/zones_geo.json
+outils/geo_zones.py
+scripts/airtable.py
+scripts/apply_candidats.py
+scripts/check_descriptions.py
+scripts/fetch_candidats.py
+scripts/paths.py

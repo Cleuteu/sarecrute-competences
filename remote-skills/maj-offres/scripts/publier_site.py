@@ -8,17 +8,21 @@ qui publie — ce script refuse d'y tourner.
 
   publier [--dry-run] [--attendre SEC]
       1. repasse le garde-fou anonymat sur TOUTES les descriptions enregistrées
-         (check_anonymat.py --state) : une seule alerte bloquante = rien n'est publié ;
-      2. vérifie que seuls offres.html, index.html et .offres-state.json ont changé ;
-      3. commit (message fixe, sans aucun nom de clinique) et push sur main ;
-      4. attend que sarecrute.com serve exactement le tableau OFFRES publié
+         (check_anonymat.py --state pour les offres ; maj-candidats/check_descriptions.py --state
+         pour les candidats si leur page ou leur état a changé) : une seule alerte bloquante = rien
+         n'est publié ;
+      2. vérifie que seuls offres.html, index.html, .offres-state.json, candidats.html et
+         .candidats-state.json ont changé ;
+      3. commit (message fixe, sans aucun nom de clinique ni de candidat) et push sur main ;
+      4. attend que sarecrute.com serve exactement les tableaux OFFRES et CANDIDATS publiés
          (le build Pages est asynchrone), au plus --attendre secondes ;
       5. écrit work/publication.json (statut, commit, mise en ligne confirmée ou non).
       Sans changement : « rien à publier », publication.json le dit, code 0.
 
   recap
-      Compose le mail de compte rendu à partir de work/diff.json, work/todo.json,
-      .offres-state.json et work/publication.json, et lit l'adresse de la destinataire
+      Compose le compte rendu à partir de work/diff.json, work/todo.json, .offres-state.json,
+      work/publication.json et, pour les candidats, du travail de maj-candidats (diff.json,
+      apply.json, .candidats-state.json), et lit l'adresse de la destinataire
       dans la table Recruteurs (première recruteuse active dont le nom commence par le
       prénom donné, « Sarah » par défaut) — champ « Email compte Claude », l'adresse
       sarecrute, jamais le champ « Email » (gmail collaborateur Airtable). Alex est en copie :
@@ -57,7 +61,14 @@ from paths import SITE, HOME, STATE, WORK
 
 SCRIPTS = Path(__file__).resolve().parent
 SITE_URL = "https://sarecrute.com/offres.html"
-FICHIERS_PUBLIES = ("offres.html", "index.html", ".offres-state.json")
+SITE_URL_CANDIDATS = "https://sarecrute.com/candidats.html"
+FICHIERS_PUBLIES = ("offres.html", "index.html", ".offres-state.json", "candidats.html", ".candidats-state.json")
+FICHIERS_CANDIDATS = ("candidats.html", ".candidats-state.json")
+# Le volet candidats (remote-skills/maj-candidats) a son propre dossier de travail.
+SCRIPTS_CANDIDATS = SCRIPTS.parent.parent / "maj-candidats" / "scripts"
+WORK_CANDIDATS = Path(os.environ.get("MAJ_CANDIDATS_WORK")
+                      or Path.home() / ".sarecrute" / "maj-candidats" / "work").expanduser()
+STATE_CANDIDATS = SITE / ".candidats-state.json"
 T_RECRUTEURS = "tblDUpPwkuHYnAPyt"
 F_REC_NOM, F_REC_ACTIF = "fldwLiZVl731wiI4o", "fldscrgHc1n9M60XZ"
 F_REC_EMAIL = "fldaxrZ7PftpZQQfl"   # « Email compte Claude » = adresse sarecrute (décision d'Alex, 18/09/2026)
@@ -87,6 +98,11 @@ def bloc_offres(html):
     return m.group(1) if m else None
 
 
+def bloc_candidats(html):
+    m = re.search(r"const CANDIDATS = (\[.*?\]);", html, re.DOTALL)
+    return m.group(1) if m else None
+
+
 def lire(p, defaut):
     return json.loads(p.read_text(encoding="utf-8")) if p.exists() else defaut
 
@@ -109,7 +125,7 @@ def cmd_publier(args):
             {"statut": "bloqué (anonymat)", "detail": r.stdout}, ensure_ascii=False, indent=1))
         return 2
 
-    # 2. seuls les trois fichiers attendus bougent
+    # 2. seuls les fichiers attendus bougent
     modifies = [l[3:].strip() for l in git("status", "--porcelain").stdout.splitlines() if l.strip()]
     inattendus = [f for f in modifies if f not in FICHIERS_PUBLIES]
     if inattendus:
@@ -122,6 +138,17 @@ def cmd_publier(args):
         return 0
     print(f"→ à publier : {modifies}")
 
+    # 2 bis. candidats : leurs descriptions repassent leur propre garde-fou
+    if any(f in FICHIERS_CANDIDATS for f in modifies):
+        r = subprocess.run([sys.executable, str(SCRIPTS_CANDIDATS / "check_descriptions.py"), "--state"],
+                           capture_output=True, text=True, env={**os.environ, "SARECRUTE_SITE": str(SITE)})
+        print(r.stdout.rstrip())
+        if r.returncode:
+            print("⛔ Contrôle des descriptions de candidats bloquant : rien n'est publié.")
+            (WORK / "publication.json").write_text(json.dumps(
+                {"statut": "bloqué (candidats)", "detail": r.stdout}, ensure_ascii=False, indent=1))
+            return 2
+
     if args.dry_run:
         print(git("diff", "--stat").stdout.rstrip())
         print("\n--dry-run : ni commit ni push.")
@@ -131,7 +158,7 @@ def cmd_publier(args):
     #    Auteur = l'identité git de la session cloud (le compte GitHub d'Alex) : le proxy de push
     #    refuse vers une branche non « claude/ » un commit signé d'un autre auteur que le titulaire.
     git("add", *[f for f in FICHIERS_PUBLIES if f in modifies])
-    git("commit", "-q", "-m", f"Mise à jour des offres — {heure_paris():%Y-%m-%d %H:%M} (routine)")
+    git("commit", "-q", "-m", f"Mise à jour des offres et des candidats — {heure_paris():%Y-%m-%d %H:%M} (routine)")
     sha = git("rev-parse", "--short", "HEAD").stdout.strip()
     p = git("push", "-q", "origin", "HEAD:main", check=False)
     if p.returncode:
@@ -142,19 +169,27 @@ def cmd_publier(args):
         return 3
     print(f"✔ Poussé : {sha}")
 
-    # 4. attendre la version servie
-    attendu = bloc_offres((SITE / "offres.html").read_text(encoding="utf-8"))
-    en_ligne, debut = False, time.time()
+    # 4. attendre la version servie (offres, et candidats si leur page existe)
+    attendus = [(SITE_URL, bloc_offres, bloc_offres((SITE / "offres.html").read_text(encoding="utf-8")))]
+    if (SITE / "candidats.html").exists():
+        attendus.append((SITE_URL_CANDIDATS, bloc_candidats,
+                         bloc_candidats((SITE / "candidats.html").read_text(encoding="utf-8"))))
+    en_ligne, debut, servis = False, time.time(), set()
     while time.time() - debut < args.attendre:
-        try:
-            with urllib.request.urlopen(SITE_URL, timeout=30) as resp:
-                if bloc_offres(resp.read().decode("utf-8", "replace")) == attendu:
-                    en_ligne = True
-                    break
-        except (urllib.error.URLError, TimeoutError) as e:
-            print(f"   (site injoignable : {e})")
+        for url, bloc, attendu in attendus:
+            if url in servis:
+                continue
+            try:
+                with urllib.request.urlopen(url, timeout=30) as resp:
+                    if bloc(resp.read().decode("utf-8", "replace")) == attendu:
+                        servis.add(url)
+            except (urllib.error.URLError, TimeoutError) as e:
+                print(f"   ({url} injoignable : {e})")
+        if len(servis) == len(attendus):
+            en_ligne = True
+            break
         time.sleep(15)
-    print("✔ En ligne : sarecrute.com sert le nouveau tableau d'offres." if en_ligne
+    print("✔ En ligne : sarecrute.com sert les nouvelles offres et les nouveaux candidats." if en_ligne
           else f"⚠ Mise en ligne non confirmée après {args.attendre} s (le build Pages traîne ?).")
 
     (WORK / "publication.json").write_text(json.dumps({
@@ -207,12 +242,19 @@ def cmd_recap(args):
 
     L = [f"Bonjour {prenom},", "",
          f"Le site a été mis à jour cette nuit ({date}). Voici ce qui a changé."]
+    if pub.get("statut") == "publié":
+        L.append("Mise en ligne vérifiée sur sarecrute.com." if pub.get("en_ligne_confirme")
+                 else "Publication poussée, mise en ligne pas encore confirmée au moment de l'envoi "
+                      "(le site se met à jour en quelques minutes).")
+    else:
+        L.append(f"Attention : statut de publication « {pub.get('statut')} ».")
 
-    L += ["", f"Dépubliées ({len(retraits)})" if retraits else "Dépubliées : aucune"]
+    L += ["", "— Offres —"]
+    L += ["", f"Offres dépubliées ({len(retraits)})" if retraits else "Offres dépubliées : aucune"]
     for o in retraits:
         L.append(f"  - {libelle(o)} — {o.get('raison', '')}")
 
-    L += ["", f"Publiées ({len(ajouts)})" if ajouts else "Publiées : aucune"]
+    L += ["", f"Offres publiées ({len(ajouts)})" if ajouts else "Offres publiées : aucune"]
     for o in ajouts:
         L.append(f"  - {libelle(o)}")
         desc = state.get(o["ref"], {}).get("description", "")
@@ -239,25 +281,71 @@ def cmd_recap(args):
 
     total = diff.get("total_publiables")
     L += ["", f"Offres en ligne : {total}" if total is not None else ""]
-    if pub.get("statut") == "publié":
-        L.append("Mise en ligne vérifiée sur sarecrute.com." if pub.get("en_ligne_confirme")
-                 else "Publication poussée, mise en ligne pas encore confirmée au moment de l'envoi "
-                      "(le site se met à jour en quelques minutes).")
-    else:
-        L.append(f"Attention : statut de publication « {pub.get('statut')} ».")
-    L += ["", "Les noms de cliniques ci-dessus sont pour toi : sur le site, seul le département apparaît.",
+
+    nc = recap_candidats(L)
+    L += ["", "Les noms de cliniques et de candidats ci-dessus sont pour toi : sur le site, seuls le "
+              "département apparaît, sans nom ni référence.",
           "", "— Routine SaRecrute (automatique, tous les jours à 2h ; questions et corrections : Alex)"]
 
     n = len(ajouts) + len(retraits)
-    sujet = (f"Site SaRecrute — {len(ajouts)} publiée(s), {len(retraits)} dépubliée(s) — {date}"
-             if n else f"Site SaRecrute — descriptions revues — {date}")
+    morceaux = []
+    if n:
+        morceaux.append(f"{len(ajouts)} offre(s) publiée(s), {len(retraits)} dépubliée(s)")
+    if nc["ajouts"] or nc["retraits"]:
+        morceaux.append(f"{nc['ajouts']} candidat(s) publié(s), {nc['retraits']} retiré(s)")
+    sujet = f"Site SaRecrute — {' ; '.join(morceaux) if morceaux else 'fiches mises à jour'} — {date}"
     recap = {"destinataire": email, "nom": nom, "copie": COPIE, "sujet": sujet,
              "corps": "\n".join(l for l in L if l is not None),
-             "changements": n + len(revues)}
+             "changements": n + len(revues) + nc["total"]}
     (WORK / "recap.json").write_text(json.dumps(recap, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"→ {WORK}/recap.json — pour {nom} <{email}>, copie : {COPIE}\n")
     print(f"Sujet : {sujet}\n\n{recap['corps']}")
     return 0
+
+
+def recap_candidats(L):
+    """Ajoute à L la partie candidats du compte rendu (noms internes, comme pour les cliniques)."""
+    diff = lire(WORK_CANDIDATS / "diff.json", None)
+    app = lire(WORK_CANDIDATS / "apply.json", None)
+    if diff is None or app is None:
+        L += ["", "Candidats : la mise à jour n'a pas tourné cette nuit."]
+        return {"ajouts": 0, "retraits": 0, "total": 0}
+    etat = lire(STATE_CANDIDATS, {"candidats": {}})["candidats"]
+    noms = {x["ref"]: x for x in lire(WORK_CANDIDATS / "candidats.json", [])}
+    noms.update({x["ref"]: {**noms.get(x["ref"], {}), **x}
+                 for x in diff.get("ajouts", []) + diff.get("retraits", []) + diff.get("revues", [])})
+    def qui(ref):
+        x = noms.get(ref, {})
+        return f"{x.get('_nom') or '(nom inconnu)'}" + (f" — {x['titre']}" if x.get("titre") else "")
+    publies, retires, attente = app.get("publies_ce_soir", []), app.get("retires", []), app.get("en_attente", [])
+    prudence = app.get("retires_par_prudence", [])
+    changees = app.get("descriptions_changees", [])
+    L += ["", "— Candidats —"]
+    L += ["", f"Candidats publiés ({len(publies)})" if publies else "Candidats publiés : aucun"]
+    for ref in publies:
+        L.append(f"  - {qui(ref)}")
+        L.append(f"      Description : {etat.get(ref, {}).get('description', '')}")
+    motifs = {x["ref"]: x.get("motif", "") for x in diff.get("retraits", [])}
+    L += ["", f"Candidats retirés ({len(retires)})" if retires else "Candidats retirés : aucun"]
+    for ref in retires:
+        L.append(f"  - {qui(ref)} — {motifs.get(ref, '')}")
+    if prudence:
+        L += ["", f"Retirés par prudence ({len(prudence)}) — la relecture de cette nuit a eu un doute ; "
+                  "à regarder (le candidat repassera en relecture la nuit prochaine)"]
+        for ref in prudence:
+            L.append(f"  - {qui(ref)}")
+    if attente:
+        L += ["", f"En attente ({len(attente)}) — description pas encore validée, rien n'est en ligne"]
+        for ref in attente:
+            L.append(f"  - {qui(ref)}")
+    if changees:
+        L += ["", f"Descriptions de candidats revues ({len(changees)})"]
+        for ref in changees:
+            L.append(f"  - {qui(ref)}")
+            L.append(f"      Après : {etat.get(ref, {}).get('description', '')}")
+    L += ["", f"Candidats en ligne : {app.get('en_ligne')}"]
+    return {"ajouts": len(publies), "retraits": len(retires) + len(prudence),
+            "total": len(publies) + len(retires) + len(prudence) + len(attente) + len(changees)}
 
 
 # ---------------------------------------------------------------- telegram
@@ -327,6 +415,11 @@ def cmd_telegram(args):
     if recap is None:
         print("work/recap.json absent — lance d'abord `recap`.")
         return 1
+    if not recap.get("changements"):
+        # publication sans changement notable (une disponibilité passée à « Dès maintenant »…) :
+        # pas de message, Sarah n'a rien à regarder
+        print("Rien de notable à signaler : aucun message envoyé.")
+        return 0
     fiche = fiche_recruteuse(args.destinataire)
     cibles = []
     if fiche[F_REC_TELEGRAM]:

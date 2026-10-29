@@ -10,7 +10,9 @@ le titre du dossier anonymisé, et relit le parcours ; tout le reste est déterm
 recopiées telles quelles (28/10/2026) : ni notes, ni transcripts, ni CV, ni Profil IA ne sont lus.
 
 Chaque run produit DEUX dossiers (depuis le 28/10/2026) : le nominatif dans « CV IA », l'anonymisé
-dans « CV IA anonyme » (aucun nom, aucune coordonnée, aucun employeur), sous la même référence.
+dans « CV IA anonyme » (aucun nom, aucune coordonnée, aucun employeur). Aucun des deux ne porte de
+référence (décision d'Alex du 29/10/2026) : une référence partagée reliait le dossier nominatif à la
+carte publique du site.
 
 Sous-commandes, dans l'ordre d'un run :
 
@@ -425,11 +427,7 @@ def cmd_fetch(a):
     if gardes == "Oui" and freq:
         gardes = f"Oui · {freq}"
     oui = lambda v: "Oui" if sel(v) == "Oui" else ""
-    # Même référence sur les deux dossiers, tirée du record et non des initiales (qui se liraient
-    # sur le dossier anonymisé), stable d'une génération à l'autre.
-    reference = f"SR-{rec[-5:].upper()}"
     candidat = {
-        "reference": reference,
         "prenom": prenom, "nom": nom, "sousTitre": sous_titre,
         "titre": "",
         "accroche": sel(f.get(F["accroche_cv"])),
@@ -469,7 +467,7 @@ def cmd_fetch(a):
         if len(t) >= 3 and t.lower() not in {x.lower() for x in interdits}:
             interdits.append(t)
     etat = {
-        "record_id": rec, "prenom": prenom, "nom": nom, "reference": reference,
+        "record_id": rec, "prenom": prenom, "nom": nom,
         "statut_actuel": sel(f.get(F["cv_statut"])), "cv_ia_existants": cv_ia,
         "a_remplacer": [x["filename"] for x in cv_ia if x.get("filename") and NOM_DOSSIER_SARECRUTE.match(x["filename"])],
         "champs_vides": vides,
@@ -481,12 +479,12 @@ def cmd_fetch(a):
         "nom_complet": nom_complet,
         "fichier_base": f"CV-{ascii_slug(prenom)}-{ascii_slug(nom)}-SaRecrute",
         # Le nom de fichier voyage avec la pièce jointe : jamais de nom de personne dedans.
-        "fichier_base_anonyme": f"CV-anonyme-{reference}-SaRecrute",
+        "fichier_base_anonyme": "CV-anonyme-SaRecrute",
         "interdits": interdits,
     }
     ecrire(a.dossier, "candidat.json", {"ANONYME": False, "CANDIDAT": candidat})
     ecrire(a.dossier, "etat.json", etat)
-    print(json.dumps({k: etat[k] for k in ("record_id", "prenom", "nom", "reference", "statut_actuel",
+    print(json.dumps({k: etat[k] for k in ("record_id", "prenom", "nom", "statut_actuel",
                                            "cv_ia_existants", "champs_vides", "nb_competences",
                                            "nb_experiences_brutes", "nb_experiences_dossier", "longueur_accroche")},
                      ensure_ascii=False, indent=2))
@@ -501,8 +499,7 @@ def fuites(candidat, interdits):
     def parcourir(v, chemin):
         if isinstance(v, dict):
             for k, x in v.items():
-                if k != "reference":
-                    parcourir(x, f"{chemin}.{k}" if chemin else k)
+                parcourir(x, f"{chemin}.{k}" if chemin else k)
         elif isinstance(v, list):
             for i, x in enumerate(v):
                 parcourir(x, f"{chemin}[{i}]")
@@ -672,10 +669,6 @@ def note_automatique(etat, rapport, plus="", remplaces=(), anonyme_absent=""):
         lignes.append(plus.strip())
     if not lignes:
         lignes.append("Rien à signaler.")
-    # La référence est ce qu'une clinique cite après avoir reçu le dossier anonymisé : dans la note,
-    # la recherche d'Airtable retrouve la fiche.
-    if etat.get("reference"):
-        lignes.append(f"Référence des dossiers : {etat['reference']}")
     return "\n".join(lignes)
 
 

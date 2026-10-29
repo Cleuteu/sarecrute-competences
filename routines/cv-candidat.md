@@ -32,7 +32,7 @@ python3 routines/scripts/cv_candidat.py fetch recXXXXXXXXXXXXXX
 
 Le script écrit :
 - `work-cv/candidat.json` — le bloc de données du template, complet sauf le titre (l'accroche y est déjà, recopiée de « Accroche CV ») ;
-- `work-cv/etat.json` — statut actuel, champs vides, dossier déjà présent dans « CV IA », expériences brutes, référence des dossiers, et `interdits` : les termes qui ne doivent apparaître nulle part dans le dossier anonymisé.
+- `work-cv/etat.json` — statut actuel, champs vides, dossier déjà présent dans « CV IA », expériences brutes, et `interdits` : les termes qui ne doivent apparaître nulle part dans le dossier anonymisé.
 
 Si le script s'arrête (fiche introuvable, fiche sans nom, clé absente, Airtable injoignable) : incident.
 
@@ -74,7 +74,7 @@ Tu ne fais que **retirer** : jamais remplacer un nom par une description que la 
 python3 routines/scripts/cv_candidat.py render --anonyme
 ```
 
-Écrit `work-cv/CV-anonyme-SR-XXXXX-SaRecrute.html`, `.pdf`, `work-cv/apercu-anonyme.png` et `work-cv/rapport-anonyme.json`. Le script refuse le dossier tant qu'un terme interdit y figure (code 2, problème « dossier anonymisé : « X » dans <champ> ») : ôte-le et relance. Si, après deux corrections, le rendu anonymisé échoue encore, n'insiste pas : le nominatif partira seul à l'ÉTAPE 7 et la note dira pourquoi. Ce n'est pas un incident.
+Écrit `work-cv/CV-anonyme-SaRecrute.html`, `.pdf`, `work-cv/apercu-anonyme.png` et `work-cv/rapport-anonyme.json`. Le script refuse le dossier tant qu'un terme interdit y figure (code 2, problème « dossier anonymisé : « X » dans <champ> ») : ôte-le et relance. Si, après deux corrections, le rendu anonymisé échoue encore, n'insiste pas : le nominatif partira seul à l'ÉTAPE 7 et la note dira pourquoi. Ce n'est pas un incident.
 
 ## ÉTAPE 6 — Regarder les deux dossiers
 
@@ -107,5 +107,5 @@ La fiche ne doit jamais rester en « En cours ». En « dryrun », n'écris pas 
 ## Fin de run
 
 Une ligne :
-- succès : « Dossiers déposés pour <Prénom Nom>, réf. <SR-XXXXX> (nominatif<+ anonymisé | , anonymisé non déposé>, <N> actes, <M> lignes de parcours, échelle <scale>, mode <chips|compact>). Note : <première ligne de la note>. » ;
+- succès : « Dossiers déposés pour <Prénom Nom> (nominatif<+ anonymisé | , anonymisé non déposé>, <N> actes, <M> lignes de parcours, échelle <scale>, mode <chips|compact>). Note : <première ligne de la note>. » ;
 - échec : « Erreur sur <recordId> : <description courte>. Statut passé à Erreur. »

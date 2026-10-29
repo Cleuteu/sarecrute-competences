@@ -70,7 +70,7 @@ ses défauts. La révision du 15/10/2026 (cadre en intitulé/valeur, jauge devan
 tableau) est dans l'historique git, au commit qui précède ce remplacement.
 
 - **En-tête vert foncé** (`--sr-forest`) pleine largeur : logo à gauche, « Dossier de présentation »
-  et la référence à droite ; puis le sous-titre en capitales or, le nom en Fraunces blanc, les
+  à droite (sans référence depuis le 29/10/2026) ; puis le sous-titre en capitales or, le nom en Fraunces blanc, les
   coordonnées à droite du nom, l'accroche pleine largeur (176 mm : à 128 mm, à côté des
   coordonnées, elle prenait six lignes au lieu de quatre).
 - **Le logo est dessiné en SVG sur le fond du bandeau**, viewBox recadré au trait extérieur des
@@ -193,7 +193,7 @@ débordement et la hauteur de contenu de chaque colonne (par le bas du dernier e
 Un seul `.html` autonome, sans dépendance externe hors Google Fonts, avec le bloc de données en
 tête, le moteur de rendu en JS vanilla et le CSS print. Champs de `CANDIDAT`, tous obligatoires,
 dans cet ordre — une valeur vide masque sa ligne, elle ne se supprime pas du bloc :
-`reference`, `prenom`, `nom`, `sousTitre`, `titre`, `accroche`, `contact{ email, telephone }`,
+`prenom`, `nom`, `sousTitre`, `titre`, `accroche`, `contact{ email, telephone }`,
 `cadre{ experience, disponibilite, contrat, tempsTravail, gardes, remuneration, mobilite }`,
 `pratiques[]`, `specialites[]`, `recherche[]`,
 `formation{ ecole, anneeSortie, internat, desv, diplomeSup, habilitation }`, `langues[]`,
@@ -201,11 +201,12 @@ dans cet ordre — une valeur vide masque sa ligne, elle ne se supprime pas du b
 `competences[]` (`{ espece, famille, acte, niveau }`, niveau recopié verbatim ; le regroupement, le
 tri et les décomptes sont automatiques). `ANONYME` (booléen) précède le bloc.
 
-Fichiers produits : `CV-Prenom-Nom-SaRecrute.pdf` (nominatif) et `CV-anonyme-SR-XXXXX-SaRecrute.pdf`
-(anonymisé : le nom de fichier voyage avec la pièce jointe, il ne porte jamais de nom de personne),
-référence `SR-` + les 5 derniers caractères du record (jusqu'au 28/10/2026 : `SR-<année>-<initiales>`,
-abandonnée parce que les initiales se lisaient sur le dossier anonymisé), `SR-MODELE` pour le modèle
-vierge.
+Fichiers produits : `CV-Prenom-Nom-SaRecrute.pdf` (nominatif) et `CV-anonyme-SaRecrute.pdf`
+(anonymisé : le nom de fichier voyage avec la pièce jointe, il ne porte jamais de nom de personne).
+**Aucune référence** sur les dossiers depuis le 29/10/2026 (décision d'Alex) : la référence
+`SR-XXXXX` (5 derniers caractères du record) était aussi celle de la carte publique du site, et
+reliait le dossier nominatif reçu par une clinique à cette carte. Le site a maintenant ses propres
+identifiants, opaques.
 
 ## La charte graphique (relevée sur sarecrute.com)
 
@@ -228,12 +229,12 @@ wordmark « SaRecrute » en Fraunces 600 avec **le R en terracotta**. Le terraco
 dans le bilan de compétences.
 
 Pied : filet fin, « SaRecrute · Recrutement vétérinaire · France · Suisse · Espagne · Belgique » à
-gauche, « sarecrute.com · Réf. » à droite (et « Profil anonymisé » sur l'anonymisé).
+gauche, « sarecrute.com » à droite (et « Profil anonymisé » sur l'anonymisé).
 
 ## L'anonymisation (deux dossiers par run depuis le 28/10/2026)
 
 Chaque run produit le nominatif (« CV IA ») **et** l'anonymisé (« CV IA anonyme »,
-`fld457VMpd1CHCAxY`, créé le 28/10/2026), sous la même référence. C'est le standard du métier pour
+`fld457VMpd1CHCAxY`, créé le 28/10/2026). C'est le standard du métier pour
 diffuser un profil avant accord de mise en relation : sans ça, le cabinet se fait court-circuiter.
 Décision d'Alex du 28/10/2026, sur le modèle de la référence : **aucun nom** (le « prénom +
 initiale » d'avant, « Margot F. », est abandonné).
@@ -287,8 +288,8 @@ Lecarpentier. Le script réécrit donc chaque champ après dépôt (nouvelle pi�
 étrangères), puis écrit les deux champs et le statut en un seul PATCH. Ne jamais confondre `CV IA`
 (`fldDfGvVlyid0xacE`, le dossier nominatif) ni `CV IA anonyme` (`fld457VMpd1CHCAxY`) avec `CV`
 (`fldsj2ukrpjPzu5ox`, le CV d'origine du candidat, qui n'est jamais une source). La dernière ligne
-de `CV IA - Note` donne la référence : c'est par elle que la recherche d'Airtable retrouve la fiche
-quand une clinique rappelle au sujet d'un dossier anonymisé.
+de `CV IA - Note` ne donne plus de référence (depuis le 29/10/2026) : une clinique qui rappelle au sujet
+d'un dossier anonymisé le fait dans le fil du mail qui le lui a apporté, qui désigne le candidat.
 
 ## Ce qui a été laissé avec la compétence manuelle
 
