@@ -144,12 +144,15 @@ def entrees_datees(texte, cree, today):
     return res
 
 
+REF_RE = re.compile(r"SR-[0-9A-Z]{5}")
+
+
 def ref_de(record_id):
-    """Identifiant public d'un candidat : empreinte de l'identifiant Airtable COMPLET. Il ne figure ni
-    sur les dossiers envoyés aux cliniques ni nulle part ailleurs : une clinique qui garde un ancien
-    dossier (référence SR-XXXXX, 5 derniers caractères) ne peut pas le recalculer ni relier la carte
-    publique à la personne. Stable d'une nuit à l'autre."""
-    return hashlib.sha256(f"sarecrute:candidat:{record_id}".encode("utf-8")).hexdigest()[:10]
+    """Référence publique d'un candidat : SR- et les 5 derniers caractères de l'identifiant Airtable, en
+    majuscules. C'est la formule du champ « Référence » de la table Candidats, où les recruteuses la
+    retrouvent quand une clinique la cite, et celle des dossiers CV envoyés avant le 29/10/2026.
+    Affichée sur la carte, reprise dans le mail « Ce profil m'intéresse ». Stable d'une nuit à l'autre."""
+    return f"SR-{record_id[-5:].upper()}"
 
 
 def empreinte(obj):
@@ -347,8 +350,8 @@ def construire(t, today, reglages):
             exp_par[i].append(e["fields"])
     signes = signes_de_vie(t, today)
 
-    # Deux fiches de même identifiant (improbable) : seule une collision entre fiches publiables
-    # compte ; elles sont alors écartées, pas tout le volet candidats.
+    # Deux fiches de même référence (aucune sur 1 124 au 31/10/2026) : seule une collision entre fiches
+    # publiables compte ; elles sont alors écartées, pas tout le volet candidats.
     refs = collections.Counter(ref_de(r["id"]) for r in t["cand"]
                                if not motif_hors_perimetre(r, signes[r["id"]], today))
     doublons = {x for x, n in refs.items() if n > 1}
@@ -358,7 +361,7 @@ def construire(t, today, reglages):
         i, ref = r["id"], ref_de(r["id"])
         s = signes[i]
         motif = motif_hors_perimetre(r, s, today) or (
-            "identifiant en double avec une autre fiche (à régler à la main)" if ref in doublons else None)
+            "référence en double avec une autre fiche (à régler à la main)" if ref in doublons else None)
         if motif:
             hors[ref] = dict(ref=ref, _nom=F(r, C["nom"]), motif=motif)
             continue
@@ -428,6 +431,19 @@ def main():
                          "Restaurer l'état depuis l'historique git du dépôt Pages.")
     etat = json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {"candidats": {}, "retenus": {}}
     publies, retenus, anciens = etat.get("candidats", {}), etat.get("retenus", {}), etat.get("anciens", {})
+    autres = sorted(r for r in (*publies, *retenus, *anciens) if not REF_RE.fullmatch(r))
+    if autres:
+        # Un état d'avant le 31/10/2026 (identifiants hexadécimaux) ferait passer tout le monde pour
+        # nouveau : toutes les descriptions réécrites, tous les réglages perdus. Une référence mal
+        # recopiée (retenue posée à la main) laisserait en ligne le candidat qu'on voulait retirer.
+        anciennes = [r for r in autres if re.fullmatch(r"[0-9a-f]{10}", r)]
+        mal_formees = [r for r in autres if r not in anciennes]
+        if mal_formees:
+            raise SystemExit(f"{STATE.name} : référence(s) mal formée(s) {', '.join(map(repr, mal_formees))}. "
+                             "Rien n'est fait. Recopier la valeur exacte du champ « Référence » d'Airtable "
+                             "(SR-XXXXX, majuscules, sans espace), puis relancer.")
+        raise SystemExit(f"{STATE.name} : {len(anciennes)} identifiant(s) d'avant le 31/10/2026 ({', '.join(anciennes[:3])}…). "
+                         "Rien n'est fait. Convertir l'état en local avec outils/migrer_references.py, puis relancer.")
     # réglages de carte : ceux d'un candidat en ligne, ou d'un candidat qui revient après un retrait
     reglages = {**{r: a.get("ajustements", {}) for r, a in anciens.items()},
                 **{r: c.get("ajustements", {}) for r, c in publies.items()}}

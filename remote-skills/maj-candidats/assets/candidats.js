@@ -56,9 +56,9 @@
     }
 
     function contactUrl(c) {
-      // Pas de référence : le profil se reconnaît à ce qu'en dit la carte (titre, zones, description).
-      const subject = `Profil candidat : ${c.titre} — ${zoneTete(c)}`;
-      const body = `Bonjour,\n\nCe profil nous intéresse :\n${c.titre} — ${resumeZones(c)} — disponibilité : ${c.disponibilite || "à préciser"}\n« ${c.description || ""} »\n\n- Structure :\n- Ville / département :\n- Poste proposé :\n- Téléphone :\n`;
+      // La référence retrouve la fiche dans Airtable (champ « Référence ») ; le reste rappelle la carte.
+      const subject = `Profil candidat ${c.ref} : ${c.titre} — ${zoneTete(c)}`;
+      const body = `Bonjour,\n\nLe profil ${c.ref} nous intéresse :\n${c.titre} — ${resumeZones(c)} — disponibilité : ${c.disponibilite || "à préciser"}\n« ${c.description || ""} »\n\n- Structure :\n- Ville / département :\n- Poste proposé :\n- Téléphone :\n`;
       return `mailto:${CONTACT}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     }
 
@@ -91,6 +91,7 @@
           <p class="offre-desc">${c.description || ""}</p>
           ${specs ? `<div class="offre-badges">${specs}</div>` : ""}
           <div class="offre-fields">${fields}</div>
+          <span class="cand-ref">Réf. ${c.ref}</span>
           <a class="btn btn-primary" href="${contactUrl(c)}">Ce profil m'intéresse <span class="btn-arrow">→</span></a>
         </article>
       `;
@@ -810,9 +811,10 @@
       grid.querySelectorAll(".is-zone-hover").forEach((card) => card.classList.remove("is-zone-hover"));
     }
 
-    // Arrivée depuis une carte « Nos nouveaux candidats » de l'accueil (?profil=<identifiant opaque>) : la liste
-    // complète, la fiche amenée à l'écran et soulignée quelques secondes.
-    const refCible = new URLSearchParams(location.search).get("profil");
+    // Arrivée depuis une carte « Nos nouveaux candidats » de l'accueil, ou par un lien qu'une recruteuse
+    // envoie (?profil=SR-XXXXX, casse indifférente) : la liste complète, la fiche amenée à l'écran et
+    // soulignée quelques secondes.
+    const refCible = (new URLSearchParams(location.search).get("profil") || "").trim().toUpperCase();
 
     // L'étape se décide avant de créer la carte : Leaflet doit naître dans un conteneur visible.
     populateFilters();
@@ -829,6 +831,10 @@
       // polices chargées pour que la position soit la bonne.
       document.fonts.ready.then(() => ficheCible.scrollIntoView({ block: "center", behavior: "instant" }));
       setTimeout(() => ficheCible.classList.remove("is-cible"), 4000);
+    } else if (refCible) {
+      // Candidat sorti de la liste (ou lien d'avant le 31/10/2026) : le dire, sinon la clinique
+      // croit le lien cassé ou prend une autre carte pour celle annoncée.
+      document.getElementById("cand-count").textContent = "Ce profil n'est plus en ligne : voici les candidats disponibles";
     }
 
     document.getElementById("cand-zones-liste").innerHTML = [...document.getElementById("cand-filtre-zone").options]

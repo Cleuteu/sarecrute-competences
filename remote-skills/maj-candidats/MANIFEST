@@ -1,8 +1,9 @@
-version=0.1.0
+version=0.2.0
 PROMPT.md
 assets/candidats.js
 assets/zones_geo.json
 outils/geo_zones.py
+outils/migrer_references.py
 scripts/airtable.py
 scripts/apply_candidats.py
 scripts/check_descriptions.py

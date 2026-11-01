@@ -1,6 +1,7 @@
 const ANONYME = false;
 
 const CANDIDAT = {
+  reference:   "SR-MODELE",
 
   prenom:      "Dossier candidat",
   nom:         "",

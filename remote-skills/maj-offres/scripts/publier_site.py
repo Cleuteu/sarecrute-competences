@@ -283,8 +283,9 @@ def cmd_recap(args):
     L += ["", f"Offres en ligne : {total}" if total is not None else ""]
 
     nc = recap_candidats(L)
-    L += ["", "Les noms de cliniques et de candidats ci-dessus sont pour toi : sur le site, seuls le "
-              "département apparaît, sans nom ni référence.",
+    L += ["", "Les noms de cliniques et de candidats ci-dessus sont pour toi : sur le site, seul le "
+              "département apparaît, sans nom. Un candidat y porte sa référence SR-…, celle du champ "
+              "« Référence » d'Airtable.",
           "", "— Routine SaRecrute (automatique, tous les jours à 2h ; questions et corrections : Alex)"]
 
     n = len(ajouts) + len(retraits)
@@ -316,7 +317,7 @@ def recap_candidats(L):
                  for x in diff.get("ajouts", []) + diff.get("retraits", []) + diff.get("revues", [])})
     def qui(ref):
         x = noms.get(ref, {})
-        return f"{x.get('_nom') or '(nom inconnu)'}" + (f" — {x['titre']}" if x.get("titre") else "")
+        return f"{x.get('_nom') or '(nom inconnu)'} ({ref})" + (f" — {x['titre']}" if x.get("titre") else "")
     publies, retires, attente = app.get("publies_ce_soir", []), app.get("retires", []), app.get("en_attente", [])
     prudence = app.get("retires_par_prudence", [])
     changees = app.get("descriptions_changees", [])

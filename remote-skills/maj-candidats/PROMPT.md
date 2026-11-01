@@ -1,4 +1,4 @@
-**maj-candidats — version 0.1.0 (2026-10-29)**
+**maj-candidats — version 0.2.0 (2026-10-31)**
 
 > Corps de la mise à jour des candidats du site SaRecrute. Exécuté chaque nuit par la routine
 > cloud `maj-offres-site` (`routines/maj-offres-site.md`), qui clone ce dépôt sur `main`.
@@ -28,15 +28,20 @@ pas reconnaissable (arbitrage d'Alex du 28/10/2026).
 |---|---|
 | `candidats.html` | la page, régénérée en entier à partir de `offres.html` (en-tête, CSS, pied de page) |
 | `index.html` (dépôt Pages) / `site_sarecrute_v4.html` (local) | panneau « Candidats » entre `<!-- NOUVEAUX CANDIDATS :` et `<!-- /NOUVEAUX CANDIDATS -->` : les 8 derniers candidats appelés |
-| `.candidats-state.json` | état versionné dans le dépôt Pages, **public** (le dépôt l'est) : par identifiant opaque, la description publiée, l'empreinte de ses sources, les réglages de carte, la date de mise en ligne ; `retenus` (candidats publiables gardés hors ligne, motif générique) ; `anciens` (réglages de carte des candidats sortis, pour un retour). **Rien qui ne soit déjà sur la page** : ni nom, ni identifiant Airtable, ni note, ni ce qu'on a choisi de ne pas afficher. |
+| `.candidats-state.json` | état versionné dans le dépôt Pages, **public** (le dépôt l'est) : par référence `SR-XXXXX`, la description publiée, l'empreinte de ses sources, les réglages de carte, la date de mise en ligne ; `retenus` (candidats publiables gardés hors ligne, motif générique) ; `anciens` (réglages de carte des candidats sortis, pour un retour). **Rien qui ne soit déjà sur la page** : ni nom, ni identifiant Airtable, ni note, ni ce qu'on a choisi de ne pas afficher. |
 | `~/.sarecrute/maj-candidats/work/` | travail de la nuit, **données personnelles** (noms, sources de rédaction) : rien de ce dossier ne quitte la machine ni n'entre dans un dépôt |
 
-**Aucune référence n'est affichée** (décision d'Alex du 29/10/2026), ni sur le site ni sur les dossiers
-CV. Chaque candidat a un **identifiant opaque** (10 caractères hexadécimaux, empreinte de l'identifiant
-Airtable complet) : clé de l'état, des données de la page et du lien `candidats?profil=…` de l'accueil.
-Il ne se recalcule pas depuis l'ancienne référence `SR-XXXXX` des dossiers déjà envoyés aux cliniques :
-une clinique qui garde un tel dossier ne peut pas relier la carte publique à la personne. Le bouton
-« Ce profil m'intéresse » envoie un mail qui reprend le titre, les zones et la description de la carte.
+**Chaque carte de la page candidats affiche sa référence** « Réf. SR-XXXXX » (décision d'Alex du
+31/10/2026, qui revient sur celle du 29/10 ; le panneau de l'accueil ne la porte que dans son lien) :
+`SR-` et les 5 derniers caractères de l'identifiant Airtable, en majuscules. C'est la formule du champ
+« Référence » de la table Candidats (`fldIt0dmpVxxLoUrV`) : une recruteuse à qui une clinique cite la
+référence retrouve la fiche par la recherche d'Airtable (dans une vue où le champ est visible : la
+recherche ignore les champs masqués). C'est aussi la clé de l'état,
+des données de la page et du lien `candidats?profil=SR-XXXXX` (panneau de l'accueil, ou lien envoyé par
+une recruteuse). Le bouton « Ce profil m'intéresse » envoie un mail dont le sujet porte la référence et
+dont le corps reprend le titre, les zones, la disponibilité et la description de la carte. Les dossiers
+CV envoyés avant le 29/10/2026 portent la même référence : une clinique qui en garde un peut relier la
+carte à la personne (choix assumé par Alex le 31/10).
 Les libellés de titres viennent de `../maj-offres/assets/titre_specialites.json`.
 
 ## Étapes
@@ -62,7 +67,7 @@ Pour chaque entrée de `todo.json`, ouvre son dossier et rédige **une** descrip
 chacune de ses affirmations est encore portée par le dossier et respecte les règles ci-dessous, sinon
 corrige seulement l'élément en cause. Pour une entrée `contrôle`, réécris l'élément que visent ses
 `alertes`. **Toute entrée de `todo.json` reçoit une ligne dans `work/descriptions.json`**
-(`{ "<identifiant>": "…" }`, l'identifiant du todo), y compris une description inchangée : c'est ce qui marque la relecture comme
+(`{ "<référence>": "…" }`, la référence `ref` du todo), y compris une description inchangée : c'est ce qui marque la relecture comme
 faite. Une ligne à `null` retire le candidat ce soir (voir « 3. Contrôler »).
 
 Le dossier donne la carte **telle qu'elle est affichée** (`carte_publique`, réglages appliqués) et
@@ -152,7 +157,7 @@ page d'accueil (`node`, cf. PROMPT.md de maj-offres, section 5). Puis
   public ce qu'on cache ni pourquoi.
 - `retenus.REF` : candidat publiable gardé hors ligne, avec un motif **générique** (« recherche à
   reconfirmer »). Sur demande d'Alex ou d'une recruteuse (un candidat qui demande à ne plus apparaître,
-  par exemple), depuis le dossier local du site : `./deploy.sh --sync`, ajouter l'identifiant du candidat (champ `ref` de `work/candidats.json`, à côté de son nom) à `retenus`
+  par exemple), depuis le dossier local du site : `./deploy.sh --sync`, ajouter la référence du candidat (champ « Référence » de sa fiche Airtable) à `retenus`
   dans `.candidats-state.json`, `python3 <skill>/scripts/fetch_candidats.py` puis
   `python3 <skill>/scripts/apply_candidats.py` (les nouveaux candidats de la nuit restent en attente),
   puis `./deploy.sh --candidats-locaux`. Le dépôt Pages étant public, les versions passées de la carte
@@ -160,6 +165,13 @@ page d'accueil (`node`, cf. PROMPT.md de maj-offres, section 5). Puis
 
 ## Pièges connus
 
+- **État d'avant le 31/10/2026** (clés hexadécimales de 10 caractères, par exemple restauré depuis
+  l'historique git) : `fetch_candidats.py` s'arrête, sinon tous les candidats passeraient pour
+  nouveaux. La routine cloud n'y touche pas (elle saute les candidats et prévient Alex). En local :
+  `python3 <skill>/outils/migrer_references.py` (lit Airtable, réécrit les clés de `candidats`,
+  `retenus` et `anciens` en `SR-XXXXX`, rien d'autre ; s'arrête sans rien écrire sur une clé sans
+  correspondance), puis la chaîne habituelle et `./deploy.sh --candidats-locaux`. Une référence mal
+  recopiée dans `retenus` arrête aussi `fetch_candidats.py`, avec un message distinct.
 - **Libellés de zones** : Airtable écrit « 20 - Corse-du-Sud », « Province de Bruxelles », « Canton de
   Neuchatel », « Nouvelle calédonie » ; la carte attend « Corse-du-Sud (2A) », « Région de
   Bruxelles-Capitale », « Canton de Neuchâtel », « Nouvelle-Calédonie ». `zone()` les aligne ; une zone

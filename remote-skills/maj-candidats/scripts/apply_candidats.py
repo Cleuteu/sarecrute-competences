@@ -122,6 +122,13 @@ for a, b in rep.items():
     head = head.replace(a, b)
 EXTRA_CSS = """
     /* ===== Page candidats (reprend les cartes de la page offres) ===== */
+    .cand-ref {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+    .offre-card .cand-ref { align-self: center; margin-bottom: -6px; }
     .cand-zones {
       font-size: 0.8rem;
       color: var(--deep);
