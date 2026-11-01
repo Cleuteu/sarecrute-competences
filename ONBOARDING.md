@@ -15,10 +15,12 @@ qui cliques**.
 Tu n'as rien à installer à la main : Claude s'en occupe en suivant les étapes ci-dessous.
 Laisse-le dérouler et réponds à ses questions.
 
-**Lance ces compétences depuis une session Cowork.** C'est là que les images des publications se
-joignent toutes seules, sans que le navigateur ne vienne te voler l'écran. Hors Cowork ça
-fonctionne aussi, mais par un copier-coller qui monopolise le premier plan quelques secondes par
-image — et qui, sur Mac, demande une autorisation système.
+**Pour les brouillons Facebook, lance la compétence depuis l'onglet Code de l'app de bureau**,
+dans une session ouverte sur ton dossier de travail (pas dans le Drive). C'est le seul endroit où
+les images des publications se joignent toutes seules : depuis le 06/10/2026, les tâches Cowork
+tournent dans le cloud, et l'app n'y permet plus d'envoyer un fichier à une page web. Depuis
+Cowork, la compétence prépare quand même les brouillons, en texte seul, et te donne le chemin de
+chaque image à joindre toi-même.
 
 ---
 
@@ -65,38 +67,23 @@ redémarrer.
 
 ### Étape 2 — Vérifier le mode d'exécution
 
-C'est ce qui détermine comment les images des publications seront jointes.
+C'est ce qui détermine si les images des publications pourront être jointes : il faut l'outil
+`file_upload` de Claude in Chrome. Cherche-le avec `ToolSearch`, requête
+`select:mcp__claude-in-chrome__file_upload`.
 
-```bash
-pwd
-for d in /mnt/user-data/uploads /mnt/user-data/outputs outputs uploads; do
-  [ -d "$d" ] && { touch "$d/.w" 2>/dev/null && rm -f "$d/.w" && echo "$d ECRIVABLE" || echo "$d lecture seule"; }
-done
-```
+- **Il revient** : session locale (onglet Code de l'app de bureau). Les images seront jointes
+  automatiquement, à condition que **Google Drive pour ordinateur** soit installé et montre le
+  Drive partagé « Sarecrute » : vérifie-le en listant `Drive partagés/Sarecrute/Publications`
+  (ou `Shared drives/…`) sur le lecteur Drive. La session doit être ouverte sur un dossier
+  **hors** du Drive, où la compétence copiera les visuels avant de les envoyer.
+- **« No matching deferred tools found »** : session Cowork. Depuis le 06/10/2026, les tâches
+  Cowork tournent dans le cloud, et l'app de bureau y retire `file_upload` (« Tool "file_upload"
+  is not available for remote Cowork sessions on Desktop »). Les brouillons Facebook y partiront
+  en texte seul, avec le chemin de chaque image à joindre à la main. Ne propose aucun
+  contournement.
 
-- Un de ces dossiers écrivable = session **Cowork**. Les images seront jointes directement par
-  l'outil d'upload : aucun réglage système, aucune frappe envoyée au poste, et le recruteur garde
-  sa machine pendant les runs. C'est le mode recommandé, et il n'y a rien de plus à faire.
-- Tester l'écriture réellement, comme ci-dessus, plutôt que de se fier à un avertissement : en
-  Cowork, `/mnt/user-data/uploads` a déjà été annoncé « read-only » par le système alors qu'il
-  était bel et bien écrivable. Le `pwd` y vaut `/home/claude`, d'où l'inutilité de chercher ces
-  dossiers en chemin relatif.
-- **En Cowork, le système du poste ne compte pas** : le shell tourne dans un conteneur Linux, pas
-  sur la machine du recruteur. Un recruteur sous Windows y dispose de `jq`, `base64` et `python3`
-  sans rien installer.
-
-Si aucun dossier n'est écrivable, on est hors Cowork : les images passeront par le presse-papiers.
-
-- **Windows** : rien à autoriser, `powershell` est natif.
-- **macOS** : l'app qui fait tourner Claude doit être cochée dans Réglages Système >
-  Confidentialité et sécurité > **Accessibilité**, sinon le collage échoue avec « osascript n'est
-  pas autorisé à envoyer de saisies (1002) ». C'est un réglage manuel : demande-le à
-  l'utilisateur, tu ne peux pas l'accorder toi-même.
-- Dans les deux cas, préviens que le navigateur passera devant quelques secondes à chaque image,
-  et qu'il ne faut pas taper pendant ce court instant. Entre deux images, la machine est libre.
-
-Dis à l'utilisateur en une phrase dans quel mode il est. S'il n'est pas en Cowork, signale-lui
-qu'y lancer les compétences lui éviterait cette gêne.
+Dis à l'utilisateur en une phrase dans quel mode il est. S'il est en Cowork, signale-lui que les
+brouillons Facebook avec images se lancent depuis l'onglet Code de l'app de bureau.
 
 ### Étape 3 — Vérifier les connecteurs
 
@@ -190,8 +177,9 @@ lignes et prépare un **brouillon Gmail pour Alex** avec tout le nécessaire. Il
 tel quel, sans rien diagnostiquer ni recopier. Le compte rendu d'un run normal tient en trois
 blocs — *Fait*, *À faire par vous*, *Pas fait* — et ne contient que ce qui lui demande une action.
 
-Précise le mode détecté à l'étape 2 et la gêne à attendre pendant un run : aucune en Cowork,
-quelques secondes de premier plan par image sinon.
+Précise le mode détecté à l'étape 2 : dans l'onglet Code, les brouillons Facebook partent avec
+leurs images, sans prendre la main sur la machine ; en Cowork, en texte seul, avec le chemin de
+chaque image à joindre soi-même.
 
 Rappelle enfin que rien n'est jamais publié ni envoyé automatiquement, et qu'en cas de correction
 annoncée il suffit de lancer `claude plugin update sarecrute-recruteur@sarecrute-competences` puis de redémarrer.

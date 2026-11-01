@@ -1,4 +1,4 @@
-**creer-brouillons-facebook — version 0.4.0 (2026-11-01)**
+**creer-brouillons-facebook — version 0.5.0 (2026-11-01)**
 
 > Ce fichier est le corps de la compétence `creer-brouillons-facebook` du plugin `sarecrute-recruteur`. Il
 > n'est **pas** installé chez l'utilisateur : le stub `SKILL.md` du plugin le télécharge depuis la
@@ -33,15 +33,18 @@ Prérequis, propres à chaque utilisateur :
 - connecteurs **Airtable** et **Google Drive** connectés sur son compte Claude ;
 - **Claude in Chrome** actif, Chrome ouvert et connecté à **son** compte Facebook ;
 - être membre des groupes Facebook visés (sinon ces canaux seront signalés, voir étape 4) ;
-- pour les images : **Google Drive pour ordinateur** installé et connecté au compte Workspace de
-  la recruteuse, le Drive partagé « Sarecrute » visible dedans (le mode flux suffit). **En Claude
-  Code (onglet Code de l'app), rien d'autre** : la compétence copie elle-même chaque visuel dans
-  le dossier de travail de la session, le seul que `file_upload` accepte sans réglage (étape 3).
-  **En Cowork** — le mode des recruteuses —, la tâche doit avoir un dossier connecté : de
-  préférence le dossier `Sarecrute` du Drive partagé (visuels lus sur place) ; à défaut,
-  n'importe quel dossier hors Drive, qui sert de relais aux visuels téléchargés par le connecteur
-  Drive (étape 3.3). Sans aucun dossier connecté, dernier repli : glisser les images dans le chat,
-  puis texte seul.
+- pour les images : **lancer la compétence depuis l'onglet Code de l'app de bureau** (session
+  locale, dossier de travail hors Drive), avec **Google Drive pour ordinateur** installé et
+  connecté au compte Workspace de la recruteuse, le Drive partagé « Sarecrute » visible dedans
+  (le mode flux suffit). Rien d'autre : la compétence copie elle-même chaque visuel dans le
+  dossier de travail de la session, le seul que `file_upload` accepte sans réglage (étape 3).
+- **Depuis Cowork, les brouillons partent en texte seul**, et la recruteuse joint elle-même
+  chaque visuel, dont la compétence lui donne le chemin (étapes 0 et 3.4). Depuis le 06/10/2026,
+  toute nouvelle tâche Cowork tourne dans le cloud (support.claude.com, article 15520349), et
+  l'app de bureau y retire volontairement `file_upload` des outils Chrome : « Tool "file_upload"
+  is not available for remote Cowork sessions on Desktop » (app 4.4212, liste d'outils codée en
+  dur, sans réglage). Constaté en run réel le 01/11/2026 sur le poste de Sarah ; même constat
+  public dans le ticket `anthropics/claude-code#105868` (29/10/2026).
 
 Le **texte**, lui, ne dépend d'aucun de ces prérequis : il passe par un événement `paste`
 synthétique (étape 4), qui n'utilise ni le presse-papiers système ni le focus fenêtre.
@@ -60,14 +63,14 @@ Un run nominal va donc **de bout en bout sans rien demander**. Tout se déduit :
 - **le nombre de brouillons** — lancé d'office entre 5 et 17 (étape 2.5) ;
 - **le navigateur** — choisi d'office quand un seul Chrome est connecté (étape 4) ;
 - **la source de l'image** — le Drive synchronisé quand il est là, le connecteur Drive sinon,
-  décidée par le script de l'étape 3 sans question ; la seule demande possible est celle du
-  dernier repli Cowork (glisser N images dans le chat) ;
+  décidée par le script de l'étape 3 sans question ;
 - **les cas dégradés** (image manquante, groupe non rejoint, canal sans URL, canal hors
   périmètre) — jamais une question : on continue et on le dit dans le compte rendu.
 
-Il reste **trois** situations, toutes anormales, où l'on s'arrête pour demander : plusieurs
-recruteurs possibles et aucun ne correspond au compte (étape 1), un nombre de brouillons hors de
-la plage 5–17 (étape 2.5), plusieurs navigateurs connectés et aucun mémorisé (étape 4). Chacune
+Il reste **quatre** situations, toutes anormales, où l'on s'arrête pour demander : la session ne
+peut pas joindre d'images (étape 0, Cowork), plusieurs recruteurs possibles et aucun ne correspond
+au compte (étape 1), un nombre de brouillons hors de la plage 5–17 (étape 2.5), plusieurs
+navigateurs connectés et aucun mémorisé (étape 4). Chacune
 signale quelque chose d'inhabituel — c'est ce qui les distingue des questions qu'on vient de
 retirer, dont la réponse était connue d'avance.
 
@@ -140,11 +143,45 @@ Les champs `Texte de publication`, `url image publication`, `Responsable de l'of
 > formatage** — c'est la même chaîne, moins les marqueurs, donc rien ne signale la perte.
 > Constaté en production : des semaines de publications sont parties sans le gras voulu par le
 > recruteur, sans que personne ne voie d'erreur.
-> Le texte se lit **uniquement** sur `tblVZva5yHSCnucsK.fldideBaQV8ILp2zJ`, atteint via
-> Publications → Campagne → Offre (voir étape 2, point 4).
+> Le texte se lit **uniquement** sur `tblVZva5yHSCnucsK.fldideBaQV8ILp2zJ`, atteint par l'ID
+> d'offre que donne le lookup `Offre d'emploi` de Publications (voir étape 2, point 4).
 >
 > Attention aux clés de `valuesByLinkedRecordId` du lookup : ce sont des IDs de **Campagnes**,
-> pas d'Offres. Les passer à la table Offres renvoie `records: []` sans erreur.
+> pas d'Offres. Les passer à la table Offres renvoie `records: []` sans erreur. L'ID de l'offre
+> est dans la **valeur** : `valuesByLinkedRecordId[<idCampagne>][0].id` (`rec…`, avec son
+> `name`). Vérifié le 01/11/2026 sur deux runs : ces IDs ouvrent bien les offres et leur
+> Markdown, sans passer par la table Campagnes.
+
+## Étape 0 — Les images sont-elles possibles ici ?
+
+Juste après l'annonce de la version, avant toute lecture Airtable : `ToolSearch` avec la requête
+`select:mcp__claude-in-chrome__file_upload`.
+
+- **L'outil revient** (onglet Code, session locale) : run normal, rien à dire à la recruteuse.
+- **« No matching deferred tools found »**, et `mcp__claude-in-chrome__file_upload` n'est pas
+  non plus déjà chargé parmi les outils de la session : c'est une session Cowork cloud (ou toute
+  session sans le poste en local). **Aucune image ne pourra être jointe**, quel que soit le
+  dossier connecté. Poser alors **une** question, seule et tout de suite (AskUserQuestion), avant
+  tout travail — « Depuis Cowork, je ne peux pas joindre les images aux brouillons. » —, avec
+  deux options :
+  1. **« Je relance depuis l'onglet Code »** (recommandée) : s'arrêter là, sans rien écrire nulle
+     part, en une ligne : « Dans l'app de bureau, onglet Code, ouvrez une session sur votre
+     dossier Sarecrute (hors Drive) et relancez la même demande : les images seront jointes. »
+  2. **« Continuer en texte seul »** : tout le run sans les étapes d'image — ni script de
+     l'étape 3, ni `find` du champ image, ni appel B —, et pour chaque brouillon le visuel à
+     joindre à la main dans *À faire par vous* (étape 3.4).
+
+  En mode `debug`, une ligne en plus : la requête faite et sa réponse.
+
+Ne jamais compenser l'absence de `file_upload` par un autre moyen : ni `upload_image` (il
+n'envoie qu'une capture d'écran, le visuel en sortirait dégradé), ni JavaScript qui fabrique un
+fichier dans la page à partir d'une image chargée dans un autre onglet, ni pièces jointes du chat.
+L'app de bureau retire `file_upload` des sessions Cowork **volontairement** (« Ask the user to
+choose the file in their browser themselves ») ; un contournement en JavaScript a été essayé le
+01/11/2026 et fonctionne techniquement, mais il refait ce que l'éditeur a retiré, peut être
+bloqué du jour au lendemain par les garde-fous du mode auto, et ne doit pas être livré. Le jour où
+le ticket `anthropics/claude-code#105868` est résolu et que `file_upload` revient en Cowork, cette
+étape le détecte seule et le run redevient complet.
 
 ## Étape 1 — Identifier le recruteur qui lance la compétence
 
@@ -311,22 +348,22 @@ explicitement ; ce n'est jamais le comportement par défaut.
    Si aucune publication ne reste après filtrage, le dire clairement (« rien à publier
    aujourd'hui pour <nom> ») et s'arrêter là — ne pas élargir le périmètre de sa propre
    initiative.
-4. Récupérer le contenu, sur les **seules publications retenues**, en trois appels enchaînés.
+4. Récupérer le contenu, sur les **seules publications retenues**, en deux appels enchaînés.
    Pas de filtre ni de `pageSize` : les `recordIds` suffisent.
 
    1. `list_records_for_table` sur `tblzKMXlCBH21hbJy`, `recordIds` = les IDs retenus au point 3,
       `fieldIds` = Offre d'emploi (`fldhs2J4wBl1n158S`), url image publication
-      (`fldZBl35fPmU2hwlq`), **Campagne (`fld5QZIprrcfxj2Wa`)**.
-      → donne le nom de l'offre, l'URL de l'image, et l'ID de la campagne.
-   2. `list_records_for_table` sur `tblxR2zyXPE1v6AjO` (Campagnes), `recordIds` = les IDs de
-      campagne **dédupliqués**, `fieldIds` = `fld102PkKCm0GDU4q`.
-      → donne l'ID de l'offre d'emploi.
-   3. `list_records_for_table` sur `tblVZva5yHSCnucsK` (Offres d'emploi), `recordIds` = les IDs
+      (`fldZBl35fPmU2hwlq`).
+      → donne l'URL de l'image et, dans la valeur du lookup Offre d'emploi
+      (`valuesByLinkedRecordId[<idCampagne>][0]`), l'**ID et le nom de l'offre**.
+   2. `list_records_for_table` sur `tblVZva5yHSCnucsK` (Offres d'emploi), `recordIds` = les IDs
       d'offre **dédupliqués**, `fieldIds` = `fldideBaQV8ILp2zJ`.
       → donne le **Markdown source**, avec son gras et sa structure.
 
-   Deux appels de plus qu'une lecture par lookup, et c'est le prix du formatage : c'est le seul
-   chemin qui restitue le `**gras**` et l'indentation des sous-puces. La déduplication maintient
+   Jusqu'à la 0.4.0, un appel intermédiaire sur la table Campagnes cherchait l'ID de l'offre :
+   il est inutile, la valeur du lookup le porte déjà (vérifié le 01/11/2026). Un appel de plus
+   qu'une lecture par lookup, et c'est le prix du formatage : c'est le seul chemin qui restitue
+   le `**gras**` et l'indentation des sous-puces. La déduplication maintient
    le coût bas : une douzaine de publications ne fait en général que 7 à 9 offres distinctes,
    parce que le texte est partagé par tous les canaux d'une même offre.
 
@@ -396,18 +433,16 @@ Facebook**. Ce qui passe, mesuré le 01/11/2026 sous Windows (Claude Code 2.1.30
 | `%TEMP%\…`, `mktemp -d`, scratchpad de la session | **refusé** |
 | **dossier de travail de la session** et ses sous-dossiers | **accepté** |
 
-En Cowork, ce sont les **dossiers connectés** à la tâche qui sont lisibles (sous `/mnt/user-data/`),
-et `outputs`/`working` de la sandbox sont refusés depuis la semaine du 05/10/2026 (`uploads`, les
-pièces jointes du chat, est accepté). Le script de l'étape 3.2 s'y adapte seul : un visuel trouvé
-dans un dossier connecté est rendu tel quel ; un visuel décodé (repli 3.3) est écrit dans le
-premier dossier connecté qui n'est pas un Drive — jamais dans le Drive partagé, où la copie serait
-synchronisée chez toutes les recruteuses. Ce relais n'a pas encore été vu passer en run réel :
-s'il est refusé, le repli des pièces jointes du chat prend la suite.
+**En Cowork cloud** (toutes les tâches créées depuis le 06/10/2026), `file_upload` n'existe pas
+(étape 0) : l'étape 3 s'y réduit au 3.4. Les tâches Cowork **locales** d'avant cette date
+(dossiers connectés sous `/mnt/user-data/`, sandbox `outputs`/`working` refusée) restent couvertes
+par le script — visuel trouvé dans un dossier connecté rendu tel quel, visuel décodé écrit dans un
+dossier connecté hors Drive, jamais dans le Drive partagé —, mais ce cas est en voie de
+disparition.
 
-D'où la règle : en Claude Code, **chaque visuel est copié du Drive synchronisé dans
-`<dossier de travail>/.sarecrute-images/`** et c'est cette copie qu'on passe à `file_upload` ; en
-Cowork, on passe le chemin du dossier connecté tel quel. Le script de l'étape 3.2 fait l'un ou
-l'autre selon l'environnement. **Ne jamais demander à la recruteuse d'ajouter un dossier** :
+D'où la règle : **chaque visuel est copié du Drive synchronisé dans
+`<dossier de travail>/.sarecrute-images/`** et c'est cette copie qu'on passe à `file_upload`.
+**Ne jamais demander à la recruteuse d'ajouter un dossier** :
 `/add-dir` n'existe pas dans l'app (« /add-dir isn't available in this environment », constaté le
 05/08/2026), et la copie rend la question inutile.
 
@@ -437,12 +472,12 @@ EOF
 - `<dossier_skill>` est le chemin réel du snapshot téléchargé par le stub (la variable `$DEST` ne
   survit pas d'un appel Bash à l'autre) ; `<dossier de travail de la session>` est le
   « Primary working directory » de Claude Code, écrit tel quel (`C:\Users\…\Sarecrute` convient) ;
-  en Cowork, il est ignoré.
+  en Cowork local, il est ignoré.
 - Une ligne par image **distincte**, champs séparés par une **tabulation**.
 - Le script cherche chaque fichier par son nom dans `…/Drive partagés/Sarecrute/Publications/`
   (ou le nom de ce dossier dans la langue du poste : `Shared drives`, `Unidades compartidas`…)
   sur toutes les racines possibles — lettres de lecteur Windows testées une à
-  une, `~/Library/CloudStorage/GoogleDrive-*` sous macOS, `/mnt/user-data` en Cowork —, en force le
+  une, `~/Library/CloudStorage/GoogleDrive-*` sous macOS, `/mnt/user-data` en Cowork local —, en force le
   téléchargement s'il n'est qu'un espace réservé (Drive en mode flux), vérifie la taille contre
   `fileSize`, puis copie ou non selon l'environnement.
 
@@ -453,7 +488,7 @@ Sortie, une ligne par image : `<ID>	<statut>	<taille>	<chemin>`.
 | `OK` | chemin prêt | le passer **tel quel** à `file_upload` ; retenir la taille pour l'appel B |
 | `ABSENT` | aucun fichier de ce nom sur le poste | repli 3.3 pour cette image |
 | `TAILLE` | fichier incomplet (synchro en cours) | publication en texte seul, nommée dans *Pas fait* |
-| `HORS_SESSION` | aucun dossier où copier que `file_upload` accepte : en Claude Code, le dossier de travail est dans un Drive ; en Cowork, aucun dossier connecté hors Drive | Claude Code : texte seul, *À faire par vous* : lancer Claude depuis un dossier hors du Drive. Cowork : pièces jointes du chat (3.3, point 3) |
+| `HORS_SESSION` | aucun dossier où copier que `file_upload` accepte : en Claude Code, le dossier de travail est dans un Drive ; en Cowork local, aucun dossier connecté hors Drive | texte seul pour ces images (3.4) ; en Claude Code, *À faire par vous* : lancer Claude depuis un dossier hors du Drive |
 
 **Ne pas réécrire cette recherche à la main.** La 0.3.0 la faisait par une boucle
 `for root in /[a-z]/"Drive partagés"` : sous Git Bash, les lecteurs `/c`, `/g`… sont des montages
@@ -487,17 +522,36 @@ Pour les seules images `ABSENT` :
    les horodatages ne sont pas monotones quand 8 téléchargements partent ensemble), décode sans
    python, et répond avec les mêmes statuts.
 3. En Claude Code, la copie décodée est dans le dossier de travail : `file_upload` l'accepte.
-   **En Cowork**, elle est dans le dossier connecté qui sert de relais : essayer `file_upload` sur
-   le premier onglet. **Refusé** (`only files this session is allowed to read`), ou statut
-   `HORS_SESSION` (aucun dossier connecté) : envoyer les images décodées à la recruteuse en
-   fichiers du chat, et lui demander **en une seule fois** de les reglisser dans la conversation —
-   N fichiers, un seul message, avec leurs noms. Les chemins des pièces jointes
-   (`/root/.claude/uploads/<session>/…`, tels que l'outil de lecture les rapporte) sont ceux qu'on
-   passe ensuite à `file_upload`. Si elle ne le fait pas : texte seul pour ces publications,
-   nommées dans *Pas fait*.
+   En Cowork local, elle est dans le dossier connecté qui sert de relais : essayer `file_upload`
+   sur le premier onglet. **Refusé** (`only files this session is allowed to read`) ou statut
+   `HORS_SESSION` : texte seul pour ces publications (3.4). Ne pas demander de glisser les images
+   dans le chat : c'est un geste de plus pour la recruteuse, pour un résultat que le 3.4 obtient
+   aussi bien.
 
 Si une image reste introuvable (URL vide, ID invalide, échec du décodage) : ne pas bloquer, noter
 la publication comme « sans image » et continuer.
+
+### 3.4 — Texte seul : le visuel à joindre à la main
+
+S'applique à toutes les images quand l'étape 0 a conclu à l'absence de `file_upload` (Cowork
+cloud), et aux seules images non préparées sinon (`TAILLE`, `HORS_SESSION`, refus du 3.3). Le but :
+que la recruteuse joigne chaque visuel en deux gestes, dans l'onglet déjà prêt — « Photo/Vidéo »,
+puis coller le chemin dans la fenêtre « Ouvrir » et valider.
+
+- **Le chemin.** En Cowork relié au poste (pont remote-devices), confirmer chaque fichier avec
+  `device_list_dir` sur le dossier `Publications` du poste — sur le poste de Sarah,
+  `G:\Drive partagés\Sarecrute\Publications` (constaté le 01/11/2026 : fichiers présents, tailles
+  justes). Un seul appel par dossier, pour tous les visuels. Ne pas compter sur `device_bash` :
+  sa machine virtuelle ne monte pas toujours le lecteur Drive (« failed to mount »). Sans
+  `device_list_dir`, ou fichier absent de la liste : donner le nom du fichier (`title` de
+  `get_file_metadata`) et son lien Drive (`viewUrl`).
+- **Dans l'étape 4**, en texte seul : l'appel A garde le script de collage (le marquage du champ
+  fichier est sans effet) mais **sans** `find` du champ image ; l'appel B se réduit aux
+  vérifications, avec `img: 0` attendu. Le nombre d'appels baisse d'autant.
+- **Dans le compte rendu** (*À faire par vous*), une ligne par brouillon : « <groupe> — <offre> :
+  joindre `G:\Drive partagés\Sarecrute\Publications\<title>` ». En Cowork, ajouter une fois :
+  « pour que les images soient jointes automatiquement, lancer la compétence depuis l'onglet Code
+  de l'app de bureau ».
 
 ## Étape 4 — Créer les brouillons
 
@@ -529,7 +583,11 @@ Sept faits établis en run réel. Les ignorer coûte 20 à 30 appels par brouill
 
 ### Choix du navigateur
 
-Appeler `list_connected_browsers` **avant** d'ouvrir le premier onglet, puis :
+**En Cowork cloud, sauter ce choix** : l'app de bureau y retire `select_browser` et
+`switch_browser` en même temps que `file_upload` (liste d'outils des sessions distantes, app
+4.4212). Le navigateur est celui du poste relié à la session ; passer directement à la phase 1.
+
+Ailleurs, appeler `list_connected_browsers` **avant** d'ouvrir le premier onglet, puis :
 
 - **Un seul navigateur connecté → le prendre, sans rien demander** : `select_browser` avec son
   `deviceId`, et une ligne de détail technique pour dire lequel a été utilisé.
@@ -805,10 +863,12 @@ Format et règles : `references/compte-rendu.md`. Ce que chaque bloc contient ic
 - **les publications écartées parce que leur canal est un mur de profil** (`/me`,
   `/veto.annonce`), nommées offre × canal, présentées comme « à faire à la main » et non comme
   un échec ;
-- **le Drive synchronisé absent** (toutes les images `ABSENT` à l'étape 3.2), si les images ont
-  dû passer par le repli ou ont manqué : « installer Google Drive pour ordinateur, connecté au
-  compte de l'agence » — en Cowork, dire plutôt « travailler dans le dossier Sarecrute du Drive
-  partagé (le connecter à la tâche) : les images y sont lues sur place, sans téléchargement » ;
+- **les visuels à joindre à la main** (texte seul, étape 3.4) : une ligne par brouillon avec le
+  chemin du visuel, et en Cowork la ligne « pour que les images soient jointes automatiquement,
+  lancer la compétence depuis l'onglet Code de l'app de bureau » ;
+- **le Drive synchronisé absent** (onglet Code, toutes les images `ABSENT` à l'étape 3.2), si les
+  images ont dû passer par le repli ou ont manqué : « installer Google Drive pour ordinateur,
+  connecté au compte de l'agence » ;
 - **les coquilles repérées dans le texte Airtable** — les signaler, ne **jamais** les corriger de
   sa propre initiative : c'est la copie du recruteur, et deviner une correction est une
   modification silencieuse de son annonce ;
@@ -816,14 +876,16 @@ Format et règles : `references/compte-rendu.md`. Ce que chaque bloc contient ic
   (voir les notes).
 
 **Pas fait**
-- **les publications sans image trouvée**, parties en texte seul, nommées ;
+- **les publications sans image trouvée**, parties en texte seul, nommées — sauf en Cowork, où
+  le texte seul est le mode du run et les visuels sont déjà dans *À faire par vous* ;
 - tout brouillon qui n'a pas pu être préparé, nommé offre × canal, avec la raison en quelques
   mots.
 
-**Détail technique** (mode `debug`, ou corps du mail d'incident) : version, identité et son
+**Détail technique** (mode `debug`, ou corps du mail d'incident) : version, résultat de l'étape 0
+(`file_upload` présent ou non, réponse du `ToolSearch`), identité et son
 origine, l'échec d'écriture de `recruteur.json` en session cloud (la table `Recruteurs` fournira
 l'identité au prochain lancement — ce n'est pas un incident), le navigateur retenu, la source de
-chaque image (Drive synchronisé / connecteur Drive / pièce jointe du chat / aucune) avec la
+chaque image (Drive synchronisé / connecteur Drive / à joindre à la main / aucune) avec la
 sortie brute du script de l'étape 3.2 et le chemin passé à `file_upload`, le compte de passages en
 gras par onglet, le résultat des contrôles `dup` / `img` / `champ` / `MAUVAIS_COMPTE`.
 

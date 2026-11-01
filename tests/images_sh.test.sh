@@ -64,7 +64,7 @@ ok "décodé à l'octet près (\\/ du JSON compris)" "$(cmp -s "$T/travail/.sare
 ok "id sans .txt"                           "$(ligne IDZ 2)" "ABSENT"
 
 echo
-echo "Cowork : /mnt/user-data simulé (SARECRUTE_USER_DATA)"
+echo "Cowork local (tâches d'avant le 06/10/2026) : /mnt/user-data simulé (SARECRUTE_USER_DATA)"
 cowork() { local ud="$1"; shift; HOME="$T/home" SARECRUTE_USER_DATA="$ud" bash "$SCRIPT" "$@"; }
 # Sous Git Bash le script rend des chemins Windows (cygpath) ; dans le Linux de Cowork, tels quels.
 chemin() { if command -v cygpath >/dev/null 2>&1; then cygpath -w -l "$1"; else printf '%s\n' "$1"; fi; }

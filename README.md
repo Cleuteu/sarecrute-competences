@@ -44,7 +44,7 @@ claude plugin update sarecrute-recruteur@sarecrute-competences
 |---|---|---|
 | `creer-clinique-offre` | à partir d'une annonce collée dans Claude : crée la clinique et l'offre d'emploi dans Airtable, puis prépare le premier contact (brouillon Gmail, ou message Messenger à copier) | « crée la clinique et l'offre », ou simplement en collant l'annonce |
 | `creer-candidat` | crée un candidat vétérinaire dans Airtable à partir d'un CV, d'une annonce de recherche, du transcript d'un appel ou d'un simple nom, puis enrichit sa fiche | « crée un candidat », « rentre ce CV », « ajoute-le au vivier » |
-| `creer-brouillons-facebook` | prépare un brouillon de publication Facebook par canal pour les publications du jour, texte + image, **sans publier** | « prépare les brouillons Facebook », « les publications du jour » |
+| `creer-brouillons-facebook` | prépare un brouillon de publication Facebook par canal pour les publications du jour, texte + image, **sans publier**. **Images seulement depuis l'onglet Code** de l'app de bureau : en Cowork (cloud depuis le 06/10/2026), l'app retire l'outil d'envoi de fichier, les brouillons partent en texte seul avec le chemin de chaque visuel à joindre | « prépare les brouillons Facebook », « les publications du jour » |
 | `insta-follow-veto` | s'abonne en série aux profils Instagram du vivier partagé sur Drive, en pilotant le Chrome de l'utilisateur, et tient à jour la liste d'abonnements de la recruteuse pour ne jamais réapprocher deux fois la même personne | **invocation manuelle uniquement** : `/insta-follow-veto` |
 
 Les quatre premières n'envoient ni ne publient quoi que ce soit : elles préparent, le recruteur

@@ -28,11 +28,12 @@
 # this session is allowed to read can be uploaded »), le dossier de travail est accepté. On copie
 # donc chaque visuel dans <dossier_de_travail>/.sarecrute-images/, vidé à chaque run.
 #
-# En Cowork (/mnt/user-data présent), ce sont les dossiers connectés à la tâche ; outputs, uploads
-# et working sont la sandbox, refusée depuis octobre 2026. Un visuel trouvé dans un dossier
-# connecté (le Drive partagé) est rendu tel quel, sans copie. Un visuel décodé (--depuis-txt) est
-# écrit dans le premier dossier connecté qui n'est pas un Drive, pour la même raison qu'en Claude
-# Code : c'est un dossier que file_upload accepte.
+# En Cowork local (/mnt/user-data présent : tâches créées avant le 06/10/2026), ce sont les
+# dossiers connectés à la tâche ; outputs, uploads et working sont la sandbox, refusée depuis
+# octobre 2026. Un visuel trouvé dans un dossier connecté (le Drive partagé) est rendu tel quel,
+# sans copie. Un visuel décodé (--depuis-txt) est écrit dans le premier dossier connecté qui n'est
+# pas un Drive, pour la même raison qu'en Claude Code : c'est un dossier que file_upload accepte.
+# En Cowork cloud (les tâches d'aujourd'hui), file_upload n'existe pas : ce script n'y sert pas.
 #
 # Le nom de la copie est l'id Drive (ASCII, unique) et son extension suit le CONTENU, pas le nom :
 # un .jfif est un JPEG, mais file_upload l'annonce application/octet-stream, que Facebook refuse.

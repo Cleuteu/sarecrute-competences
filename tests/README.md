@@ -26,7 +26,8 @@ bash tests/images_sh.test.sh                        # aucune dépendance (Git Ba
 repli sur un `python3` absent) ; `file_upload` refuse tout fichier hors du dossier de travail de la
 session, d'où la copie dans `.sarecrute-images/` ; un `.jfif` part en `application/octet-stream`,
 que Facebook refuse. Le test monte un faux Drive sous un `HOME` temporaire, simule une tâche Cowork
-(`SARECRUTE_USER_DATA` à la place de `/mnt/user-data` : Drive connecté rendu tel quel, visuel décodé
+locale, d'avant le passage au cloud du 06/10/2026 (`SARECRUTE_USER_DATA` à la place de
+`/mnt/user-data` : Drive connecté rendu tel quel, visuel décodé
 écrit dans un dossier connecté hors Drive et jamais dans la sandbox) et vérifie que le script reste
 en LF une fois cloné sous Windows (`.gitattributes`).
 
