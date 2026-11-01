@@ -17,7 +17,18 @@ node tests/liens_markdown.test.mjs                  # aucune dépendance
 python3 tools/manifests.py --check                  # les MANIFEST des compétences distantes sont à jour
 python3 tests/compte_rendu_commun.test.py           # aucune dépendance
 python3 tests/stubs_distants.test.py                # aucune dépendance
+bash tests/images_sh.test.sh                        # aucune dépendance (Git Bash sous Windows)
 ```
+
+**`images_sh.test.sh`** — le script qui prépare les visuels de `creer-brouillons-facebook`
+(0.4.0, 01/11/2026). Trois bugs silencieux à la fois : la 0.3.0 cherchait le Drive par
+`/[a-z]/"Drive partagés"`, motif que Git Bash n'énumère pas (rien trouvé sur aucun poste Windows,
+repli sur un `python3` absent) ; `file_upload` refuse tout fichier hors du dossier de travail de la
+session, d'où la copie dans `.sarecrute-images/` ; un `.jfif` part en `application/octet-stream`,
+que Facebook refuse. Le test monte un faux Drive sous un `HOME` temporaire, simule une tâche Cowork
+(`SARECRUTE_USER_DATA` à la place de `/mnt/user-data` : Drive connecté rendu tel quel, visuel décodé
+écrit dans un dossier connecté hors Drive et jamais dans la sandbox) et vérifie que le script reste
+en LF une fois cloné sous Windows (`.gitattributes`).
 
 **`compte_rendu_commun.test.py`** — la doctrine « compte rendu à deux niveaux + mail d'incident »
 (`references/compte-rendu.md`) est copiée dans les cinq compétences recruteur, faute de dossier

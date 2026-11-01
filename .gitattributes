@@ -1,0 +1,4 @@
+# Les stubs récupèrent les compétences par `git clone` : sous Windows, Git for Windows convertit
+# par défaut les fins de ligne en CRLF (core.autocrlf=true), et bash échoue alors sur chaque ligne
+# d'un script .sh (« $'\r': command not found »). Constaté le 01/11/2026 sur un poste recruteur.
+*.sh text eol=lf

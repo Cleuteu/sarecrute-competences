@@ -1,5 +1,4 @@
-version=0.3.0
+version=0.4.0
 PROMPT.md
 references/compte-rendu.md
-scripts/attach_image.ps1
-scripts/attach_image.sh
+scripts/images.sh
