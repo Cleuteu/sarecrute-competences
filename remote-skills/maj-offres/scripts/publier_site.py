@@ -318,6 +318,12 @@ def recap_candidats(L):
     def qui(ref):
         x = noms.get(ref, {})
         return f"{x.get('_nom') or '(nom inconnu)'} ({ref})" + (f" — {x['titre']}" if x.get("titre") else "")
+    def zones(ref):
+        # candidats.json porte des dicts {label, …}, diff.json des libellés : on accepte les deux
+        z = [v["label"] if isinstance(v, dict) else v for v in noms.get(ref, {}).get("zones") or []]
+        if not z:
+            return "non renseignée"
+        return ", ".join(z[:12]) + (f" et {len(z) - 12} autre(s)" if len(z) > 12 else "")
     publies, retires, attente = app.get("publies_ce_soir", []), app.get("retires", []), app.get("en_attente", [])
     prudence = app.get("retires_par_prudence", [])
     changees = app.get("descriptions_changees", [])
@@ -325,6 +331,7 @@ def recap_candidats(L):
     L += ["", f"Candidats publiés ({len(publies)})" if publies else "Candidats publiés : aucun"]
     for ref in publies:
         L.append(f"  - {qui(ref)}")
+        L.append(f"      Zone de recherche : {zones(ref)}")
         L.append(f"      Description : {etat.get(ref, {}).get('description', '')}")
     motifs = {x["ref"]: x.get("motif", "") for x in diff.get("retraits", [])}
     L += ["", f"Candidats retirés ({len(retires)})" if retires else "Candidats retirés : aucun"]
