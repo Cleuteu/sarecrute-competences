@@ -11,6 +11,7 @@ npm i --no-save jsdom@22 && node tests/attribution_commentaires.test.js
 node tests/expansion_clic.test.js                   # jsdom aussi
 node tests/queue_et_libelles.test.js                # jsdom aussi
 python3 tests/revision_svs.test.py                  # aucune dépendance
+python3 tests/maj_candidats_perimetre.test.py      # aucune dépendance
 python3 tests/temavet_cvtheque.test.py             # aucune dépendance
 node tests/temavet_incremental.test.js             # jsdom aussi
 node tests/liens_markdown.test.mjs                  # aucune dépendance
@@ -80,6 +81,15 @@ navigue, « Voir plus de commentaires » et « Voir plus de réponses » ne le s
 `__tailKnown(3, borne)`, bloqué par un post blacklisté (donc absent de la base) en bas de la queue :
 le test épingle la règle « 3 connus parmi les 4 derniers », et vérifie que les republications du jour
 ne comptent toujours pas.
+
+**`maj_candidats_perimetre.test.py`** — le périmètre des candidats publiés sur le site (maj-candidats
+0.3.0, 20/11/2026). Jusqu'à la 0.2.0, une expression régulière cherchait « a trouvé » autour des dates
+des notes : elle a lu « relance pour savoir si elle a trouvé un poste » comme une réponse et retiré du
+site une candidate qui cherchait toujours, sans que rien ne le signale hors du compte rendu Telegram.
+Règle d'Alex : le texte des notes ne sert qu'à dater le dernier contact (relances sans réponse
+écartées), le champ « Statut Recherche » décide. Le test vérifie sur une base simulée qu'une question,
+une phrase sur une clinique ou même un « j'ai trouvé » écrit par le candidat ne le sortent pas tant
+que son statut reste « En recherche active », et que les relances ne rajeunissent pas le contact.
 
 **`revision_svs.test.py`** — une annonce SVS modifiée au-delà des 80 premiers caractères, à date
 inchangée (5537 Am Sonnenberg, 5521 Herkules le 28/10/2026), était « ignorée (déjà en base) » par

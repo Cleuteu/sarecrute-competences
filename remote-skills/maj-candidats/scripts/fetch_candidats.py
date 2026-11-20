@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
 """Lit l'Airtable de production, choisit les candidats à publier et calcule ce qui change.
 
-Périmètre publié (règle du 28/10/2026) : candidat « En recherche active », pas embauché par
-SaRecrute, n'ayant pas signalé avoir trouvé, avec un signe de vie de moins de 3 mois et au
-moins un compte rendu d'appel (Communications « Transcript text » ou champ Transcripts de la
-fiche). Les dates de modification Airtable sont inutilisables (mises à jour en masse) : le
-« dernier signe de vie » est le plus récent de la création, d'un post « Vétérinaire cherche
-poste », d'une communication, d'une présentation, d'un entretien, d'une réponse à une
-proposition et des entrées datées des notes (relances sans réponse exclues).
+Périmètre publié (règle du 28/10/2026, revue le 20/11/2026) : candidat « En recherche active »,
+pas embauché par SaRecrute, avec un signe de vie de moins de 3 mois et au moins un compte rendu
+d'appel (Communications « Transcript text » ou champ Transcripts de la fiche). Les dates de
+modification Airtable sont inutilisables (mises à jour en masse) : le « dernier signe de vie »
+est le plus récent de la création, d'un post « Vétérinaire cherche poste », d'une communication,
+d'une présentation, d'un entretien, d'une réponse à une proposition et des entrées datées des
+notes (relances sans réponse exclues).
+
+Le texte des notes ne sert qu'à dater le dernier contact, jamais à sortir un candidat. C'est le
+champ « Statut Recherche » qui dit si quelqu'un cherche encore (décision d'Alex du 20/11/2026).
+Jusqu'au 19/11, une expression régulière cherchait « a trouvé » dans les notes : le 20/11, elle a
+lu la note « relance pour savoir si elle a trouvé un poste » comme une réponse et a retiré du
+site une candidate qui cherchait toujours. Quand un candidat a trouvé, la recruteuse passe son
+statut à « Pas en recherche ».
 
 Écrit dans WORK (données personnelles : rien de ce dossier n'est commité) :
   candidats.json   les candidats publiables : champs de carte publics + _nom, _contact (interne)
@@ -78,14 +85,12 @@ REPONSES = {"Refusé par le candidat", "Nurturing", "Refusé par la clinique", "
             "Candidat indécis", "Candidat intéressé", EMBAUCHE, "Candidat postulé", "En process"}
 FENETRE_JOURS = 92   # « moins de 3 mois »
 
-# Entrées datées des notes : une relance sans réponse n'est pas un signe de vie ; « j'ai trouvé »
-# en est un, mais il sort le candidat du périmètre s'il est le plus récent.
+# Entrées datées des notes : une relance sans réponse n'est pas un signe de vie. C'est la seule
+# lecture du texte des notes : elle peut faire vieillir un contact, jamais sortir un candidat.
+# Pas de détection « a trouvé » (retirée le 20/11/2026) : c'est le champ « Statut Recherche » qui
+# décide.
 OUT = (r"relance|pas de r[ée]ponse|ne r[ée]pond|sans r[ée]ponse|propal|propos[ée]|envoy[ée]|r[ée]pondeur|"
        r"message laiss|appel[ée]? (?:pas|sans)|laiss[ée] un|tentative|mis pas en recherche|jamais (?:re-?)?r[ée]pondu")
-FOUND = (r"(?:a|ai|avons) trouv[ée]|j'ai commenc|a commenc[ée]|a sign[ée]|ai sign[ée]|va signer|"
-         r"promesse d.embauche|en poste depuis|plus en recherche|n'est plus en recherche|ne cherche plus|"
-         r"a accept[ée] un poste|j'ai accept|install[ée]e? (?:à|a) son compte|embauch[ée]e? (?:à|a|chez|dans)|"
-         r"pris un poste|retrouv[ée] un poste|ai d[ée]j[àa] trouv")
 DRE = re.compile(r"(?<![\d/])(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?(?![\d/])")
 
 MOIS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."]
@@ -108,18 +113,17 @@ def D(s):
 
 
 def entrees_datees(texte, cree, today):
-    """(date, sorte) des dates jj/mm[/aa] d'un texte de notes. Année absente : la plus ancienne
-    plausible pour un signe de vie (un signe douteux ne doit pas rajeunir un candidat), la plus
-    récente pour un « a trouvé » (un départ douteux doit le sortir, pas le garder en ligne)."""
+    """(date, sorte) des dates jj/mm[/aa] d'un texte de notes, sorte « in » (échange) ou « out »
+    (relance sans réponse). Année absente : la plus ancienne plausible (un signe douteux ne doit
+    pas rajeunir un candidat). Aucune sorte ne sort un candidat du périmètre : « out » ne compte
+    simplement pas comme contact."""
     res = []
     for m in DRE.finditer(texte or ""):
         j, mo, an = int(m.group(1)), int(m.group(2)), m.group(3)
         if not (1 <= j <= 31 and 1 <= mo <= 12):
             continue
         ctx = texte[max(0, m.start() - 25): m.end() + 160].lower()
-        trouve = bool(re.search(FOUND, ctx))
-        annees = ([int(an) + (2000 if len(an) == 2 else 0)] if an
-                  else [today.year, today.year - 1] if trouve else [today.year - 1, today.year])
+        annees = [int(an) + (2000 if len(an) == 2 else 0)] if an else [today.year - 1, today.year]
         x = None
         for a in annees:
             try:
@@ -139,7 +143,7 @@ def entrees_datees(texte, cree, today):
         avant = texte[max(0, m.start() - 30):m.start()].lower()
         if re.search(r"dispo|partir d|jusqu|d[èe]s le|avant le|commence le|fin |d[ée]but|entre le", avant):
             continue   # une date de disponibilité ou de projet n'est pas un échange
-        sorte = "found" if trouve else ("out" if re.search(OUT, ctx) else "in")
+        sorte = "out" if re.search(OUT, ctx) else "in"
         res.append((x, sorte))
     return res
 
@@ -237,7 +241,7 @@ def lire_airtable():
 
 
 def signes_de_vie(t, today):
-    """Par candidat : dernier signe de vie, embauche, « a trouvé », dernier compte rendu d'appel."""
+    """Par candidat : dernier signe de vie, embauche, dernier compte rendu d'appel."""
     F = lambda r, k: r["fields"].get(k)
     cle_vers_cand = collections.defaultdict(list)
     for r in t["cand"]:
@@ -275,7 +279,7 @@ def signes_de_vie(t, today):
         i, f = r["id"], r["fields"]
         cree = D(f.get(C["cree"])) or D(r.get("createdTime"))
         sig = [cree] + posts.get(i, []) + comms.get(i, [])
-        embauche, trouve = None, []
+        embauche = None
         for k in par_cand.get(i, []):
             s, kc = sel(F(k, K["statut"])), D(F(k, K["cree"]))
             if s == EMBAUCHE:
@@ -292,31 +296,27 @@ def signes_de_vie(t, today):
             for x, sorte in entrees_datees(texte, kc or cree, today):
                 if sorte != "out":
                     sig.append(x)
-                if sorte == "found":
-                    trouve.append(x)
         texte = (f.get(C["notes"]) or "") + "\n" + (f.get(C["transcripts"]) or "")[:3000]
         for x, sorte in entrees_datees(texte, cree, today):
             if sorte != "out":
                 sig.append(x)
-            if sorte == "found":
-                trouve.append(x)
         sig = [x for x in sig if x]
         dernier = max(sig) if sig else None
         a_appel = bool(appels.get(i)) or bool((f.get(C["transcripts"]) or "").strip())
-        res[i] = dict(dernier=dernier, embauche=embauche, trouve=max(trouve) if trouve else None,
-                      a_appel=a_appel, dernier_appel=max(appels[i]) if appels.get(i) else None)
+        res[i] = dict(dernier=dernier, embauche=embauche, a_appel=a_appel,
+                      dernier_appel=max(appels[i]) if appels.get(i) else None)
     return res
 
 
 def motif_hors_perimetre(r, s, today):
-    """None si le candidat est publiable, sinon la raison (pour le compte rendu)."""
+    """None si le candidat est publiable, sinon la raison (pour le compte rendu). Uniquement des
+    champs : statut de recherche, candidature au statut « Candidat embauché », date du dernier
+    contact, compte rendu d'appel, zones. Aucun motif ne vient du texte des notes."""
     statut = sel(r["fields"].get(C["statut"]))
     if statut != ACTIF:
         return f"statut « {statut or 'vide'} »"
     if s["embauche"]:
         return "embauché via SaRecrute"
-    if s["trouve"] and s["dernier"] and s["trouve"] >= s["dernier"] - dt.timedelta(days=3):
-        return "a signalé avoir trouvé un poste"
     if not s["dernier"] or (today - s["dernier"]).days >= FENETRE_JOURS:
         return "pas de signe de vie depuis plus de 3 mois"
     if not s["a_appel"]:

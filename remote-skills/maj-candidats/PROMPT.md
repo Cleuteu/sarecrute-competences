@@ -1,4 +1,4 @@
-**maj-candidats — version 0.2.0 (2026-10-31)**
+**maj-candidats — version 0.3.0 (2026-11-20)**
 
 > Corps de la mise à jour des candidats du site SaRecrute. Exécuté chaque nuit par la routine
 > cloud `maj-offres-site` (`routines/maj-offres-site.md`), qui clone ce dépôt sur `main`.
@@ -13,14 +13,19 @@ les cliniques) et le panneau « Candidats » de la section « Nos nouvelles offr
 l'accueil, à partir de l'Airtable **PROD** (`appP0W2ISytaNyAhG`). Lecture seule : on n'écrit rien
 dans Airtable.
 
-**Périmètre publié** (décision d'Alex du 28/10/2026) : candidat « En recherche active », pas
-embauché via SaRecrute, qui n'a pas signalé avoir trouvé, avec un **signe de vie de moins de 3 mois**
+**Périmètre publié** (décision d'Alex du 28/10/2026, revue le 20/11/2026) : candidat « En recherche
+active », pas embauché via SaRecrute, avec un **signe de vie de moins de 3 mois**
 et **au moins un compte rendu d'appel** (Communications « Transcript text », ou champ Transcripts de
 la fiche). Les dates de modification Airtable ne servent à rien (mises à jour en masse) : le signe de
 vie est calculé par `fetch_candidats.py` (création, posts « Vétérinaire cherche poste », communications,
 présentations, entretiens, réponses à une proposition, entrées datées des notes hors relances sans
 réponse). Pas d'accord du candidat à demander : une carte anonyme à l'échelle du département n'est
 pas reconnaissable (arbitrage d'Alex du 28/10/2026).
+
+**Le texte des notes ne sort jamais un candidat** (décision d'Alex du 20/11/2026) : il ne sert qu'à
+dater le dernier contact, en écartant les relances restées sans réponse. C'est le champ « Statut
+Recherche » qui dit si quelqu'un cherche encore. Un candidat qui a trouvé sort du site quand la
+recruteuse passe son statut à « Pas en recherche », pas parce qu'une note le dit.
 
 ## Fichiers
 
@@ -165,6 +170,14 @@ page d'accueil (`node`, cf. PROMPT.md de maj-offres, section 5). Puis
 
 ## Pièges connus
 
+- **Aucune lecture des notes pour sortir un candidat** (0.3.0, 20/11/2026). Jusqu'à la 0.2.0, une
+  expression régulière cherchait « a trouvé », « plus en recherche »… autour des dates des notes, et
+  sortait le candidat si la mention était la plus récente. Elle a pris des questions et des phrases
+  sur une clinique pour des réponses du candidat : « relance pour savoir si elle a trouvé un poste »
+  (une candidate retirée la nuit du 20/11 alors qu'elle cherchait), « relance X et <clinique> : ne
+  sont plus en recherche » (un candidat jamais publié). La fenêtre de lecture (160 caractères après la date) débordait aussi sur
+  la ligne suivante. Ne pas la réintroduire sous une autre forme : le statut décide
+  (`tests/maj_candidats_perimetre.test.py`).
 - **État d'avant le 31/10/2026** (clés hexadécimales de 10 caractères, par exemple restauré depuis
   l'historique git) : `fetch_candidats.py` s'arrête, sinon tous les candidats passeraient pour
   nouveaux. La routine cloud n'y touche pas (elle saute les candidats et prévient Alex). En local :
